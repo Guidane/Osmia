@@ -74,8 +74,9 @@ class PinoutTests(HarnessBase):
         page = self.client.get(reverse('harnesses:harness', args=[self.harness.pk]))
         self.assertContains(page, f'?setup={self.harness.setup_id}&amp;harness={self.harness.pk}">← Harnesses')   # back: the list
         self.assertContains(page, 'Used in setup')
-        for tab in ('pinout', 'wires', 'connectors', 'parts', 'versions', 'built', 'notes'):         # the page in tabs
+        for tab in ('pinout', 'wires', 'connectors', 'items', 'parts', 'versions', 'built'):   # the page as a tree, a panel each
             self.assertContains(page, f'data-panel="{tab}"')
+        self.assertContains(page, 'data-notes')
         p1, p2 = page.context['drawing']['ends']
         self.assertEqual(p1['face']['shape'], 'rect')                                    # nothing known: a row of its pins
         self.assertEqual(([n for n, _ in p1['pins']], [n for n, _ in p2['pins']]), (['6'], ['2']))   # only the pins its wires use

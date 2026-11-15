@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ order.number }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'orders:list' %}">← Orders</a></p>
+<p class="small"><a href="{% url 'orders:list' %}?order={{ order.pk }}">← Orders</a></p>
 <div class="page-head">
   <h1>{{ order.number }}</h1>
   <span class="badge{% if order.status == 'received' %} ok{% elif order.overdue or order.status == 'cancelled' %} failed{% endif %}">{% if order.overdue %}Late{% else %}{{ order.get_status_display }}{% endif %}</span>
@@ -10,28 +11,33 @@
   {% if order.status == 'draft' or order.status == 'ordered' %}<form method="post" action="{% url 'orders:cancel' order.pk %}" data-confirm="Cancel {{ order.number }}?">{% csrf_token %}<button class="btn ghost">Cancel order</button></form>{% endif %}
 </div>
 
-<form method="post" class="form with-notes">{% csrf_token %}
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ order.number }}">
+    <a href="#lines" data-section="lines" class="tree-head"><span>{{ order.number }} · {% if order.status == 'draft' %}what to order{% else %}lines{% endif %}</span><span class="muted small">{{ lines|length }}</span></a>
+    <a href="#details" data-section="details" style="--depth: 1"><span>{% if order.kind == 'request' %}Request details{% else %}Order details{% endif %}</span><span class="muted small"></span></a>
+  </nav>
+
+  <div class="parts-middle">
+  <div data-panel="details" hidden>
+<form method="post" class="form">{% csrf_token %}
   <div class="main">
-    {% if order.kind == 'request' %}<section class="card request">
-      <h3>Asked for{% if order.created_by %} by {{ order.created_by }}{% endif %} <span class="muted small">{{ order.created_at|date:"j M Y H:i" }}</span></h3>
-      <p class="request-text">{{ order.request|linebreaksbr }}</p>
-      <p class="muted small">Asked of {{ order.ask|default:"the administrators" }}</p>
-    </section>{% endif %}
     <div class="card">
       <h3>{% if order.kind == 'request' %}Request details{% else %}Order details{% endif %}</h3>
       <div class="fields">{% include "web/_form_fields.html" %}</div>
+      {% include "web/_notes_field.html" %}
       <div class="actions"><button class="btn">Save</button></div>
     </div>
   </div>
-  <div class="side">{% include "web/_notes_field.html" %}{% side order %}</div>
 </form>
+  </div>
 
+  <div data-panel="lines">
 {% if order.status == 'draft' %}
 <section class="card flush">
   <div class="card-head"><h3>What to order</h3><button type="button" class="btn small primary" data-find>＋ Add item</button></div>
   <table class="list">
     <tr><th>Part</th><th colspan="3">Quantity · price each</th></tr>
-    {% for line, where in lines %}<tr>
+    {% for line, where in lines %}<tr data-brief-url="{{ line.item|brief_url }}">
       <td>{% if line.asset %}🔧 {% endif %}<a href="{{ line.item.get_absolute_url }}">{{ line.item.number }}</a> <span class="muted small">{{ line.text }}{% if line.vendor_number %} · {{ line.vendor_number }}{% endif %}</span></td>
       <td colspan="3"><form method="post" action="{% url 'orders:line_change' order.pk line.pk %}" class="line-form">{% csrf_token %}
         <input type="text" name="quantity" value="{{ line.quantity|qty }}" inputmode="decimal" aria-label="Quantity of {{ line.item.number }}"{% if line.asset %} readonly{% endif %}>
@@ -73,7 +79,7 @@
   <form method="post" action="{% url 'orders:receive' order.pk %}">{% csrf_token %}
   <table class="list">
     <tr><th>Part</th><th class="num">Ordered</th><th class="num">Received</th>{% if order.status == 'ordered' or order.status == 'partly' %}<th>Arrived now</th><th>Into</th>{% endif %}</tr>
-    {% for line, where in lines %}<tr>
+    {% for line, where in lines %}<tr data-brief-url="{{ line.item|brief_url }}">
       <td>{% if line.asset %}🔧 {% endif %}<a href="{{ line.item.get_absolute_url }}">{{ line.item.number }}</a> <span class="muted small">{{ line.text }}</span></td>
       <td class="num">{{ line.quantity|qty }}</td>
       <td class="num">{{ line.received|qty }}{% if line.outstanding == 0 %} ✓{% endif %}</td>
@@ -89,7 +95,30 @@
   </form>
 </section>
 {% endif %}
+  </div>
+  </div>
 
+  <aside class="card parts-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ order.number }}</h3><span class="badge{% if order.status == 'received' %} ok{% elif order.overdue or order.status == 'cancelled' %} failed{% endif %}">{% if order.overdue %}Late{% else %}{{ order.get_status_display }}{% endif %}</span></div>
+      <dl class="details">
+        <dt>Vendor</dt><dd>{% if order.vendor %}<a href="{{ order.vendor.get_absolute_url }}">{{ order.vendor }}</a>{% else %}—{% endif %}</dd>
+        {% if order.budget %}<dt>Budget</dt><dd><a href="{{ order.budget.get_absolute_url }}">{{ order.budget }}</a></dd>{% endif %}
+        {% if order.in_project %}<dt>Project</dt><dd><a href="{{ order.in_project.get_absolute_url }}">{{ order.in_project }}</a></dd>{% endif %}
+        {% if order.ordered_on %}<dt>Ordered</dt><dd>{{ order.ordered_on }}</dd>{% endif %}
+        {% if order.expected_on and order.status != 'received' %}<dt>Expected</dt><dd>{{ order.expected_on }}</dd>{% endif %}
+        {% if order.received_on %}<dt>Received</dt><dd>{{ order.received_on }}</dd>{% endif %}
+        {% if order.notes %}<dt>Notes</dt><dd>{{ order.notes|linebreaksbr }}</dd>{% endif %}
+      </dl>
+    </div>
+    {% if order.kind == 'request' %}<section class="card request">
+      <h3>Asked for{% if order.created_by %} by {{ order.created_by }}{% endif %} <span class="muted small">{{ order.created_at|date:"j M Y H:i" }}</span></h3>
+      <p class="request-text">{{ order.request|linebreaksbr }}</p>
+      <p class="muted small">Asked of {{ order.ask|default:"the administrators" }}</p>
+    </section>{% endif %}
+    {% side order %}
+  </aside>
+</div>
 {% endblock %}
 {% block scripts %}<script>
   document.querySelectorAll('[data-all]').forEach(function (b) {
@@ -154,4 +183,4 @@
     });
     if (location.hash === '#add') open();
   }
-</script>{% endblock %}
+</script><script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

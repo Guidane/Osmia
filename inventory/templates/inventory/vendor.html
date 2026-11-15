@@ -1,13 +1,38 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ vendor.name }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'inventory:vendors' %}">← Vendors</a></p>
+<p class="small"><a href="{% url 'inventory:vendors' %}?vendor={{ vendor.pk }}">← Vendors</a></p>
 <div class="page-head"><h1>{{ vendor.name }}</h1>{% if not vendor.active %}<span class="badge">Inactive</span>{% endif %}<span class="spacer"></span>
   <a class="btn" href="{% url 'orders:new' %}?vendor={{ vendor.pk }}">＋ New order</a>
   <a class="btn" href="{% url 'inventory:vendor_edit' vendor.pk %}">Change</a></div>
-<div class="with-notes">
-<div class="columns">
-  <section class="card">
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ vendor.name }}">
+    <a href="#orders" data-section="orders" class="tree-head"><span>{{ vendor.name }} · orders</span><span class="muted small">{{ orders|length }}</span></a>
+    <a href="#parts" data-section="parts" style="--depth: 1"><span>Parts ordered from it</span><span class="muted small">{{ parts|length }}</span></a>
+  </nav>
+
+  <div class="parts-middle">
+    <div data-panel="orders">
+  <section class="card flush">
+    <div class="card-head"><h3>Orders</h3></div>
+    <table class="list">{% for o in orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a></td><td class="small nowrap">{{ o.ordered_on|default:"" }}</td>
+      <td><span class="badge{% if o.status == 'received' %} ok{% elif o.overdue %} failed{% endif %}">{% if o.overdue %}Late{% else %}{{ o.get_status_display }}{% endif %}</span></td></tr>
+      {% empty %}<tr><td class="empty small">No orders yet.</td></tr>{% endfor %}</table>
+  </section>
+    </div>
+    <div data-panel="parts" hidden>
+<section class="card flush">
+  <div class="card-head"><h3>Parts ordered from it</h3></div>
+  <table class="list">{% for p in parts %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a></td><td>{{ p.description }}</td><td class="small">{{ p.vendor_number }}</td></tr>
+    {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table>
+</section>
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ vendor.name }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'inventory:vendor_edit' vendor.pk %}">Change</a></div>
     <dl class="details">
       {% if vendor.code %}<dt>Code</dt><dd>{{ vendor.code }}</dd>{% endif %}
       <dt>Website</dt><dd>{% if vendor.website %}<a href="{{ vendor.website }}" target="_blank" rel="noopener noreferrer">{{ vendor.website }}</a>{% else %}—{% endif %}</dd>
@@ -16,19 +41,9 @@
       <dt>Address</dt><dd>{{ vendor.address|linebreaksbr|default:"—" }}</dd>
       <dt>Our account</dt><dd>{{ vendor.account_number|default:"—" }}</dd>
     </dl>
-  </section>
-  <section class="card flush">
-    <div class="card-head"><h3>Orders</h3></div>
-    <table class="list">{% for o in orders %}<tr><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a></td><td class="small nowrap">{{ o.ordered_on|default:"" }}</td>
-      <td><span class="badge{% if o.status == 'received' %} ok{% elif o.overdue %} failed{% endif %}">{% if o.overdue %}Late{% else %}{{ o.get_status_display }}{% endif %}</span></td></tr>
-      {% empty %}<tr><td class="empty small">No orders yet.</td></tr>{% endfor %}</table>
-  </section>
+    </div>
+    {% include "web/_notes.html" with notes=vendor.notes owner=vendor %}{% side vendor %}
+  </aside>
 </div>
-<div class="side">{% include "web/_notes.html" with notes=vendor.notes owner=vendor %}{% side vendor %}</div>
-</div>
-<section class="card flush">
-  <div class="card-head"><h3>Parts ordered from it</h3></div>
-  <table class="list">{% for p in parts %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a></td><td>{{ p.description }}</td><td class="small">{{ p.vendor_number }}</td></tr>
-    {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table>
-</section>
 {% endblock %}
+{% block scripts %}<script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

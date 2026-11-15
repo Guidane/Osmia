@@ -1,25 +1,34 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ family.name }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'inventory:families' %}">← Connector families</a></p>
+<p class="small"><a href="{% url 'inventory:families' %}?family={{ family.pk }}">← Connector families</a></p>
 <div class="page-head"><h1>{{ family.name }}</h1><span class="spacer"></span><a class="btn" href="{% url 'inventory:families' %}?edit={{ family.pk }}">Change</a></div>
-<div class="tiles">
-  <div class="tile"><b>{{ family.on_hand|qty }}</b> {{ family.unit }} on hand, together</div>
-  <div class="tile"><b>{{ parts|length }}</b> part{{ parts|length|pluralize }}</div>
-</div>
-<section class="card flush family-connector">
-  <div class="card-head"><h3>Connector</h3><a class="btn small" href="{% url 'inventory:connector' family.pk %}">{% if faces %}Edit connector{% else %}＋ Connector{% endif %}</a></div>
-  {% if faces %}<div class="family-faces">
-    <figure><svg class="pinout-drawing" data-face="pin"></svg><figcaption>Pin side</figcaption></figure>
-    <figure><svg class="pinout-drawing" data-face="socket"></svg><figcaption>Socket side</figcaption></figure>
-  </div>{{ faces|json_script:"family-faces" }}{% endif %}
-</section>
-<div class="columns">
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ family.name }}">
+    <a href="#parts" data-section="parts" class="tree-head"><span>{{ family.name }} · parts</span><span class="muted small">{{ parts|length }}</span></a>
+    <a href="#genders" data-section="genders" style="--depth: 1"><span>Genders</span><span class="muted small">{{ branches|length }}</span></a>
+  </nav>
+
+  <div class="parts-middle">
+    <div data-panel="parts">
+  <section class="card flush">
+    <div class="card-head"><h3>Parts</h3></div>
+    <table class="list">
+      <tr><th>Part</th><th>Gender</th><th>Vendor</th><th class="num">On hand</th><th></th></tr>
+      {% for p in parts %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.manufacturer }}</span></td>
+        <td class="small">{{ p.branch.name|default:"" }}</td><td class="small">{{ p.vendor|default:"" }}</td>
+        <td class="num">{{ p.have|default:0|qty }} {{ p.unit }}</td><td>{% if p == family.chosen %}<span class="badge ok">ordered</span>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="empty small">No parts in it yet.</td></tr>{% endfor %}
+    </table>
+  </section>
+    </div>
+    <div data-panel="genders"{% if not branch %} hidden{% endif %}>
   <section class="card flush">
     <div class="card-head"><h3>Genders</h3></div>
     <table class="list">
       {% for b in branches %}<tr><td>{{ b.name }}{% if b.contacts and b.name|lower != b.contacts %} <span class="badge">{% if b.contacts == "socket" %}socket side{% else %}pin side{% endif %}</span>{% endif %}</td><td class="num">{{ b.n }} part{{ b.n|pluralize }}</td><td class="num">{{ b.on_hand|qty }} {{ b.unit }}</td>
-        <td class="small"><a href="?branch={{ b.pk }}">Change</a></td></tr>
+        <td class="small"><a href="?branch={{ b.pk }}#genders">Change</a></td></tr>
       {% empty %}<tr><td class="empty small">No genders.</td></tr>{% endfor %}
     </table>
     <form method="post" class="form pad">{% csrf_token %}
@@ -27,22 +36,31 @@
       <div class="actions"><button class="btn primary">{% if branch %}Save{% else %}＋ Add gender{% endif %}</button>{% if branch %} <a href="{{ family.get_absolute_url }}">Cancel</a>{% endif %}</div>
     </form>
   </section>
-  <section class="card flush">
-    <div class="card-head"><h3>Parts</h3></div>
-    <table class="list">
-      <tr><th>Part</th><th>Gender</th><th>Vendor</th><th class="num">On hand</th><th></th></tr>
-      {% for p in parts %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.manufacturer }}</span></td>
-        <td class="small">{{ p.branch.name|default:"" }}</td><td class="small">{{ p.vendor|default:"" }}</td>
-        <td class="num">{{ p.have|default:0|qty }} {{ p.unit }}</td><td>{% if p == family.chosen %}<span class="badge ok">ordered</span>{% endif %}</td></tr>
-      {% empty %}<tr><td colspan="5" class="empty small">No parts in it yet.</td></tr>{% endfor %}
-    </table>
-  </section>
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ family.name }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'inventory:families' %}?edit={{ family.pk }}">Change</a></div>
+      <div class="tiles brief-tiles">
+  <div class="tile"><b>{{ family.on_hand|qty }}</b> {{ family.unit }} on hand, together</div>
+  <div class="tile"><b>{{ parts|length }}</b> part{{ parts|length|pluralize }}</div>
 </div>
-<div class="columns side-row">{% side family %}</div>
+    </div>
+<section class="card flush family-connector">
+  <div class="card-head"><h3>Connector</h3><a class="btn small" href="{% url 'inventory:connector' family.pk %}">{% if faces %}Edit connector{% else %}＋ Connector{% endif %}</a></div>
+  {% if faces %}<div class="family-faces">
+    <figure><svg class="pinout-drawing" data-face="pin"></svg><figcaption>Pin side</figcaption></figure>
+    <figure><svg class="pinout-drawing" data-face="socket"></svg><figcaption>Socket side</figcaption></figure>
+  </div>{{ faces|json_script:"family-faces" }}{% endif %}
+</section>
+    {% side family %}
+  </aside>
+</div>
 {% endblock %}
 {% block scripts %}{% if faces %}<script src="{% fresh 'harnesses/pinout.js' %}"></script><script>
 (function () {
   var faces = JSON.parse(document.getElementById('family-faces').textContent);
   document.querySelectorAll('svg[data-face]').forEach(function (svg) { Pinout.face(svg, faces[svg.dataset.face]); });
 })();
-</script>{% endif %}{% endblock %}
+</script>{% endif %}<script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

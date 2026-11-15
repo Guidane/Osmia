@@ -1,22 +1,37 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ location.name }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
 <p class="small"><a href="{% url 'inventory:locations' %}?location={{ location.pk }}">← Locations</a></p>
 <div class="page-head"><h1>{{ location.path }}</h1><span class="muted">{{ location.description }}</span><span class="spacer"></span>
   <a class="btn" href="?export=1">⬇ Excel</a>
   <a class="btn" href="{% url 'inventory:location_new' %}?parent={{ location.pk }}">＋ Inside it</a>
   <a class="btn" href="{% url 'inventory:location_edit' location.pk %}">Change</a></div>
-{% preview location %}
-{% if children %}<p class="small inside-row">Inside: {% for c in children %}<a class="with-thumb" href="{{ c.get_absolute_url }}">{% thumb c %}{{ c.name }}</a>{% endfor %}</p>{% endif %}
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ location.name }}">
+    {% for l in location.chain %}{% if l != location %}<a href="{{ l.get_absolute_url }}" style="--depth: {{ forloop.counter0 }}"><span>{% thumb l %}{{ l.name }}</span><span class="muted small"></span></a>{% endif %}{% endfor %}
+    <a href="#stock" data-section="stock" class="tree-head" style="--depth: {{ location.chain|length|add:-1 }}"><span>{% thumb location %}{{ location.name }} · what is here</span><span class="muted small">{{ stock|length }}</span></a>
+    {% for c in children %}<a href="{{ c.get_absolute_url }}" style="--depth: {{ location.chain|length }}"><span>{% thumb c %}{{ c.name }}</span><span class="muted small"></span></a>{% endfor %}
+  </nav>
+
+  <div class="parts-middle">
+    <div data-panel="stock">
 <div class="card flush">
   <table class="list">
     <tr><th>Part</th><th>Description</th>{% if children %}<th>Where</th>{% endif %}<th class="num">Quantity</th></tr>
-    {% for s in stock %}<tr>
+    {% for s in stock %}<tr data-brief-url="{{ s.part|brief_url }}">
       <td><a href="{{ s.part.get_absolute_url }}">{{ s.part.number }}</a></td><td>{{ s.part.description }}</td>
       {% if children %}<td class="small">{% if s.location != location %}<a href="{{ s.location.get_absolute_url }}">{{ s.location.name }}</a>{% endif %}</td>{% endif %}
       <td class="num">{{ s.quantity|qty }} <span class="muted small">{{ s.part.unit }}</span></td>
     </tr>{% empty %}<tr><td colspan="4" class="empty small">Nothing here.</td></tr>{% endfor %}
   </table>
 </div>
-<div class="columns side-row">{% side location %}</div>
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    {% include "web/_brief.html" %}{% side location %}
+  </aside>
+</div>
 {% endblock %}
+{% block scripts %}<script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

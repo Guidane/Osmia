@@ -79,9 +79,18 @@ def user_form(request, pk=None):
 
 @login_required
 def departments(request):
+    """The departments as a tree on the left (?department= the one picked); in the middle the departments, or the
+    people of the one picked (and of those under it); on the right its details, or the row picked."""
+    from web import briefs, browse
     members = dict(User.objects.filter(is_active=True).values('department').annotate(n=Count('pk')).values_list('department', 'n'))
+    tree = Department.ordered()
+    picked = Department.objects.filter(pk=request.GET.get('department') or 0).first()
+    nodes = [browse.node('All departments', '?', User.objects.filter(is_active=True).exclude(department=None).count(), picked is None)]
+    nodes += browse.nodes(tree, members, picked, lambda d: f'?department={d.pk}', label=lambda d: d.name)
     return render(request, 'accounts/departments.html', {
-        'departments': [(d, depth, members.get(d.pk, 0)) for d, depth in Department.ordered()],
+        'departments': [(d, depth, members.get(d.pk, 0)) for d, depth in tree], 'nodes': nodes, 'picked': picked,
+        'people': User.objects.filter(is_active=True, department_id__in=picked.below()).select_related('department') if picked else None,
+        'brief': briefs.of('department', picked) if picked else None,
         'without': User.objects.filter(is_active=True, department=None).count()})
 
 

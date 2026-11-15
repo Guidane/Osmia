@@ -111,7 +111,39 @@ def location(l):
             'tables': [_table('Inside it', [((c.name, f'{here}?location={c.pk}'), c.description[:50]) for c in l.children.all()])]}
 
 
-BRIEFS = {'location': location, 'device': device, 'order': order, 'setup': setup, 'project': project, 'vendor': vendor, 'budget': budget, 'user': user}
+def category(c):
+    from assets.models import Asset
+    from inventory.models import Part
+    below = c.below()
+    many = Asset.objects.filter(category_id__in=below).exclude(status='retired') if c.kind == 'assets' else Part.objects.filter(category_id__in=below, active=True)
+    listed = reverse('assets:list' if c.kind == 'assets' else 'inventory:parts')
+    return {'title': c.name, 'what': c.path, 'edit_url': f"{reverse('inventory:categories')}?edit={c.pk}",
+            'details': [('Of', 'assets' if c.kind == 'assets' else 'parts', ''),
+                        ('Assets' if c.kind == 'assets' else 'Parts', many.count(), f'{listed}?category={c.pk}')],
+            'tables': [_table('Attributes', [(a.name, a.get_kind_display(), '' if a.category_id == c.pk else f'from {a.category.name}')
+                                             for a in c.all_attributes()]),
+                       _table('Under it', [((k.name, k.get_absolute_url()),) for k in c.children.all()])]}
+
+
+def department(d):
+    from django.contrib.auth import get_user_model
+    people = get_user_model().objects.filter(department=d, is_active=True)
+    return {'title': d.name, 'what': d.description, 'edit_url': reverse('accounts:department_edit', args=[d.pk]),
+            'details': [('Path', d.path, ''), ('Manager', str(d.manager or ''), '')],
+            'tables': [_table('People', [(str(u), u.job_title) for u in people]),
+                       _table('Under it', [((k.name, k.get_absolute_url()),) for k in d.children.all()])]}
+
+
+def page(p):
+    from django.utils.html import strip_tags
+    text = ' '.join(strip_tags(p.body).split())
+    return {'title': p.title, 'what': text[:600] + ('…' if len(text) > 600 else ''), 'edit_url': reverse('web:page_edit', args=[p.pk]),
+            'details': [('Of', str(p.owner or 'General'), p.owner.get_absolute_url() if p.owner is not None and hasattr(p.owner, 'get_absolute_url') else ''),
+                        ('Changed', f"{p.updated_by or ''} {_date(p.updated_at)}".strip(), '')],
+            'tables': [_table('Pages under it', [((k.title, k.get_absolute_url()),) for k in p.children.all()])]}
+
+
+BRIEFS = {'category': category, 'department': department, 'page': page, 'location': location, 'device': device, 'order': order, 'setup': setup, 'project': project, 'vendor': vendor, 'budget': budget, 'user': user}
 
 
 def of(kind, obj):
@@ -130,5 +162,8 @@ def find(kind, pk):
     if kind == 'user':
         from django.contrib.auth import get_user_model
         return get_object_or_404(get_user_model(), pk=pk)
+    if kind in ('category', 'department'):
+        from django.apps import apps
+        return get_object_or_404(apps.get_model('inventory.Category' if kind == 'category' else 'accounts.Department'), pk=pk)
     from .things import thing
     return thing(kind, pk)

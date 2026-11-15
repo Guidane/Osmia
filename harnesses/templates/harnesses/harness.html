@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% load osmia static %}
 {% block title %}{{ harness.number }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
 <p class="small"><a href="{% url 'harnesses:list' %}?setup={{ harness.setup_id }}&amp;harness={{ harness.pk }}">← Harnesses</a></p>
 <div class="page-head">
@@ -14,100 +15,117 @@
 
 {% if problems %}<div class="flash warning"><b>To look at:</b><ul class="tight">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
 
-<nav class="tabs page-tabs" data-tabs aria-label="Harness">
-  <a href="#pinout" data-tab="pinout">Pinout <span class="muted small">{{ wire_count }}</span></a>
-  <a href="#wires" data-tab="wires">Wire list</a>
-  <a href="#connectors" data-tab="connectors">Connectors <span class="muted small">{{ ends|length }}</span></a>
-  <a href="#parts" data-tab="parts">Parts</a>
-  <a href="#versions" data-tab="versions">Versions <span class="muted small">{{ versions|length }}</span></a>
-  <a href="#built" data-tab="built">Built <span class="muted small">{{ units|length }}</span></a>
-  <a href="#notes" data-tab="notes">Notes and files</a>
-</nav>
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ harness.number }}">
+    <a href="#pinout" data-section="pinout" class="tree-head"><span>{{ harness.number }} · pinout</span><span class="muted small">{{ wire_count }}</span></a>
+    <a href="#wires" data-section="wires" style="--depth: 1"><span>Wire list</span><span class="muted small">{{ wire_count }}</span></a>
+    <a href="#connectors" data-section="connectors" style="--depth: 1"><span>Connectors</span><span class="muted small">{{ ends|length }}</span></a>
+    <a href="#items" data-section="items" style="--depth: 1"><span>Other items</span><span class="muted small">{{ items|length }}</span></a>
+    <a href="#parts" data-section="parts" style="--depth: 1"><span>Parts list</span><span class="muted small">{{ parts|length }}</span></a>
+    <a href="#versions" data-section="versions" style="--depth: 1"><span>Versions</span><span class="muted small">{{ versions|length }}</span></a>
+    <a href="#built" data-section="built" style="--depth: 1"><span>Built</span><span class="muted small">{{ units|length }}</span></a>
+  </nav>
 
-<div class="tab-panel" data-panel="pinout">
-<section class="card flush">
-  <div class="pinout-draw" id="pinout-draw" data-url="{% url 'harnesses:pinout_draw' harness.pk %}" data-csrf="{{ csrf_token }}"><div class="set-chips" id="set-chips"></div><svg id="pinout-drawing" class="pinout-drawing" role="img" aria-label="The pinout drawn"></svg></div>
-  {{ drawing|json_script:"pinout-data" }}{{ family_picker }}
-</section>
-</div>
+  <div class="parts-middle">
+    <div data-panel="pinout" data-wide>
+      <section class="card flush">
+        <div class="pinout-draw" id="pinout-draw" data-url="{% url 'harnesses:pinout_draw' harness.pk %}" data-csrf="{{ csrf_token }}"><div class="set-chips" id="set-chips"></div><svg id="pinout-drawing" class="pinout-drawing" role="img" aria-label="The pinout drawn"></svg></div>
+        {{ drawing|json_script:"pinout-data" }}{{ family_picker }}
+      </section>
+    </div>
 
-<div class="tab-panel" data-panel="wires" hidden>
-<section class="card flush">
-  <div class="card-head"><h3>Wire list <span class="muted small">{{ wire_count }}</span></h3><a class="btn small" href="{% url 'harnesses:pinout' harness.pk %}">Change</a></div>
-  <div style="overflow-x:auto"><table class="list">
-    <tr><th>From</th><th>Pin</th><th>To</th><th>Pin</th><th>Signal</th><th>Set</th><th>Set type</th><th>Colour</th><th>Gauge</th><th class="num">Length</th><th>Wire</th></tr>
-    {% for between, wires in groups %}<tr class="group-row"><th colspan="11">{{ between }}</th></tr>
-      {% for w in wires %}<tr{% if w.pk in bad_wires %} class="bad"{% endif %}>
-        <td>{{ w.from_end }}</td><td>{{ w.from_pin }}</td><td>{{ w.to_end }}</td><td>{{ w.to_pin }}</td><td>{{ w.signal }}</td>
-        <td>{{ w.wire_set }}</td><td class="small">{{ w.set_type }}</td><td>{% if w.colour %}<span class="wire-colour" data-colour="{{ w.colour }}"></span>{{ w.colour }}{% endif %}</td>
-        <td class="small">{{ w.gauge }}</td><td class="num">{{ w.length|qty }}</td><td class="small">{{ w.used|default:"" }}</td></tr>{% endfor %}
-    {% empty %}<tr><td colspan="11" class="empty small">No wires yet.</td></tr>{% endfor %}
-  </table></div>
-</section>
-</div>
+    <div data-panel="wires" hidden>
+      <section class="card flush">
+        <div class="card-head"><h3>Wire list <span class="muted small">{{ wire_count }}</span></h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:pinout' harness.pk %}">Change</a></div>
+        <div style="overflow-x:auto"><table class="list">
+          <tr><th>From</th><th>Pin</th><th>To</th><th>Pin</th><th>Signal</th><th>Set</th><th>Set type</th><th>Colour</th><th>Gauge</th><th class="num">Length</th><th>Wire</th></tr>
+          {% for between, wires in groups %}<tr class="group-row"><th colspan="11">{{ between }}</th></tr>
+            {% for w in wires %}<tr{% if w.pk in bad_wires %} class="bad"{% endif %}{% if w.used %} data-brief-url="{{ w.used|brief_url }}"{% endif %}>
+              <td>{{ w.from_end }}</td><td>{{ w.from_pin }}</td><td>{{ w.to_end }}</td><td>{{ w.to_pin }}</td><td>{{ w.signal }}</td>
+              <td>{{ w.wire_set }}</td><td class="small">{{ w.set_type }}</td><td>{% if w.colour %}<span class="wire-colour" data-colour="{{ w.colour }}"></span>{{ w.colour }}{% endif %}</td>
+              <td class="small">{{ w.gauge }}</td><td class="num">{{ w.length|qty }}</td><td class="small">{{ w.used|default:"" }}</td></tr>{% endfor %}
+          {% empty %}<tr><td colspan="11" class="empty small">No wires yet.</td></tr>{% endfor %}
+        </table></div>
+      </section>
+    </div>
 
-<div class="tab-panel" data-panel="connectors" hidden>
-<section class="card flush">
-    <div class="card-head"><h3>Connectors</h3><a class="btn small" href="{% url 'harnesses:ends' harness.pk %}">Change</a></div>
-    <table class="list">
-      <tr><th>Connector</th><th>Part or family</th></tr>
-      {% for e in ends %}<tr><td><b>{{ e.designator }}</b></td><td class="small">{% if e.used %}<a href="{{ e.used.get_absolute_url }}">{{ e.used }}</a>{% endif %}</td>
-</tr>
-      {% empty %}<tr><td colspan="2" class="empty small">No connectors yet.</td></tr>{% endfor %}
-    </table>
-  </section>
-</div>
+    <div data-panel="connectors" hidden>
+      <section class="card flush">
+        <div class="card-head"><h3>Connectors</h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:ends' harness.pk %}">Change</a></div>
+        <table class="list">
+          <tr><th>Connector</th><th>Part or family</th></tr>
+          {% for e in ends %}<tr{% if e.used %} data-brief-url="{{ e.used|brief_url }}"{% endif %}><td><b>{{ e.designator }}</b></td><td class="small">{% if e.used %}<a href="{{ e.used.get_absolute_url }}">{{ e.used }}</a>{% endif %}</td></tr>
+          {% empty %}<tr><td colspan="2" class="empty small">No connectors yet.</td></tr>{% endfor %}
+        </table>
+      </section>
+    </div>
 
-<div class="tab-panel" data-panel="parts" hidden>
-<div class="columns">
-  <section class="card flush">
-    <div class="card-head"><h3>Other items</h3><a class="btn small" href="{% url 'harnesses:items' harness.pk %}">Change</a></div>
-    <table class="list">{% for i in items %}<tr><td><a href="{{ i.used.get_absolute_url }}">{{ i.used }}</a> <span class="muted small">{{ i.note }}</span></td><td class="num">{{ i.quantity|qty }} {{ i.used.unit }}</td></tr>
-      {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table>
-  </section>
-  <section class="card flush">
-    <div class="card-head"><h3>Parts list</h3><span class="muted small">for one</span></div>
-    <table class="list"><tr><th>Part</th><th class="num">Needed</th><th class="num">On hand</th></tr>
-      {% for p, q in parts %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.description }}</span></td>
-        <td class="num">{{ q|qty }} {{ p.unit }}</td><td class="num{% if p.on_hand < q %} low{% endif %}">{{ p.on_hand|qty }}</td></tr>
-      {% empty %}<tr><td colspan="3" class="empty small">Give the connectors, wires and items their parts to see what it takes.</td></tr>{% endfor %}</table>
-  </section>
-</div>
-</div>
+    <div data-panel="items" hidden>
+      <section class="card flush">
+        <div class="card-head"><h3>Other items</h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:items' harness.pk %}">Change</a></div>
+        <table class="list">{% for i in items %}<tr data-brief-url="{{ i.used|brief_url }}"><td><a href="{{ i.used.get_absolute_url }}">{{ i.used }}</a> <span class="muted small">{{ i.note }}</span></td><td class="num">{{ i.quantity|qty }} {{ i.used.unit }}</td></tr>
+          {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table>
+      </section>
+    </div>
 
-<div class="tab-panel" data-panel="versions" hidden>
-  <section class="card">
-    <h3>Versions</h3>
-    <p class="small muted">{% if not versions %}Not saved as a version yet.{% elif changed %}Changed since v{{ harness.version }}.{% else %}As saved in v{{ harness.version }}.{% endif %}</p>
-    {% if changed %}<form method="post" action="{% url 'harnesses:save_version' harness.pk %}" class="inline-form">{% csrf_token %}
-      <input type="text" name="note" placeholder="What changed (optional)" maxlength="300" aria-label="What changed">
-      <button class="btn small primary">Save as v{{ harness.version|add:1 }}</button></form>{% endif %}
-    <table class="list compact">{% for v in versions %}<tr><td><a href="{% url 'harnesses:version' harness.pk v.number %}">v{{ v.number }}</a></td>
-      <td class="small">{{ v.note }}</td><td class="small muted nowrap">{{ v.created_by|default:"" }}, {{ v.created_at|date:"j M Y" }}</td></tr>{% endfor %}</table>
-  </section>
-</div>
+    <div data-panel="parts" hidden>
+      <section class="card flush">
+        <div class="card-head"><h3>Parts list</h3><span class="muted small">for one</span></div>
+        <table class="list"><tr><th>Part</th><th class="num">Needed</th><th class="num">On hand</th></tr>
+          {% for p, q in parts %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.description }}</span></td>
+            <td class="num">{{ q|qty }} {{ p.unit }}</td><td class="num{% if p.on_hand < q %} low{% endif %}">{{ p.on_hand|qty }}</td></tr>
+          {% empty %}<tr><td colspan="3" class="empty small">Give the connectors, wires and items their parts to see what it takes.</td></tr>{% endfor %}</table>
+      </section>
+    </div>
 
-<div class="tab-panel" data-panel="built" hidden>
-<section class="card flush">
-  <div class="card-head"><h3>Built</h3></div>
-  <table class="list">
-    <tr><th>Asset tag</th><th>Version</th><th>Status</th><th>Built</th></tr>
-    {% for u in units %}<tr><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td>{% if u.version %}v{{ u.version }}{% else %}as it was{% endif %}</td>
-      <td><span class="badge{% if u.status == 'available' or u.status == 'in_use' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>
-      <td class="small">{{ u.built_on }}{% if u.built_by %} · {{ u.built_by }}{% endif %}</td></tr>
-    {% empty %}<tr><td colspan="4" class="empty small">None built yet.</td></tr>{% endfor %}
-  </table>
-  <form method="post" action="{% url 'harnesses:unit_add' harness.pk %}" class="inline-form pad">{% csrf_token %}
-    <input type="text" name="serial" value="{{ next_serial }}" aria-label="Asset tag" required>
-    <select name="version" aria-label="Version">{% for v in versions %}<option value="{{ v.pk }}">v{{ v.number }}</option>{% endfor %}<option value="">as it is now</option></select>
-    <select name="take_from" aria-label="Take its parts from"><option value="">Don't take parts from stock</option>
-      {% for l, depth in locations %}<option value="{{ l.pk }}">Take its parts from {% for _ in ""|ljust:depth %}&nbsp;&nbsp;{% endfor %}{{ l.name }}</option>{% endfor %}</select>
-    <button class="btn">＋ Build one</button></form>
-</section>
-</div>
+    <div data-panel="versions" hidden>
+      <section class="card">
+        <h3>Versions</h3>
+        <p class="small muted">{% if not versions %}Not saved as a version yet.{% elif changed %}Changed since v{{ harness.version }}.{% else %}As saved in v{{ harness.version }}.{% endif %}</p>
+        {% if changed %}<form method="post" action="{% url 'harnesses:save_version' harness.pk %}" class="inline-form">{% csrf_token %}
+          <input type="text" name="note" placeholder="What changed (optional)" maxlength="300" aria-label="What changed">
+          <button class="btn small primary">Save as v{{ harness.version|add:1 }}</button></form>{% endif %}
+        <table class="list compact">{% for v in versions %}<tr><td><a href="{% url 'harnesses:version' harness.pk v.number %}">v{{ v.number }}</a></td>
+          <td class="small">{{ v.note }}</td><td class="small muted nowrap">{{ v.created_by|default:"" }}, {{ v.created_at|date:"j M Y" }}</td></tr>{% endfor %}</table>
+      </section>
+    </div>
 
-<div class="tab-panel tab-side" data-panel="notes" hidden>
-  {% include "web/_notes.html" with notes=harness.notes owner=harness %}{% side harness %}
+    <div data-panel="built" hidden>
+      <section class="card flush">
+        <div class="card-head"><h3>Built</h3></div>
+        <table class="list">
+          <tr><th>Asset tag</th><th>Version</th><th>Status</th><th>Built</th></tr>
+          {% for u in units %}<tr data-brief-url="{% url 'assets:brief' u.pk %}"><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td>{% if u.version %}v{{ u.version }}{% else %}as it was{% endif %}</td>
+            <td><span class="badge{% if u.status == 'available' or u.status == 'in_use' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>
+            <td class="small">{{ u.built_on }}{% if u.built_by %} · {{ u.built_by }}{% endif %}</td></tr>
+          {% empty %}<tr><td colspan="4" class="empty small">None built yet.</td></tr>{% endfor %}
+        </table>
+        <form method="post" action="{% url 'harnesses:unit_add' harness.pk %}" class="inline-form pad">{% csrf_token %}
+          <input type="text" name="serial" value="{{ next_serial }}" aria-label="Asset tag" required>
+          <select name="version" aria-label="Version">{% for v in versions %}<option value="{{ v.pk }}">v{{ v.number }}</option>{% endfor %}<option value="">as it is now</option></select>
+          <select name="take_from" aria-label="Take its parts from"><option value="">Don't take parts from stock</option>
+            {% for l, depth in locations %}<option value="{{ l.pk }}">Take its parts from {% for _ in ""|ljust:depth %}&nbsp;&nbsp;{% endfor %}{{ l.name }}</option>{% endfor %}</select>
+          <button class="btn">＋ Build one</button></form>
+      </section>
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ harness.number }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'harnesses:edit' harness.pk %}">Change</a></div>
+      <p class="brief-what">{{ harness.name }}</p>
+      {% preview harness %}
+      <dl class="details">
+        <dt>Setup</dt><dd><a href="{{ harness.setup.get_absolute_url }}">{{ harness.setup }}</a></dd>
+        <dt>Status</dt><dd>{{ harness.get_status_display }}</dd>
+        <dt>Version</dt><dd>{% if harness.version %}v{{ harness.version }}{% if changed %} + changes{% endif %}{% else %}not saved{% endif %}</dd>
+        {% if harness.description %}<dt>Description</dt><dd>{{ harness.description|linebreaksbr }}</dd>{% endif %}
+        <dt>Wires</dt><dd>{{ wire_count }}</dd>
+        <dt>Built</dt><dd>{{ units|length }}</dd>
+      </dl>
+    </div>
+    {% include "web/_notes.html" with notes=harness.notes owner=harness %}{% side harness %}
+  </aside>
 </div>
 {% endblock %}
 {% block scripts %}<script src="{% fresh 'harnesses/pinout.js' %}"></script><script>
@@ -116,5 +134,4 @@
   document.querySelectorAll('.wire-colour').forEach(function (s) { s.style.background = COLOURS[s.dataset.colour] || 'transparent'; });
   var drawn = document.getElementById('pinout-data');
   if (drawn) Pinout.mount(document.getElementById('pinout-draw'), JSON.parse(drawn.textContent), COLOURS);
-
-</script><script src="{% fresh 'web/tabs.js' %}"></script>{% endblock %}
+</script><script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

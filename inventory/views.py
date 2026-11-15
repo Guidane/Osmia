@@ -218,7 +218,9 @@ def location(request, pk):
     if request.GET.get('export'):
         return excel.download(place.path, [('Stock', ['Part number', 'Description', 'Location', 'Quantity', 'Unit'],
                                             [(s.part.number, s.part.description, s.location.path, s.quantity, s.part.unit) for s in here])])
-    return render(request, 'inventory/location.html', {'location': place, 'stock': here, 'children': place.children.all()})
+    from web import briefs
+    return render(request, 'inventory/location.html', {'location': place, 'stock': here, 'children': place.children.all(),
+                                                       'brief': briefs.of('location', place)})
 
 
 @login_required
@@ -425,24 +427,36 @@ def connector(request, pk):
 
 @login_required
 def categories(request):
-    """The categories of parts (or of assets: ?kind=assets) as a tree, with a form to add one (or change one: ?edit=<pk>)."""
+    """The categories of parts (or of assets: ?kind=assets): their tree on the left (?category= the one picked), the
+    categories in it in the middle, the details of the one picked on the right; a form to add one (or change one:
+    ?edit=<pk>)."""
     from assets.models import Asset
+    from web import briefs, browse
     item = Category.objects.filter(pk=request.GET.get('edit') or 0).first()
     kind = item.kind if item else request.GET.get('kind') if request.GET.get('kind') in Category.Kind.values else Category.Kind.PARTS
     form = CategoryForm(request.POST or None, instance=item, kind=kind)
     if request.method == 'POST' and form.is_valid():
         saved = form.save()
         messages.success(request, f'{saved} is saved.')
-        return redirect(f"{reverse('inventory:categories')}?kind={kind}")
+        return redirect(f"{reverse('inventory:categories')}?kind={kind}&category={saved.pk}")
     if kind == Category.Kind.ASSETS:
         counts = Asset.objects.exclude(status='retired')
     else:
         counts = Part.objects.filter(active=True)
     counts = dict(counts.values('category').annotate(n=Count('pk')).values_list('category', 'n'))
     own = dict(Attribute.objects.values('category').annotate(n=Count('pk')).values_list('category', 'n'))
+    tree = Category.of(kind)
+    picked = Category.objects.filter(pk=request.GET.get('category') or 0, kind=kind).first()
+    shown = [(c, d) for c, d in tree if picked is None or c.pk in set(picked.below())]
+    nodes = [browse.node(label, f'?kind={key}', None, key == kind and picked is None) for key, label in Category.Kind.choices]
+    at = next(i for i, n in enumerate(nodes) if n['on'] or n['url'] == f'?kind={kind}')
+    nodes[at + 1:at + 1] = browse.nodes(tree, counts, picked, lambda c: f'?kind={kind}&category={c.pk}', label=lambda c: c.name, depth=1)
+    top = picked.chain()[-1].pk if picked else None
+    base = min((d for c, d in shown), default=0)
     return render(request, 'inventory/categories.html', {
-        'categories': [(c, depth, counts.get(c.pk, 0), own.get(c.pk, 0)) for c, depth in Category.of(kind)], 'form': form, 'item': item,
-        'kind': kind, 'kinds': Category.Kind.choices})
+        'categories': [(c, depth - base, counts.get(c.pk, 0), own.get(c.pk, 0)) for c, depth in shown], 'form': form, 'item': item,
+        'kind': kind, 'kinds': Category.Kind.choices, 'nodes': nodes, 'picked': picked, 'top': top,
+        'brief': briefs.of('category', picked) if picked else None})
 
 
 def _category_page(request, item, form):

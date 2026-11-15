@@ -1,18 +1,27 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ department.name }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
 <p class="small"><a href="{% if department.parent %}{{ department.parent.get_absolute_url }}{% else %}{% url 'accounts:departments' %}{% endif %}">← {{ department.parent.name|default:"Departments" }}</a></p>
 <div class="page-head"><h1>{{ department.path }}</h1>{% if department.manager %}<span class="muted">managed by {{ department.manager }}</span>{% endif %}<span class="spacer"></span>
   {% if user.is_superuser %}<a class="btn" href="{% url 'accounts:department_new' %}?parent={{ department.pk }}">＋ Under it</a>
   <a class="btn" href="{% url 'accounts:department_edit' department.pk %}">Change</a>
   <form method="post" action="{% url 'accounts:department_delete' department.pk %}" class="inline" data-confirm="Delete {{ department.name }}? Its people will be in no department.">{% csrf_token %}<button class="btn ghost">Delete</button></form>{% endif %}</div>
-{% if department.description %}<p>{{ department.description|linebreaksbr }}</p>{% endif %}
-{% if children %}<p class="small">Under it: {% for c in children %}<a href="{{ c.get_absolute_url }}">{{ c.name }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ department.name }}">
+    {% for d in department.chain %}{% if d != department %}<a href="{{ d.get_absolute_url }}" style="--depth: {{ forloop.counter0 }}"><span>{{ d.name }}</span><span class="muted small"></span></a>{% endif %}{% endfor %}
+    <a href="#people" data-section="people" class="tree-head" style="--depth: {{ department.chain|length|add:-1 }}"><span>{{ department.name }} · people</span><span class="muted small">{{ people|length }}</span></a>
+    <a href="#budgets" data-section="budgets" style="--depth: {{ department.chain|length }}"><span>Budgets</span><span class="muted small">{{ budgets|length }}</span></a>
+    <a href="#setups" data-section="setups" style="--depth: {{ department.chain|length }}"><span>Setups</span><span class="muted small">{{ setups|length }}</span></a>
+    {% for c in children %}<a href="{{ c.get_absolute_url }}" style="--depth: {{ department.chain|length }}"><span>{{ c.name }}</span><span class="muted small"></span></a>{% endfor %}
+  </nav>
 
+  <div class="parts-middle">
+    <div data-panel="people">
 <section class="card flush">
   <div class="card-head"><h3>People <span class="muted small">{{ people|length }}</span></h3></div>
   <table class="list">
-    {% for p in people %}<tr><td>{% if user.is_superuser %}<a href="{% url 'accounts:user_edit' p.pk %}">{{ p }}</a>{% else %}{{ p }}{% endif %}{% if p == department.manager %} <span class="badge ok">Manager</span>{% endif %}</td>
+    {% for p in people %}<tr data-brief-url="{{ p|brief_url }}"><td>{% if user.is_superuser %}<a href="{% url 'accounts:user_edit' p.pk %}">{{ p }}</a>{% else %}{{ p }}{% endif %}{% if p == department.manager %} <span class="badge ok">Manager</span>{% endif %}</td>
       <td class="small">{{ p.job_title }}</td><td class="small">{% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% endif %}</td><td class="small">{{ p.phone }}</td>
       {% if user.is_superuser %}<td><form method="post" action="{% url 'accounts:assign' department.pk %}">{% csrf_token %}<button class="btn small ghost" name="remove" value="{{ p.pk }}" title="Take {{ p }} out of {{ department.name }}">✕</button></form></td>{% endif %}</tr>
     {% empty %}<tr><td class="empty small">Nobody yet.</td></tr>{% endfor %}
@@ -22,13 +31,30 @@
     <select id="assign-users" name="users" multiple size="6">{% for o in others %}<option value="{{ o.pk }}">{{ o }}{% if o.department %} — now in {{ o.department.name }}{% endif %}</option>{% endfor %}</select>
     <div class="actions"><button class="btn">＋ Put them in</button></div></form>{% endif %}
 </section>
-
-<div class="columns">
+    </div>
+    <div data-panel="budgets" hidden>
   <section class="card flush"><div class="card-head"><h3>Budgets</h3></div>
-    <table class="list">{% for b in budgets %}<tr><td><a href="{{ b.get_absolute_url }}">{{ b }}</a></td><td class="num">{{ b.amount|money }}</td></tr>
+    <table class="list">{% for b in budgets %}<tr data-brief-url="{{ b|brief_url }}"><td><a href="{{ b.get_absolute_url }}">{{ b }}</a></td><td class="num">{{ b.amount|money }}</td></tr>
       {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table></section>
+    </div>
+    <div data-panel="setups" hidden>
   <section class="card flush"><div class="card-head"><h3>Setups</h3></div>
-    <table class="list">{% for p in setups %}<tr><td><a href="{{ p.get_absolute_url }}">{{ p }}</a></td></tr>
+    <table class="list">{% for p in setups %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p }}</a></td></tr>
       {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table></section>
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ department.name }}</h3></div>
+      {% if department.description %}<p class="brief-what">{{ department.description|linebreaksbr }}</p>{% endif %}
+      <dl class="details">
+        <dt>Path</dt><dd>{{ department.path }}</dd>
+        <dt>Manager</dt><dd>{{ department.manager|default:"—" }}</dd>
+        <dt>Under it</dt><dd>{% for c in children %}<a href="{{ c.get_absolute_url }}">{{ c.name }}</a>{% if not forloop.last %} · {% endif %}{% empty %}—{% endfor %}</dd>
+      </dl>
+    </div>
+  </aside>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

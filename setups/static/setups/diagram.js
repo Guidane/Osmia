@@ -386,8 +386,11 @@
     function pick(id) {
       var row = document.getElementById(id);
       if (!row) return;
+      var panel = row.closest('[data-panel]'), link = panel && document.querySelector('a[data-section="' + panel.dataset.panel + '"]');
+      if (panel && panel.hidden && link) link.click();   // its list in the tree's panel, its details on the right
       document.querySelectorAll('tr.placed.picked').forEach(function (r) { r.classList.remove('picked'); });
       row.classList.add('picked');
+      if (row.dataset.briefUrl) row.click();
       row.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 

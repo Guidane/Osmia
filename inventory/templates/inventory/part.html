@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ part.number }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'inventory:parts' %}">← Parts</a></p>
+<p class="small"><a href="{% url 'inventory:parts' %}?{% if part.category_id %}category={{ part.category_id }}&amp;{% endif %}part={{ part.pk }}">← Parts</a></p>
 <div class="page-head">
   <h1>{{ part.number }}</h1>{% if not part.active %}<span class="badge">Inactive</span>{% endif %}
   <span class="muted">{{ part.description }}</span><span class="spacer"></span>
@@ -9,33 +10,19 @@
   <a class="btn" href="{% url 'web:labels' 'part' %}?ids={{ part.pk }}">🏷 Label</a><a class="btn" href="{% url 'inventory:part_edit' part.pk %}">Change</a>
 </div>
 
-<div class="tiles">
-  <div class="tile{% if part.minimum and on_hand < part.minimum %} warn{% endif %}"><b>{{ on_hand|qty }}</b> {{ part.get_unit_display }} on hand</div>
-  <div class="tile"><b>{{ on_order|qty }}</b> on order</div>
-  <div class="tile"><b>{{ part.minimum|qty }}</b> minimum</div>
-</div>
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ part.number }}">
+    <a href="#stock" data-section="stock" class="tree-head"><span>{{ part.number }} · where it is</span><span class="muted small">{{ stock|length }}</span></a>
+    <a href="#orders" data-section="orders" style="--depth: 1"><span>Orders</span><span class="muted small">{{ lines|length }}</span></a>
+    <a href="#history" data-section="history" style="--depth: 1"><span>History</span><span class="muted small">{{ movements|length }}</span></a>
+  </nav>
 
-<div class="with-notes">
-<div class="columns">
-  <section class="card">
-    {% preview part %}
-    <h3>Details</h3>
-    <dl class="details">
-      <dt>Category</dt><dd>{% if part.category %}<a href="{{ part.category.get_absolute_url }}">{{ part.category }}</a>{% else %}—{% endif %}</dd>
-      {% include "inventory/_attribute_values.html" %}
-      <dt>Family</dt><dd>{% if part.family %}<a href="{{ part.family.get_absolute_url }}">{% if part.branch %}{{ part.branch }}{% else %}{{ part.family }}{% endif %}</a>{% else %}—{% endif %}</dd>
-      <dt>Manufacturer</dt><dd>{{ part.manufacturer|default:"—" }}{% if part.mpn %} · {{ part.mpn }}{% endif %}</dd>
-      <dt>Vendor</dt><dd>{% if part.vendor %}<a href="{{ part.vendor.get_absolute_url }}">{{ part.vendor }}</a>{% if part.vendor_number %} · {{ part.vendor_number }}{% endif %}{% else %}—{% endif %}</dd>
-      <dt>Last price</dt><dd>{{ part.price|qty|default:"—" }}</dd>
-      <dt>Reorders</dt><dd>{% if part.reorder_quantity %}{{ part.reorder_quantity|qty }} {{ part.unit }}{% else %}enough to get above the minimum{% endif %}</dd>
-      <dt>Datasheet</dt><dd>{% if part.datasheet %}<a href="{{ part.datasheet }}" target="_blank" rel="noopener noreferrer">Open ↗</a>{% else %}—{% endif %}</dd>
-    </dl>
-  </section>
-
+  <div class="parts-middle">
+    <div data-panel="stock">
   <section class="card">
     <h3>Where it is</h3>
     <table class="list">
-      {% for s in stock %}<tr><td><a href="{{ s.location.get_absolute_url }}">{{ s.location }}</a></td><td class="num">{{ s.quantity|qty }} {{ part.unit }}</td></tr>
+      {% for s in stock %}<tr data-brief-url="{{ s.location|brief_url }}"><td><a href="{{ s.location.get_absolute_url }}">{{ s.location }}</a></td><td class="num">{{ s.quantity|qty }} {{ part.unit }}</td></tr>
       {% empty %}<tr><td class="empty small">None in stock.</td></tr>{% endfor %}
     </table>
     <form method="post" action="{% url 'inventory:part_stock' part.pk %}" class="stock-form">{% csrf_token %}
@@ -51,19 +38,18 @@
     </form>
     {% if not locations %}<p class="small muted">Make a <a href="{% url 'inventory:location_new' %}">location</a> first.</p>{% endif %}
   </section>
-</div>
-<div class="side">{% include "web/_notes.html" with notes=part.notes owner=part %}{% side part %}</div>
-</div>
-
-<div class="columns">
+    </div>
+    <div data-panel="orders" hidden>
   <section class="card flush">
     <div class="card-head"><h3>Orders</h3></div>
     <table class="list">
-      {% for l in lines %}<tr><td><a href="{{ l.order.get_absolute_url }}">{{ l.order.number }}</a></td><td class="small">{{ l.order.vendor|default:"—" }}</td>
+      {% for l in lines %}<tr data-brief-url="{{ l.order|brief_url }}"><td><a href="{{ l.order.get_absolute_url }}">{{ l.order.number }}</a></td><td class="small">{{ l.order.vendor|default:"—" }}</td>
         <td class="num">{{ l.quantity|qty }}</td><td><span class="badge{% if l.order.status == 'received' %} ok{% elif l.order.overdue %} failed{% endif %}">{% if l.order.overdue %}Late{% else %}{{ l.order.get_status_display }}{% endif %}</span></td></tr>
       {% empty %}<tr><td class="empty small">Never ordered.</td></tr>{% endfor %}
     </table>
   </section>
+    </div>
+    <div data-panel="history" hidden>
   <section class="card flush">
     <div class="card-head"><h3>History</h3></div>
     <table class="list">
@@ -76,6 +62,32 @@
       {% empty %}<tr><td class="empty small">Nothing yet.</td></tr>{% endfor %}
     </table>
   </section>
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ part.number }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'inventory:part_edit' part.pk %}">Change</a></div>
+      <p class="brief-what">{{ part.description }}</p>
+      {% preview part %}
+      <div class="tiles brief-tiles">
+  <div class="tile{% if part.minimum and on_hand < part.minimum %} warn{% endif %}"><b>{{ on_hand|qty }}</b> {{ part.get_unit_display }} on hand</div>
+  <div class="tile"><b>{{ on_order|qty }}</b> on order</div>
+  <div class="tile"><b>{{ part.minimum|qty }}</b> minimum</div>
+</div>
+    <dl class="details">
+      <dt>Category</dt><dd>{% if part.category %}<a href="{{ part.category.get_absolute_url }}">{{ part.category }}</a>{% else %}—{% endif %}</dd>
+      {% include "inventory/_attribute_values.html" %}
+      <dt>Family</dt><dd>{% if part.family %}<a href="{{ part.family.get_absolute_url }}">{% if part.branch %}{{ part.branch }}{% else %}{{ part.family }}{% endif %}</a>{% else %}—{% endif %}</dd>
+      <dt>Manufacturer</dt><dd>{{ part.manufacturer|default:"—" }}{% if part.mpn %} · {{ part.mpn }}{% endif %}</dd>
+      <dt>Vendor</dt><dd>{% if part.vendor %}<a href="{{ part.vendor.get_absolute_url }}">{{ part.vendor }}</a>{% if part.vendor_number %} · {{ part.vendor_number }}{% endif %}{% else %}—{% endif %}</dd>
+      <dt>Last price</dt><dd>{{ part.price|qty|default:"—" }}</dd>
+      <dt>Reorders</dt><dd>{% if part.reorder_quantity %}{{ part.reorder_quantity|qty }} {{ part.unit }}{% else %}enough to get above the minimum{% endif %}</dd>
+      <dt>Datasheet</dt><dd>{% if part.datasheet %}<a href="{{ part.datasheet }}" target="_blank" rel="noopener noreferrer">Open ↗</a>{% else %}—{% endif %}</dd>
+    </dl>
+    </div>
+    {% include "web/_notes.html" with notes=part.notes owner=part %}{% side part %}
+  </aside>
 </div>
 {% endblock %}
 {% block scripts %}<script>
@@ -83,4 +95,4 @@
     var to = s.form.querySelector('[data-stock-to]');
     s.addEventListener('change', function () { to.hidden = s.value !== 'move'; to.required = s.value === 'move'; });
   });
-</script>{% endblock %}
+</script><script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

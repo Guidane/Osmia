@@ -1,33 +1,39 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load osmia %}
 {% block title %}Documentation · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
 <div class="page-head"><h1>📚 Documentation</h1><span class="spacer"></span>
-  <form method="get" class="inline-form"><input type="search" name="q" value="{{ q }}" placeholder="Find…" aria-label="Find in the documentation"></form>
   <a class="btn primary" href="{% url 'web:page_new' %}">＋ Page</a></div>
 
-{% if found is not None %}<section class="card flush">
-  <div class="card-head"><h3>Found <span class="muted small">{{ found|length }}</span></h3></div>
-  <table class="list">{% for p in found %}<tr><td><a href="{{ p.get_absolute_url }}">📄 {{ p.title }}</a></td>
-    <td class="small muted nowrap">{{ p.updated_by|default:"" }} {{ p.updated_at|date:"j M Y" }}</td></tr>
-    {% empty %}<tr><td class="empty small">Nothing.</td></tr>{% endfor %}</table>
-</section>{% endif %}
+<div class="parts-browser" data-param="page">
+  {% include "web/_tree_nav.html" with label="Documentation" %}
 
-<div class="docs-home">
-  <section class="card">
-    <h3>General</h3>
-    {% if general %}<ul class="page-tree">{% for p, depth in general %}<li style="--depth:{{ depth }}"><a href="{{ p.get_absolute_url }}">📄 {{ p.title }}</a></li>{% endfor %}</ul>
-    {% else %}<p class="muted small">No pages yet.</p>{% endif %}
-  </section>
-  {% for name, owners in groups %}<section class="card">
-    <h3>{{ name }}</h3>
-    {% for owner, pages in owners %}<div class="docs-owner"><a class="small" href="{{ owner.get_absolute_url }}"><b>{{ owner }}</b></a>
-      <ul class="page-tree">{% for p, depth in pages %}<li style="--depth:{{ depth }}"><a href="{{ p.get_absolute_url }}">📄 {{ p.title }}</a></li>{% endfor %}</ul></div>{% endfor %}
-  </section>{% endfor %}
-  <section class="card">
-    <h3>Changed lately</h3>
-    <ul class="page-list">{% for p in recent %}<li><a href="{{ p.get_absolute_url }}">📄 {{ p.title }}</a>
-      <span class="muted small">{{ p.updated_by|default:"" }} {{ p.updated_at|date:"j M Y" }}</span></li>
-      {% empty %}<li class="muted small">No pages yet.</li>{% endfor %}</ul>
-  </section>
+  <div class="parts-middle">
+    <form method="get" class="filters">{% if space %}<input type="hidden" name="space" value="{{ space }}">{% endif %}
+      <input type="search" name="q" value="{{ q }}" placeholder="Find in the pages…" aria-label="Find in the documentation">
+      <button class="btn">Find</button></form>
+    <div class="card flush">
+      {% if found is not None %}<div class="card-head"><h3>Found <span class="muted small">{{ found|length }}</span></h3></div>
+      <table class="list parts-list">{% for p in found %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'page' p.pk %}" tabindex="0"><td><a href="{{ p.get_absolute_url }}">📄 {{ p.title }}</a></td>
+        <td class="small muted nowrap">{{ p.updated_by|default:"" }} {{ p.updated_at|date:"j M Y" }}</td></tr>
+        {% empty %}<tr><td class="empty small">Nothing.</td></tr>{% endfor %}</table>
+      {% elif shown is not None %}<div class="card-head"><h3>{{ title }}</h3></div>
+      <table class="list parts-list">{% for p, depth in shown %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'page' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
+        <td style="padding-left:{{ depth|add:1 }}em"><a href="{{ p.get_absolute_url }}">📄 {{ p.title }}</a></td>
+        <td class="small muted nowrap">{{ p.updated_by|default:"" }} {{ p.updated_at|date:"j M Y" }}</td></tr>
+        {% empty %}<tr><td class="empty small">No pages yet.</td></tr>{% endfor %}</table>
+      {% else %}<div class="card-head"><h3>Changed lately</h3></div>
+      <table class="list parts-list">{% for p in recent %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'page' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
+        <td><a href="{{ p.get_absolute_url }}">📄 {{ p.title }}</a></td><td class="small">{{ p.owner|default:"General" }}</td>
+        <td class="small muted nowrap">{{ p.updated_by|default:"" }} {{ p.updated_at|date:"j M Y" }}</td></tr>
+        {% empty %}<tr><td class="empty small">No pages yet.</td></tr>{% endfor %}</table>
+      {% endif %}
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick a page to see it here.</p>{% endif %}
+  </aside>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}

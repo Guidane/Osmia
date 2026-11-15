@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ budget }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
 <p class="small"><a href="{% if budget.parent %}{{ budget.parent.get_absolute_url }}{% else %}{% url 'budgets:list' %}{% endif %}">← {{ budget.parent|default:"Budgets" }}</a></p>
 <div class="page-head"><h1>{{ budget }}</h1>{% if not budget.active %}<span class="badge">Closed</span>{% endif %}
@@ -9,36 +10,34 @@
   <a class="btn" href="{% url 'budgets:new' %}?parent={{ budget.pk }}">＋ Under it</a>
   <a class="btn" href="{% url 'budgets:edit' budget.pk %}">Change</a></div>
 
-<div class="tiles">
-  <div class="tile"><b>{{ budget.amount|money }}</b> budget</div>
-  <div class="tile"><b>{{ totals.spent|money }}</b> spent ({{ totals.used }}%)</div>
-  <div class="tile{% if totals.over %} bad{% elif totals.used >= 90 %} warn{% else %} ok{% endif %}"><b>{{ totals.remaining|money }}</b> {% if totals.over %}over{% else %}left{% endif %}</div>
-  <div class="tile"><b>{{ totals.planned|money }}</b> in draft orders</div>
-</div>
-<div class="with-notes">
-<div class="card">
-  <span class="meter wide{% if totals.over %} over{% elif totals.used >= 90 %} near{% endif %}"><span style="width:{% if totals.used > 100 %}100{% else %}{{ totals.used }}{% endif %}%"></span></span>
-  <p class="small muted">Arrived {{ totals.received|money }} · still to come {{ totals.coming|money }} · other costs {{ totals.costs|money }}{% if children %} · of which under it {{ totals.spent|sub:own.spent|money }}{% endif %}</p>
-  {% if split > budget.amount %}<p class="small error">The budgets under it add up to {{ split|money }}: more than this one.</p>{% endif %}
-</div>
-<div class="side">{% include "web/_notes.html" with notes=budget.notes owner=budget %}{% side budget %}</div>
-</div>
+<div class="parts-browser" data-sections>
+  <nav class="card parts-tree" aria-label="{{ budget }}">
+    {% if budget.parent %}<a href="{{ budget.parent.get_absolute_url }}"><span>💰 {{ budget.parent }}</span><span class="muted small"></span></a>{% endif %}
+    <a href="#orders" data-section="orders" class="tree-head" style="--depth: {% if budget.parent %}1{% else %}0{% endif %}"><span>{{ budget }} · orders</span><span class="muted small">{{ orders|length }}</span></a>
+    {% if children %}<a href="#under" data-section="under" style="--depth: {% if budget.parent %}2{% else %}1{% endif %}"><span>Under it</span><span class="muted small">{{ children|length }}</span></a>
+    {% for c, t in children %}<a href="{{ c.get_absolute_url }}" style="--depth: {% if budget.parent %}3{% else %}2{% endif %}"><span>{{ c }}</span><span class="muted small">{{ t.used }}%</span></a>{% endfor %}{% endif %}
+    <a href="#costs" data-section="costs" style="--depth: {% if budget.parent %}2{% else %}1{% endif %}"><span>Other costs</span><span class="muted small">{{ costs|length }}</span></a>
+  </nav>
 
-{% if children %}<section class="card flush">
-  <div class="card-head"><h3>Under it</h3></div>
-  <table class="list"><tr><th>Budget</th><th class="num">Amount</th><th class="num">Spent</th><th class="num">Left</th></tr>
-    {% for c, t in children %}<tr><td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td><td class="num">{{ c.amount|money }}</td>
-      <td class="num">{{ t.spent|money }}</td><td class="num{% if t.over %} low{% endif %}">{{ t.remaining|money }}</td></tr>{% endfor %}</table>
-</section>{% endif %}
-
-<div class="columns">
+  <div class="parts-middle">
+    <div data-panel="orders">
   <section class="card flush">
     <div class="card-head"><h3>Orders</h3><a class="btn small" href="{% url 'orders:new' %}?budget={{ budget.pk }}">＋ New order</a></div>
-    <table class="list">{% for o in orders %}<tr><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="muted small">{{ o.vendor|default:"" }}</span></td>
+    <table class="list">{% for o in orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="muted small">{{ o.vendor|default:"" }}</span></td>
       <td><span class="badge{% if o.status == 'received' %} ok{% elif o.overdue or o.status == 'cancelled' %} failed{% endif %}">{% if o.overdue %}Late{% else %}{{ o.get_status_display }}{% endif %}</span></td>
       <td class="num">{{ o.total|money }}</td></tr>
       {% empty %}<tr><td class="empty small">No orders charged to it.</td></tr>{% endfor %}</table>
   </section>
+    </div>
+    {% if children %}<div data-panel="under" hidden>
+{% if children %}<section class="card flush">
+  <div class="card-head"><h3>Under it</h3></div>
+  <table class="list"><tr><th>Budget</th><th class="num">Amount</th><th class="num">Spent</th><th class="num">Left</th></tr>
+    {% for c, t in children %}<tr data-brief-url="{{ c|brief_url }}"><td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td><td class="num">{{ c.amount|money }}</td>
+      <td class="num">{{ t.spent|money }}</td><td class="num{% if t.over %} low{% endif %}">{{ t.remaining|money }}</td></tr>{% endfor %}</table>
+</section>{% endif %}
+    </div>{% endif %}
+    <div data-panel="costs" hidden>
   <section class="card flush" id="costs">
     <div class="card-head"><h3>Other costs</h3></div>
     <table class="list">{% for c in costs %}<tr><td class="small nowrap">{{ c.spent_on }}</td><td>{{ c.description }} <span class="muted small">{{ c.created_by|default:"" }}</span></td>
@@ -51,5 +50,29 @@
       <input type="text" name="amount" inputmode="decimal" placeholder="Amount" aria-label="Amount" required class="qty">
       <button class="btn">＋ Add</button></form>
   </section>
+    </div>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ budget }}</h3>{% if not budget.active %}<span class="badge">Closed</span>{% endif %}<span class="spacer"></span><a class="btn small ghost" href="{% url 'budgets:edit' budget.pk %}">Change</a></div>
+      <div class="tiles brief-tiles">
+  <div class="tile"><b>{{ budget.amount|money }}</b> budget</div>
+  <div class="tile"><b>{{ totals.spent|money }}</b> spent ({{ totals.used }}%)</div>
+  <div class="tile{% if totals.over %} bad{% elif totals.used >= 90 %} warn{% else %} ok{% endif %}"><b>{{ totals.remaining|money }}</b> {% if totals.over %}over{% else %}left{% endif %}</div>
+  <div class="tile"><b>{{ totals.planned|money }}</b> in draft orders</div>
+</div>
+  <span class="meter wide{% if totals.over %} over{% elif totals.used >= 90 %} near{% endif %}"><span style="width:{% if totals.used > 100 %}100{% else %}{{ totals.used }}{% endif %}%"></span></span>
+  <p class="small muted">Arrived {{ totals.received|money }} · still to come {{ totals.coming|money }} · other costs {{ totals.costs|money }}{% if children %} · of which under it {{ totals.spent|sub:own.spent|money }}{% endif %}</p>
+  {% if split > budget.amount %}<p class="small error">The budgets under it add up to {{ split|money }}: more than this one.</p>{% endif %}
+      <dl class="details">
+        {% if budget.setup %}<dt>Setup</dt><dd><a href="{{ budget.setup.get_absolute_url }}">{{ budget.setup }}</a></dd>{% endif %}
+        <dt>Owner</dt><dd>{{ budget.owner|default:"—" }}</dd>
+        {% if budget.starts_on or budget.ends_on %}<dt>Runs</dt><dd>{{ budget.starts_on|default:"…" }} to {{ budget.ends_on|default:"…" }}</dd>{% endif %}
+      </dl>
+    </div>
+    {% include "web/_notes.html" with notes=budget.notes owner=budget %}{% side budget %}
+  </aside>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}

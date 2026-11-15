@@ -1,24 +1,36 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load osmia %}
 {% block title %}Categories · Osmia{% endblock %}
-{% block content_class %}narrow{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
 <p class="small">{% if kind == 'assets' %}<a href="{% url 'assets:list' %}">← Assets</a>{% else %}<a href="{% url 'inventory:parts' %}">← Parts</a>{% endif %}</p>
-<div class="page-head"><h1>Categories</h1></div>
-<nav class="tabs">{% for key, label in kinds %}<a href="?kind={{ key }}"{% if key == kind %} class="on"{% endif %}>{{ label }}</a>{% endfor %}</nav>
-<div class="card flush">
-  <table class="list">
-    <tr><th>Category</th><th class="num">Attributes</th><th class="num">{% if kind == 'assets' %}Assets{% else %}Parts{% endif %}</th><th></th></tr>
-    {% for c, depth, n, attributes in categories %}<tr>
-      <td style="padding-left:{{ depth|add:1 }}em"><a href="{{ c.get_absolute_url }}">{{ c.name }}</a></td>
-      <td class="num">{{ attributes|default:"" }}</td>
-      <td class="num">{% if n %}<a href="{% if kind == 'assets' %}{% url 'assets:list' %}{% else %}{% url 'inventory:parts' %}{% endif %}?category={{ c.pk }}">{{ n }}</a>{% endif %}</td>
-      <td class="small"><a href="?edit={{ c.pk }}">Change</a></td>
-    </tr>{% empty %}<tr><td colspan="4" class="empty small">No categories yet.</td></tr>{% endfor %}
-  </table>
+<div class="page-head"><h1>Categories</h1><span class="spacer"></span>
+  {% if picked %}<a class="btn" href="{{ picked.get_absolute_url }}">Attributes of {{ picked.name }}</a>{% endif %}</div>
+
+<div class="parts-browser" data-param="category">
+  {% include "web/_tree_nav.html" with label="Categories" %}
+
+  <div class="parts-middle">
+    <div class="card flush">
+      <table class="list parts-list">
+        <tr><th>Category</th><th class="num">Attributes</th><th class="num">{% if kind == 'assets' %}Assets{% else %}Parts{% endif %}</th><th></th></tr>
+        {% for c, depth, n, attributes in categories %}<tr data-part="{{ c.pk }}" data-brief-url="{% url 'web:brief' 'category' c.pk %}" class="{% if picked.pk == c.pk %}on{% endif %}" tabindex="0">
+          <td style="padding-left:{{ depth|add:1 }}em"><a href="{{ c.get_absolute_url }}">{{ c.name }}</a></td>
+          <td class="num">{{ attributes|default:"" }}</td>
+          <td class="num">{% if n %}<a href="{% if kind == 'assets' %}{% url 'assets:list' %}{% else %}{% url 'inventory:parts' %}{% endif %}?category={{ c.pk }}">{{ n }}</a>{% endif %}</td>
+          <td class="small"><a href="?kind={{ kind }}&amp;edit={{ c.pk }}{% if picked %}&amp;category={{ picked.pk }}{% endif %}#form">Change</a></td>
+        </tr>{% empty %}<tr><td colspan="4" class="empty small">No categories yet.</td></tr>{% endfor %}
+      </table>
+    </div>
+    <form method="post" class="form card" id="form">{% csrf_token %}
+      <h3>{% if item %}Change {{ item.name }}{% else %}New category{% endif %}</h3>
+      <div class="fields">{% include "web/_form_fields.html" %}</div>
+      <div class="actions"><button class="btn primary">Save</button>{% if item %} <a href="?kind={{ kind }}">Cancel</a>{% endif %}</div>
+    </form>
+  </div>
+
+  <aside class="card parts-detail" data-detail>
+    {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick a category to see it here.</p>{% endif %}
+  </aside>
 </div>
-<form method="post" class="form card">{% csrf_token %}
-  <h3>{% if item %}Change {{ item.name }}{% else %}New category{% endif %}</h3>
-  <div class="fields">{% include "web/_form_fields.html" %}</div>
-  <div class="actions"><button class="btn primary">Save</button>{% if item %} <a href="?kind={{ kind }}">Cancel</a>{% endif %}</div>
-</form>
 {% endblock %}
+{% block scripts %}<script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}

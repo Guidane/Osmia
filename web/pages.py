@@ -38,8 +38,10 @@ def _crumbs(owner):
 
 @login_required
 def docs(request):
-    """The documentation: its general pages as a tree, the projects and other things with pages, the pages changed
-    last; and finding pages by what they say."""
+    """The documentation: a tree on the left of where pages are (the general ones, then each kind of thing with pages
+    and the things); in the middle the pages of the one picked (?space=general or ?space=<kind>:<pk>), the pages
+    changed last, or what a search found; on the right the page picked."""
+    from . import briefs, browse
     q = request.GET.get('q', '').strip()
     found = Page.objects.filter(Q(title__icontains=q) | Q(body__icontains=q)).select_related('updated_by')[:50] if q else None
     owners = {}
@@ -47,10 +49,29 @@ def docs(request):
         owner = owner_of(ct, obj)
         if owner is not None:
             owners.setdefault(kind_of(owner), []).append(owner)
-    groups = [(_plural(name), [(o, pages_of(o)) for o in sorted(owners[kind], key=str)]) for kind, (_, name) in KINDS.items()
-              if kind in owners]
-    return render(request, 'web/docs.html', {'general': pages_of(None), 'groups': groups, 'q': q, 'found': found,
-                                             'recent': Page.objects.select_related('updated_by').order_by('-updated_at')[:10]})
+    space = request.GET.get('space', '')
+    general = pages_of(None)
+    nodes = [browse.node('Changed lately', '?', None, not space and not q),
+             browse.node('General', '?space=general', len(general), space == 'general')]
+    shown, title = None, ''
+    if space == 'general':
+        shown, title = general, 'General'
+    for kind, (_, name) in KINDS.items():
+        if kind not in owners:
+            continue
+        nodes.append(browse.node(_plural(name), f'?space={kind}', len(owners[kind]), space == kind))
+        for o in sorted(owners[kind], key=str):
+            here = f'{kind}:{o.pk}'
+            mine = pages_of(o)
+            nodes.append(browse.node(str(o), f'?space={here}', len(mine), space == here, 1, open=space == kind))
+            if space == here:
+                shown, title = mine, f'{name} {o}'
+            elif space == kind:
+                shown, title = (shown or []) + mine, _plural(name)   # the pages of every one of that kind
+    picked = Page.objects.filter(pk=request.GET.get('page') or 0).first()
+    return render(request, 'web/docs.html', {'nodes': nodes, 'q': q, 'found': found, 'space': space, 'shown': shown, 'title': title,
+                                             'recent': Page.objects.select_related('updated_by').order_by('-updated_at')[:20],
+                                             'picked': picked, 'brief': briefs.of('page', picked) if picked else None})
 
 
 @login_required

@@ -77,8 +77,9 @@ class ProjectTests(Base):
         page = self.client.get(rack.get_absolute_url())
         self.assertEqual([(h, h.via) for h in page.context['sub_harnesses']], [(loom, deep)])   # a sub-project's setup's
         self.assertContains(page, 'BR-LB-B')
-        for tab in ('subs', 'setups', 'harnesses', 'orders', 'devices', 'assets', 'tools', 'notes'):   # the page in tabs
+        for tab in ('subs', 'setups', 'harnesses', 'orders', 'devices', 'assets', 'tools'):   # the page as a tree, a panel each
             self.assertContains(page, f'data-panel="{tab}"')
+        self.assertContains(page, 'data-notes')                                          # notes on the right
         # the list: a tree on the left, the projects of the one picked, its details
         listed = self.client.get(reverse('work:list'), {'q': 'rev B'})                    # found, wherever it is
         self.assertEqual([p.name for p in listed.context['projects']], ['Board rev B'])

@@ -130,3 +130,25 @@ def json_text(value):
 
     from django.utils.safestring import mark_safe
     return mark_safe(json.dumps(value).replace('<', '\\u003C').replace('>', '\\u003E').replace('&', '\\u0026'))
+
+
+@register.filter
+def brief_url(obj):
+    """Where the details of ``obj`` beside a list are (a part, a family, an asset, a harness, or a kind of
+    ``web.briefs``), or '' when it has none."""
+    from django.urls import reverse
+
+    from web.briefs import BRIEFS
+    from web.things import KINDS
+    if obj is None or getattr(obj, 'pk', None) is None:
+        return ''
+    label = obj._meta.label
+    if label == 'inventory.Branch':
+        return reverse('inventory:family_brief', args=[obj.family_id])
+    own = {'inventory.Part': 'inventory:part_brief', 'inventory.Family': 'inventory:family_brief',
+           'assets.Asset': 'assets:brief', 'harnesses.Harness': 'harnesses:brief'}
+    if label in own:
+        return reverse(own[label], args=[obj.pk])
+    kind = next((k for k, (model, _) in KINDS.items() if model == label), None)
+    kind = {'accounts.User': 'user', 'inventory.Category': 'category', 'accounts.Department': 'department'}.get(label, kind)
+    return reverse('web:brief', args=[kind, obj.pk]) if kind in BRIEFS else ''
