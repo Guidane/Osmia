@@ -6,36 +6,25 @@
   {% if place %}<a class="btn" href="{{ place.get_absolute_url }}">Open</a><a class="btn" href="{% url 'inventory:location_edit' place.pk %}">Change</a>{% endif %}
   <a class="btn primary" href="{% url 'inventory:location_new' %}{% if place %}?parent={{ place.pk }}{% endif %}">＋ New location{% if place %} inside{% endif %}</a></div>
 
-<div class="parts-browser">
+<div class="parts-browser" data-param="inside">
   {% include "web/_tree_nav.html" with label="Locations" %}
 
   <div class="parts-middle">
-    <form method="get" class="filters">{% if place %}<input type="hidden" name="location" value="{{ place.pk }}">{% endif %}
-      <input type="search" name="q" value="{{ q }}" placeholder="Part number, asset tag, description…" aria-label="Search what is kept here">
-      <button class="btn">Find</button></form>
     <div class="card flush">
       <table class="list parts-list">
-        <tr><th></th><th>Part or asset</th><th>Description</th><th>Where</th><th class="num">Quantity</th></tr>
-        {% for s in stock %}<tr data-part="{{ s.part_id }}" data-brief-url="{% url 'inventory:part_brief' s.part_id %}" class="{% if wanted == s.part_id|stringformat:'s' %}on{% endif %}" tabindex="0">
-          <td class="thumb-cell">{% thumb s.part %}</td><td><a href="{{ s.part.get_absolute_url }}">{{ s.part.number }}</a></td><td>{{ s.part.description }}</td>
-          <td class="small"><a href="?location={{ s.location_id }}">{{ s.location.name }}</a></td>
-          <td class="num">{{ s.quantity|qty }} <span class="muted small">{{ s.part.unit }}</span></td>
-        </tr>{% endfor %}
-        {% for a in assets %}<tr data-part="a{{ a.pk }}" data-brief-url="{% url 'assets:brief' a.pk %}" class="{% if wanted|slice:':1' == 'a' and wanted|slice:'1:' == a.pk|stringformat:'s' %}on{% endif %}" tabindex="0">
-          <td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="badge">Asset</span></td><td>{{ a.name }}</td>
-          <td class="small"><a href="?location={{ a.location_id }}">{{ a.location.name }}</a></td>
-          <td class="num"><span class="badge{% if a.status == 'available' or a.status == 'in_use' %} ok{% endif %}">{{ a.get_status_display }}</span></td>
-        </tr>{% endfor %}
-        {% if not stock and not assets %}<tr><td colspan="5" class="empty small">{% if locations %}Nothing here.{% else %}No locations yet.{% endif %}</td></tr>{% endif %}
+        <tr><th></th><th>{% if place %}Inside {{ place.name }}{% else %}Location{% endif %}</th><th>Description</th><th class="num">Inside it</th></tr>
+        {% for l, depth, n in locations %}<tr data-part="{{ l.pk }}" data-brief-url="{% url 'web:brief' 'location' l.pk %}" tabindex="0">
+          <td class="thumb-cell">{% thumb l %}</td>
+          <td style="padding-left:{{ depth|add:1 }}em"><a href="?location={{ l.pk }}">{{ l.name }}</a></td>
+          <td class="small">{{ l.description }}</td><td class="num">{{ n|default:"" }}</td>
+        </tr>{% empty %}<tr><td colspan="4" class="empty small">{% if place %}Nothing inside it.{% else %}No locations yet.{% endif %}</td></tr>{% endfor %}
       </table>
     </div>
   </div>
 
   <aside class="card parts-detail" data-detail>
-    {% if part_brief %}{% include "inventory/_part_brief.html" with part=part_brief.part attributes=part_brief.attributes stock=part_brief.stock on_hand=part_brief.on_hand on_order=part_brief.on_order %}
-    {% elif asset_brief %}{% include "assets/_brief.html" with asset=asset_brief.asset attributes=asset_brief.attributes events=asset_brief.events %}
-    {% elif brief %}{% include "web/_brief.html" %}{% side place %}
-    {% else %}<p class="muted small pad">Pick a location, a part or an asset to see it here.</p>{% endif %}
+    {% if brief %}{% include "web/_brief.html" %}{% include "web/_notes.html" with notes=place.notes owner=place %}{% side place %}
+    {% else %}<p class="muted small pad">Pick a location to see it here.</p>{% endif %}
   </aside>
 </div>
 {% endblock %}

@@ -178,48 +178,32 @@ def part_reorder(request, pk):
 
 @login_required
 def locations(request):
-    """The locations, like the parts: their tree on the left, what is kept at the one picked (and in those inside it:
-    parts in stock, assets) in the middle; on the right the details of the part or asset picked, else the location's own:
-    its picture, its files and its documentation."""
-    from assets.models import Asset
-    from assets.views import _brief as asset_brief
+    """The locations: their tree on the left (each with its picture), the locations inside the one picked in the
+    middle, and on the right the one picked: its picture, notes, files and documentation. (What is kept where is the
+    parts' and the assets' to say, not the locations'.)"""
     from web import briefs, browse
     place = Location.objects.filter(pk=request.GET.get('location') or 0).first()
-    q = request.GET.get('q', '').strip()
-    stock = Stock.objects.filter(quantity__gt=0).select_related('part', 'location')
-    kept_here = Asset.objects.exclude(location=None).exclude(status=Asset.Status.RETIRED).select_related('location')
-    if place is not None:
-        stock, kept_here = stock.filter(location_id__in=place.below()), kept_here.filter(location_id__in=place.below())
-    if q:
-        stock = stock.filter(Q(part__number__icontains=q) | Q(part__description__icontains=q))
-        kept_here = kept_here.filter(Q(number__icontains=q) | Q(name__icontains=q))
-    own = dict(Stock.objects.filter(quantity__gt=0).values('location').annotate(n=Count('pk')).values_list('location', 'n'))
-    for pk, n in Asset.objects.exclude(location=None).exclude(status=Asset.Status.RETIRED).values('location').annotate(n=Count('pk')).values_list('location', 'n'):
-        own[pk] = own.get(pk, 0) + n
-    keep = browse.keep(request, 'q')
     tree = Location.ordered()
-    nodes = [browse.node('All locations', f'?{keep[1:]}', sum(own.values()), place is None)] + browse.nodes(
-        tree, own, place, lambda l: f'?location={l.pk}{keep}', label=lambda l: l.name, thumbs=True)
-    wanted = request.GET.get('part', '')   # the row picked: a part, or (a<id>) an asset
-    part = Part.objects.filter(pk=wanted).first() if wanted.isdigit() else None
-    asset = Asset.objects.filter(pk=wanted[1:]).first() if wanted[:1] == 'a' and wanted[1:].isdigit() else None
+    inside = {}
+    for node, _ in tree:
+        inside[node.parent_id] = inside.get(node.parent_id, 0) + 1
+    nodes = [browse.node('All locations', '?', len(tree), place is None)] + browse.nodes(
+        tree, {}, place, lambda l: f'?location={l.pk}', label=lambda l: l.name, thumbs=True)
+    for n, (node, _) in zip(nodes[1:], tree):
+        n['count'] = inside.get(node.pk) or None
+    shown = [(l, d) for l, d in tree if place is None or (l.pk in set(place.below()) and l.pk != place.pk)]
+    base = min((d for _, d in shown), default=0)
     return render(request, 'inventory/locations.html', {
-        'nodes': nodes, 'place': place, 'q': q, 'stock': stock[:500], 'assets': kept_here[:200], 'wanted': wanted,
-        'locations': [(node, depth, own.get(node.pk, 0)) for node, depth in tree],
-        'part_brief': _brief(part) if part else None, 'asset_brief': asset_brief(asset) if asset else None,
-        # the location itself: its picture, files and pages
-        'brief': briefs.of('location', place) if place and not part and not asset else None})
+        'nodes': nodes, 'place': place, 'locations': [(l, d - base, inside.get(l.pk, 0)) for l, d in shown],
+        'brief': briefs.of('location', place) if place else None})
 
 
 @login_required
 def location(request, pk):
-    place = get_object_or_404(Location, pk=pk)
-    here = Stock.objects.filter(location_id__in=place.below(), quantity__gt=0).select_related('part', 'location')
-    if request.GET.get('export'):
-        return excel.download(place.path, [('Stock', ['Part number', 'Description', 'Location', 'Quantity', 'Unit'],
-                                            [(s.part.number, s.part.description, s.location.path, s.quantity, s.part.unit) for s in here])])
+    """A location's page: where it is, the locations inside it, its picture, notes, files and documentation."""
     from web import briefs
-    return render(request, 'inventory/location.html', {'location': place, 'stock': here, 'children': place.children.all(),
+    place = get_object_or_404(Location, pk=pk)
+    return render(request, 'inventory/location.html', {'location': place, 'children': place.children.all(),
                                                        'brief': briefs.of('location', place)})
 
 

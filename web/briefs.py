@@ -101,13 +101,9 @@ def user(u):
 
 
 def location(l):
-    from assets.models import Asset
-    from inventory.models import Stock
-    below, here = l.below(), reverse('inventory:locations')
+    here = reverse('inventory:locations')
     return {'title': l.name, 'what': l.description, 'edit_url': reverse('inventory:location_edit', args=[l.pk]),
-            'details': [('In', l.parent.path if l.parent else '', f'{here}?location={l.parent_id}' if l.parent else ''),
-                        ('Kinds of parts', Stock.objects.filter(location_id__in=below, quantity__gt=0).count(), ''),
-                        ('Assets', Asset.objects.filter(location_id__in=below).exclude(status=Asset.Status.RETIRED).count(), '')],
+            'details': [('In', l.parent.path if l.parent else '', f'{here}?location={l.parent_id}' if l.parent else '')],
             'tables': [_table('Inside it', [((c.name, f'{here}?location={c.pk}'), c.description[:50]) for c in l.children.all()])]}
 
 

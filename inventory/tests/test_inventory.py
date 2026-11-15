@@ -97,11 +97,18 @@ class FindingTests(Base):
 
 
 class TreeTests(Base):
-    def test_locations_show_what_is_in_them_and_below(self):
+    def test_locations_show_locations_not_what_is_kept_there(self):
         stock.add(self.plug, 4, self.shelf, self.ada)
         page = self.client.get(reverse('inventory:location', args=[self.store.pk]))
-        self.assertContains(page, 'DSUB-9-PLUG')                                # on a shelf inside it
-        self.assertContains(self.client.get(reverse('inventory:locations')), 'Shelf 1')
+        self.assertContains(page, 'Shelf 1')                                    # inside it
+        self.assertNotContains(page, 'DSUB-9-PLUG')                             # what is kept there: the part's to say
+        listed = self.client.get(reverse('inventory:locations'), {'location': self.store.pk})
+        self.assertEqual([l.name for l, _, _ in listed.context['locations']], ['Shelf 1'])
+        self.assertNotContains(listed, 'DSUB-9-PLUG')
+        self.assertContains(listed, 'data-notes')                               # its notes, changed in place
+        self.client.post(reverse('web:notes', args=['location', self.store.pk]), {'notes': 'Key at reception.'})
+        self.store.refresh_from_db()
+        self.assertEqual(self.store.notes, 'Key at reception.')
 
     def test_nothing_inside_itself(self):
         page = self.client.post(reverse('inventory:location_edit', args=[self.store.pk]), {'name': 'Store', 'parent': self.shelf.pk})

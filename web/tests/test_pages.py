@@ -82,7 +82,7 @@ class BrowserTests(TestCase):
                  ('devices:list', 'device', 'devices.Device', 'device'), ('orders:list', 'order', 'orders.Order', 'order'),
                  ('inventory:vendors', 'vendor', 'inventory.Vendor', 'vendor'), ('setups:list', 'setup', 'setups.Setup', 'setup'),
                  ('work:list', 'project', 'work.Project', 'project'), ('budgets:list', 'budget', 'budgets.Budget', 'budget'),
-                 ('accounts:users', 'user', 'accounts.User', 'user'), ('inventory:locations', 'part', 'inventory.Part', None)]
+                 ('accounts:users', 'user', 'accounts.User', 'user'), ('inventory:locations', 'location', 'inventory.Location', 'location')]
         for name, param, model, kind in pages:
             with self.subTest(page=name):
                 thing = apps.get_model(model).objects.first()

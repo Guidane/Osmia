@@ -187,6 +187,7 @@ class Attribute(models.Model):
 
 class Location(Tree):
     description = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
 
     class Meta(Tree.Meta):
         constraints = [models.UniqueConstraint(fields=['parent', 'name'], name='unique_location_name')]
