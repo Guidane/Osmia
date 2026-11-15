@@ -91,7 +91,7 @@ def department(request, pk):
     people = item.members.filter(is_active=True)
     return render(request, 'accounts/department.html', {
         'department': item, 'people': people, 'children': item.children.all(),
-        'budgets': item.budgets.all(), 'projects': item.projects.all(),
+        'budgets': item.budgets.all(), 'setups': item.setups.all(),
         'others': User.objects.filter(is_active=True).exclude(department=item).select_related('department')})
 
 

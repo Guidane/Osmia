@@ -17,7 +17,7 @@ from devices.models import SET_TYPES as PIN_SET_TYPES, Connector
 from inventory import stock
 from inventory.faces import drawn, face_of
 from inventory.models import Location, Part, PartGroup, choices_of_parts, part_or_family
-from projects.models import Project
+from setups.models import Setup
 from assets.service import next_tag
 from web import excel, rows, versions
 from web.shortcuts import edit_page, errors
@@ -32,42 +32,42 @@ from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessItem, Harnes
 class HarnessForm(forms.ModelForm):
     class Meta:
         model = Harness
-        fields = ['project', 'name', 'description', 'status', 'notes']
+        fields = ['setup', 'name', 'description', 'status', 'notes']
         widgets = {'description': forms.Textarea(attrs={'rows': 2}), 'notes': forms.Textarea(attrs={'rows': 3})}
 
 
 
 @login_required
 def harness_list(request):
-    """The harnesses, like the parts: the projects and their wire diagrams as a tree on the left, the harnesses of the
+    """The harnesses, like the parts: the projects and their setups as a tree on the left, the harnesses of the
     one picked in the middle (found by number or name, by status), the details of the harness picked on the right."""
     from django.db.models import Count, Q
 
     from work.models import Project as Work
-    found = Harness.objects.select_related('project').annotate(n_wires=Count('wires', distinct=True), n_ends=Count('ends', distinct=True))
+    found = Harness.objects.select_related('setup').annotate(n_wires=Count('wires', distinct=True), n_ends=Count('ends', distinct=True))
     q = request.GET.get('q', '').strip()
     if q:
         found = found.filter(Q(number__icontains=q) | Q(name__icontains=q) | Q(description__icontains=q))
     status = request.GET.get('status', '')
     if status in Harness.Status.values:
         found = found.filter(status=status)
-    project = Project.objects.filter(pk=request.GET.get('project') or 0).first()
-    work = Work.objects.filter(pk=request.GET.get('work') or 0).first() if not project else None
-    if project:
-        found = found.filter(project=project)
+    setup = Setup.objects.filter(pk=request.GET.get('setup') or 0).first()
+    work = Work.objects.filter(pk=request.GET.get('work') or 0).first() if not setup else None
+    if setup:
+        found = found.filter(setup=setup)
     elif work:
-        found = found.filter(project__in_project=work)
-    counts = dict(Harness.objects.values('project').annotate(n=Count('pk')).values_list('project', 'n'))
-    diagrams = list(Project.objects.select_related('in_project').order_by('name'))
-    tree = []   # (kind, thing, depth, count): a project, then its wire diagrams; wire diagrams in no project after
-    for w in Work.objects.filter(wire_diagrams__isnull=False).distinct().order_by('code', 'name'):
-        mine = [d for d in diagrams if d.in_project_id == w.pk]
+        found = found.filter(setup__in_project=work)
+    counts = dict(Harness.objects.values('setup').annotate(n=Count('pk')).values_list('setup', 'n'))
+    setups = list(Setup.objects.select_related('in_project').order_by('name'))
+    tree = []   # (kind, thing, depth, count): a project, then its setups; setups in no project after
+    for w in Work.objects.filter(setups__isnull=False).distinct().order_by('code', 'name'):
+        mine = [d for d in setups if d.in_project_id == w.pk]
         tree.append(('work', w, 0, sum(counts.get(d.pk, 0) for d in mine)))
-        tree += [('diagram', d, 1, counts.get(d.pk, 0)) for d in mine]
-    tree += [('diagram', d, 0, counts.get(d.pk, 0)) for d in diagrams if d.in_project_id is None]
+        tree += [('setup', d, 1, counts.get(d.pk, 0)) for d in mine]
+    tree += [('setup', d, 0, counts.get(d.pk, 0)) for d in setups if d.in_project_id is None]
     picked = Harness.objects.filter(pk=request.GET.get('harness') or 0).first()
     return render(request, 'harnesses/list.html', {
-        'harnesses': found, 'project': project, 'work': work, 'tree': tree, 'q': q, 'status': status,
+        'harnesses': found, 'setup': setup, 'work': work, 'tree': tree, 'q': q, 'status': status,
         'statuses': Harness.Status.choices, 'every': Harness.objects.count(), 'picked': picked,
         'brief': _brief(picked) if picked else None})
 
@@ -82,13 +82,13 @@ def _brief(harness):
 @login_required
 def harness_brief(request, pk):
     """The details of a harness beside the harness list (fetched when one is picked)."""
-    return render(request, 'harnesses/_brief.html', _brief(get_object_or_404(Harness.objects.select_related('project'), pk=pk)))
+    return render(request, 'harnesses/_brief.html', _brief(get_object_or_404(Harness.objects.select_related('setup'), pk=pk)))
 
 
 @login_required
 def harness_form(request, pk=None):
     item = get_object_or_404(Harness, pk=pk) if pk else None
-    return edit_page(request, HarnessForm(request.POST or None, instance=item, initial=initial_for(item, project=request.GET.get('project'))),
+    return edit_page(request, HarnessForm(request.POST or None, instance=item, initial=initial_for(item, setup=request.GET.get('setup'))),
                      'harness')
 
 
@@ -105,7 +105,7 @@ def _sheets(harness):
 
 @login_required
 def harness(request, pk):
-    item = get_object_or_404(Harness.objects.select_related('project'), pk=pk)
+    item = get_object_or_404(Harness.objects.select_related('setup'), pk=pk)
     if request.GET.get('export'):
         return excel.download(f'{item.number} {item.name}', _sheets(item))
     wires = item.ordered_wires()
@@ -136,7 +136,7 @@ def _picked_as(found):
 
 def _drawing(harness, wires):
     """What the pinout drawing draws: each end (the pins its wires use, in the layout of its part or family) and the
-    wires between their contact numbers. (What it plugs into is its wire diagram's to say.)"""
+    wires between their contact numbers. (What it plugs into is its setup's to say.)"""
     from devices.models import pin_order
     ends = harness.ends.select_related('part__family', 'family', 'branch__family')
     out = []

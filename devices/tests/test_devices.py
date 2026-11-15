@@ -34,8 +34,14 @@ class DeviceTests(DeviceBase):
             'new': '2', 'number_new0': '10', 'signal_new0': 'PE', 'set_type_new0': 'nonsense', 'number_new1': ''})
         self.assertEqual([(p.number, p.signal, p.wire_set, p.set_type) for p in j2.ordered_pins()],
                          [('1', '+24 V', 'PWR', 'Twisted'), ('2', '0 V', 'PWR', 'Twisted'), ('10', 'PE', '', 'Straight')])
-        page = self.client.get(reverse('devices:device', args=[self.controller.pk]))
-        self.assertContains(page, 'CAN H')
+        url = reverse('devices:device', args=[self.controller.pk])
+        page = self.client.get(url)                                       # the device: its connectors in the middle
+        self.assertContains(page, f'?connector={self.j1.pk}')
+        self.assertNotContains(page, 'CAN H')
+        self.assertContains(self.client.get(f'{url}?connector={self.j1.pk}'), 'CAN H')    # a connector: its pins
+        brief = self.client.get(reverse('devices:connector_brief', args=[self.controller.pk, self.j1.pk]))
+        self.assertContains(brief, 'data-face')
+        self.assertContains(self.client.get(f'{url}?c={self.j1.pk}'), 'data-connector-brief')
 
     def test_a_set_has_one_type(self):
         pins = {p.number: p for p in self.j1.pins.all()}
@@ -123,7 +129,7 @@ class DeviceTests(DeviceBase):
         self.client.post(reverse('devices:edit', args=[self.controller.pk]), dict(base, make_asset='on'))
         unit = Asset.objects.get(number='CTRL-1-001')
         self.assertEqual((unit.device, unit.version, unit.kind), (self.controller, 1, 'device'))
-        self.assertContains(self.client.get(reverse('devices:device', args=[self.controller.pk])), 'CTRL-1-001')
+        self.assertContains(self.client.get(reverse('devices:device', args=[self.controller.pk]) + '?show=assets'), 'CTRL-1-001')
         self.client.post(reverse('devices:edit', args=[self.controller.pk]), dict(base, make_asset='on'))
         self.client.post(reverse('devices:edit', args=[self.controller.pk]), base)                  # not ticked: none
         self.assertEqual(list(self.controller.assets.values_list('number', flat=True)), ['CTRL-1-001', 'CTRL-1-002'])
@@ -137,11 +143,10 @@ class DeviceTests(DeviceBase):
         unit.refresh_from_db()
         self.assertIsNone(unit.device)                                               # the asset stays
 
-    def test_a_device_in_a_wire_diagram_is_not_deleted(self):
-        from projects.models import Configuration, Placement, Project
-        diagram = Project.objects.create(code='WD-1', name='Rack')
-        Placement.objects.create(configuration=Configuration.objects.create(project=diagram, name='Main'), key='d1',
-                                 kind='device', device=self.controller)
+    def test_a_device_in_a_setup_is_not_deleted(self):
+        from setups.models import Placement, Setup
+        setup = Setup.objects.create(code='WD-1', name='Rack')
+        Placement.objects.create(setup=setup, key='d1', kind='device', device=self.controller)
         self.client.post(reverse('devices:delete', args=[self.controller.pk]))
         self.assertTrue(Device.objects.filter(pk=self.controller.pk).exists())
 

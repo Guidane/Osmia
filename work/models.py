@@ -1,4 +1,4 @@
-"""Projects: what the work is for. A wire diagram or an order is of one project; a device or an asset (a tool too) can
+"""Projects: what the work is for. A setup or an order is of one project; a device or an asset (a tool too) can
 be in several. A project can be part of another (a sub-project), as deep as need be."""
 from django.conf import settings
 from django.db import models

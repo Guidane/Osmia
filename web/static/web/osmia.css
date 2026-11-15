@@ -197,6 +197,9 @@ a.tile:hover { border-color: var(--brand); text-decoration: none; }
 .parts-tree a > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
 .parts-tree .thumb-sm { width: 22px; height: 22px; flex: none; }
 .parts-detail > .card { margin: 12px 0 0; }
+.parts-detail .connector-face { padding: 8px 12px; overflow: auto; }
+.parts-detail .notes-card { box-shadow: none; }
+tr[data-pin].lit, tr[data-pin].on { background: var(--brand-soft); }
 .inside-row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; clear: both; }
 .with-thumb { display: inline-flex; align-items: center; gap: 6px; }
 .home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 10px; align-items: start; }

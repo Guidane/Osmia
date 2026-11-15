@@ -25,7 +25,7 @@ def _date(value):
 
 
 def device(d):
-    connectors = [((c.designator, f'{d.get_absolute_url()}#c{c.pk}'), c.name, c.used_name, f'{c.pins.count()} pins')
+    connectors = [((c.designator, f'{d.get_absolute_url()}?connector={c.pk}'), c.name, c.used_name, f'{c.pins.count()} pins')
                   for c in d.connectors.select_related('part', 'family', 'branch')]
     return {'badges': [('Bought', '')] if d.origin == 'external' else [], 'what': d.name,
             'edit_url': reverse('devices:edit', args=[d.pk]), 'title': d.number,
@@ -48,13 +48,12 @@ def order(o):
             'tables': [_table('Lines', lines, 'No lines yet.')]}
 
 
-def diagram(p):
-    from projects.models import Configuration
-    configurations = [((c.name, c.get_absolute_url()), c.description[:60]) for c, _ in Configuration.ordered(p.configurations.all())]
-    return {'title': str(p), 'what': p.description, 'edit_url': reverse('projects:edit', args=[p.pk]),
+def setup(p):
+    return {'title': str(p), 'what': p.description, 'edit_url': reverse('setups:edit', args=[p.pk]),
             'details': [('Project', str(p.in_project or ''), p.in_project.get_absolute_url() if p.in_project else ''),
                         ('Owner', str(p.owner or ''), ''), ('Department', str(p.department or ''), '')],
-            'tables': [_table('Configurations', configurations),
+            'tables': [_table('Devices', [(row.label or str(row.device), (str(row.device), row.device.get_absolute_url()))
+                                          for row in p.placements.filter(kind='device').select_related('device')]),
                        _table('Harnesses', [((h.number, h.get_absolute_url()), h.name, h.get_status_display()) for h in p.harnesses.all()])]}
 
 
@@ -65,7 +64,7 @@ def project(p):
                         ('Department', str(p.department or ''), ''),
                         ('Devices', p.devices.count(), ''), ('Assets and tools', p.assets.count(), ''), ('Orders', p.orders.count(), '')],
             'tables': [_table('Sub-projects', [(_link(c), c.get_status_display()) for c in p.children.order_by('code', 'name')]),
-                       _table('Wire diagrams', [(_link(d),) for d in p.wire_diagrams.all()])]}
+                       _table('Setups', [(_link(d),) for d in p.setups.all()])]}
 
 
 def vendor(v):
@@ -83,7 +82,7 @@ def budget(b):
     return {'title': str(b), 'what': '', 'edit_url': reverse('budgets:edit', args=[b.pk]),
             'badges': ([('Overspent', 'failed')] if t.over else []) + ([] if b.active else [('Closed', '')]),
             'details': [('Part of', str(b.parent or ''), b.parent.get_absolute_url() if b.parent else ''),
-                        ('Wire diagram', str(b.project or ''), b.project.get_absolute_url() if b.project else ''),
+                        ('Setup', str(b.setup or ''), b.setup.get_absolute_url() if b.setup else ''),
                         ('Department', str(b.department or ''), ''), ('Owner', str(b.owner or ''), ''),
                         ('Amount', money(b.amount), ''), ('Spent', money(t.spent), ''), ('Still to come', money(t.coming), ''),
                         ('Left', money(t.remaining), ''), ('Used', f'{t.used}%', '')],
@@ -112,7 +111,7 @@ def location(l):
             'tables': [_table('Inside it', [((c.name, f'{here}?location={c.pk}'), c.description[:50]) for c in l.children.all()])]}
 
 
-BRIEFS = {'location': location, 'device': device, 'order': order, 'diagram': diagram, 'project': project, 'vendor': vendor, 'budget': budget, 'user': user}
+BRIEFS = {'location': location, 'device': device, 'order': order, 'setup': setup, 'project': project, 'vendor': vendor, 'budget': budget, 'user': user}
 
 
 def of(kind, obj):

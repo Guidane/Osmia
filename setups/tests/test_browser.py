@@ -1,34 +1,33 @@
-"""The project diagram in a real browser: dragging a device moves it in that configuration only (its lines going
-with it while it moves), clicking a harness picks it in the list below, a connector's square shows its pinout, and the
+"""The setup diagram in a real browser: dragging a device moves it in that setup only (its lines going with it while
+it moves), clicking a harness picks it in the list below, a connector's square shows its pinout, and the
 zoom."""
 import re
 
 from django.core.management import call_command
 
-from projects import configs
-from projects.models import Configuration
+from setups import contents
+from setups.models import Setup
 from web.tests.browser import BrowserTestCase, expect
 
 
 class DiagramTests(BrowserTestCase):
     def test_dragging_a_device_and_picking_a_harness(self):
         call_command('demo', stdout=open('nul', 'w'))
-        base, two = Configuration.objects.get(name='Base'), Configuration.objects.get(name='Two load boards')
+        base, two = Setup.objects.get(name='Base'), Setup.objects.get(name='Two load boards')
         page = self.go(two.get_absolute_url())
         expect(page.locator('#diagram .device')).to_have_count(3)
-        expect(page.locator('#diagram .device.added')).to_have_count(1)        # Load board 2
-        controller = next(k for k, r in configs.resolve(two).items() if r['label'] == 'Controller')
-        before = configs.resolve(two)[controller]['x']
+        controller = next(k for k, r in contents.rows(two).items() if r['label'] == 'Controller')
+        before = contents.rows(two)[controller]['x']
         with page.expect_response(lambda r: r.request.method == 'POST'):
             self.drag(page.locator(f'#diagram .device[data-key="{controller}"]'), (120, 0))
-        self.assertGreater(configs.resolve(two)[controller]['x'], before + 50)
-        self.assertEqual(configs.resolve(base)[controller]['x'], before)       # the parent stays where it was
+        self.assertGreater(contents.rows(two)[controller]['x'], before + 50)
+        self.assertEqual(contents.rows(base)[controller]['x'], before)       # the setup it was copied from stays as it was
         page.locator('#diagram .pill', has_text='Load board link').click()   # (its number depends on the tests before)
         expect(page.locator('tr.placed.picked')).to_contain_text('Load board link')
 
     def test_lines_follow_a_device_while_it_moves_and_the_zoom(self):
         call_command('demo', stdout=open('nul', 'w'))
-        page = self.go(Configuration.objects.get(name='Base').get_absolute_url())
+        page = self.go(Setup.objects.get(name='Base').get_absolute_url())
         wires = lambda: page.eval_on_selector_all('#diagram .wire', 'ws => ws.map(w => w.getAttribute("d")).join("|")')
         before = wires()
         box = page.locator('#diagram .device').first.bounding_box()
@@ -47,7 +46,7 @@ class DiagramTests(BrowserTestCase):
 
     def test_a_connector_square_shows_its_pinout(self):
         call_command('demo', stdout=open('nul', 'w'))
-        page = self.go(Configuration.objects.get(name='Base').get_absolute_url())
+        page = self.go(Setup.objects.get(name='Base').get_absolute_url())
         expect(page.locator('#diagram .sq.on').first).to_be_visible()          # where harnesses plug in
         page.locator('#diagram .sq.on').first.click()
         expect(page.locator('#pinout')).to_be_visible()
@@ -57,7 +56,7 @@ class DiagramTests(BrowserTestCase):
 
     def test_dragging_from_square_to_square_makes_a_harness(self):
         call_command('demo', stdout=open('nul', 'w'))
-        base = Configuration.objects.get(name='Base')
+        base = Setup.objects.get(name='Base')
         page = self.go(base.get_absolute_url())
         before = page.locator('#diagram .pill').count()
         free = page.locator('#diagram .sq:not(.on)')
@@ -68,12 +67,12 @@ class DiagramTests(BrowserTestCase):
         expect(page.locator('#connect [name=name]')).not_to_have_value('')
         page.click('#connect button.primary')
         expect(page.locator('#diagram .pill')).to_have_count(before + 1)
-        self.assertEqual(base.project.harnesses.count(), 4)
+        self.assertEqual(base.harnesses.count(), 2)
 
     def test_a_connector_slides_along_its_box_and_a_line_is_pinned_by_its_handle(self):
         from devices.models import Connector
         call_command('demo', stdout=open('nul', 'w'))
-        base = Configuration.objects.get(name='Base')
+        base = Setup.objects.get(name='Base')
         page = self.go(base.get_absolute_url())
         free = page.locator('#diagram .sq:not(.on)').first
         connector = Connector.objects.get(pk=free.get_attribute('data-connector'))
@@ -91,12 +90,12 @@ class DiagramTests(BrowserTestCase):
         with page.expect_response(lambda r: r.request.method == 'POST'):
             dot.click()                                                           # pinned where it is
         expect(page.locator('#diagram .handle.pinned')).to_have_count(1)
-        row = next(r for r in configs.resolve(base).values() if r['kind'] == 'harness')
+        row = next(r for r in contents.rows(base).values() if r['kind'] == 'harness')
         self.assertEqual(len(row['handles']), 1)
         with page.expect_response(lambda r: r.request.method == 'POST'):
             page.locator('#diagram .handle.pinned').click()                      # let go
         expect(page.locator('#diagram .handle.pinned')).to_have_count(0)
-        self.assertEqual(next(r for r in configs.resolve(base).values() if r['kind'] == 'harness')['handles'], {})
+        self.assertEqual(next(r for r in contents.rows(base).values() if r['kind'] == 'harness')['handles'], {})
         handle = page.locator('#diagram .handle').first.bounding_box()
         page.mouse.move(handle['x'] + 5, handle['y'] + 5)
         page.mouse.down()

@@ -10,7 +10,7 @@ class CostInline(admin.TabularInline):
 
 @admin.register(Budget)
 class BudgetAdmin(admin.ModelAdmin):
-    list_display = ['number', 'name', 'parent', 'project', 'owner', 'amount', 'active']
-    list_filter = ['active', 'project']
+    list_display = ['number', 'name', 'parent', 'setup', 'owner', 'amount', 'active']
+    list_filter = ['active', 'setup']
     search_fields = ['number', 'name']
     inlines = [CostInline]

@@ -23,7 +23,7 @@ class BudgetForm(TreeForm):
 
     class Meta:
         model = Budget
-        fields = ['number', 'name', 'parent', 'department', 'project', 'owner', 'amount', 'starts_on', 'ends_on', 'notes', 'active']
+        fields = ['number', 'name', 'parent', 'department', 'setup', 'owner', 'amount', 'starts_on', 'ends_on', 'notes', 'active']
         labels = {'parent': 'Part of'}
         widgets = {'starts_on': forms.DateInput(attrs={'type': 'date'}), 'ends_on': forms.DateInput(attrs={'type': 'date'}),
                    'notes': forms.Textarea(attrs={'rows': 3})}
@@ -46,9 +46,9 @@ def budget_list(request):
     if not request.GET.get('all'):
         rows = [r for r in rows if r[0].active]
     if request.GET.get('export'):
-        return excel.download('budgets', [('Budgets', ['Number', 'Name', 'Part of', 'Wire diagram', 'Owner', 'Amount', 'Received',
+        return excel.download('budgets', [('Budgets', ['Number', 'Name', 'Part of', 'Setup', 'Owner', 'Amount', 'Received',
                                                        'Still to come', 'Other costs', 'Spent', 'Left', 'Used %', 'In drafts'],
-                                           [(b.number, b.name, str(b.parent or ''), str(b.project or ''), str(b.owner or ''), b.amount,
+                                           [(b.number, b.name, str(b.parent or ''), str(b.setup or ''), str(b.owner or ''), b.amount,
                                              t.received, t.coming, t.costs, t.spent, t.remaining, t.used, t.planned) for b, _, t in rows])])
     from web import briefs, browse
     inside = Budget.objects.filter(pk=request.GET.get('in') or 0).first()
@@ -71,12 +71,12 @@ def budget_list(request):
 def budget_form(request, pk=None):
     item = get_object_or_404(Budget, pk=pk) if pk else None
     return edit_page(request, BudgetForm(request.POST or None, instance=item, initial=initial_for(
-        item, parent=request.GET.get('parent'), project=request.GET.get('project'), owner=request.user.pk)), 'budget')
+        item, parent=request.GET.get('parent'), setup=request.GET.get('setup'), owner=request.user.pk)), 'budget')
 
 
 @login_required
 def budget(request, pk):
-    item = get_object_or_404(Budget.objects.select_related('parent', 'project', 'owner'), pk=pk)
+    item = get_object_or_404(Budget.objects.select_related('parent', 'setup', 'owner'), pk=pk)
     totals = money.totals()
     orders = list(item.orders.select_related('vendor').prefetch_related('lines'))
     costs = item.costs.select_related('created_by')

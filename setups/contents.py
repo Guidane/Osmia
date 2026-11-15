@@ -1,13 +1,12 @@
-"""What a configuration is: its parent's devices and harnesses with its own changes (``resolve``); what those changes
-are (``changes``); changing it (``place``, ``take_away``, ``undo``, ``detach``); what is wrong with it (``problems``)
-and what building it needs (``needs``)."""
+"""What a setup holds (``rows``): its devices and the harnesses between them; changing it (``place``, ``take_away``,
+``copy``, ``connect``, ``plug``); what is wrong with it (``problems``) and what building it needs (``needs``)."""
 import uuid
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .models import Configuration, Placement
+from .models import Placement, Setup
 
 FIELDS = ('kind', 'device_id', 'label', 'x', 'y', 'harness_id', 'ends', 'handles')
 
@@ -35,137 +34,65 @@ def _row(placement):
     return {'key': placement.key, **{f: getattr(placement, f) for f in FIELDS}}
 
 
-def resolve(config):
-    """{key: {kind, device_id, label, x, y, harness_id, ends, key}} of ``config``, in the order they came in."""
-    out = {}
-    if config is None:
-        return out
-    chain = config.chain()
-    rows = Placement.objects.filter(configuration__in=chain)
-    by_config = {}
-    for p in rows:
-        by_config.setdefault(p.configuration_id, []).append(p)
-    for node in chain:
-        for p in by_config.get(node.pk, []):
-            if p.removed:
-                out.pop(p.key, None)
-            else:
-                out[p.key] = _row(p)
-    return out
-
-
-def changes(config):
-    """What ``config`` changes of its parent: [(placement, what, text)]; ``what`` is added, removed, changed or
-    stale (a change of something its parent no longer has)."""
-    from devices.models import Device
-    from harnesses.models import Harness
-    base = resolve(config.parent)
-    devices = {d.pk: d for d in Device.objects.all()}
-    harnesses = {h.pk: h for h in Harness.objects.filter(project_id=config.project_id)}
-    out = []
-    for p in config.placements.all():
-        before = base.get(p.key)
-        if p.removed:
-            out.append((p, 'removed', f'{_name(before, devices, harnesses)} taken away') if before else
-                       (p, 'stale', 'Something taken away that the parent no longer has'))
-            continue
-        thing = _name(_row(p), devices, harnesses)
-        if before is None:
-            out.append((p, 'added', f'{thing} added'))
-        else:
-            what = []
-            if before['device_id'] != p.device_id:
-                what.append(f'{devices.get(before["device_id"], "?")} → {devices.get(p.device_id, "?")}')
-            if before['harness_id'] != p.harness_id:
-                what.append(f'{harnesses.get(before["harness_id"], "?")} → {harnesses.get(p.harness_id, "?")}')
-            if before['label'] != p.label:
-                what.append(f'named {p.label}')
-            if before['ends'] != p.ends:
-                what.append('plugged in differently')
-            if (before['x'], before['y']) != (p.x, p.y):
-                what.append('moved')
-            if before['handles'] != p.handles:
-                what.append('routed differently')
-            out.append((p, 'changed' if what else 'same', f'{thing}: {", ".join(what) or "as in its parent"}'))
-    return out
-
-
-def _name(row, devices, harnesses):
-    if row['kind'] == 'device':
-        return row['label'] or str(devices.get(row['device_id'], 'A device'))
-    return str(harnesses.get(row['harness_id'], 'A harness'))
+def rows(setup):
+    """{key: {kind, device_id, label, x, y, harness_id, ends, handles, key}} of ``setup``, in the order they came in."""
+    if setup is None:
+        return {}
+    return {p.key: _row(p) for p in Placement.objects.filter(setup=setup)}
 
 
 @transaction.atomic
-def place(config, key=None, **fields):
-    """Set what ``key`` is in ``config`` (a new key: something added): the fields given, the rest as it is now."""
-    current = resolve(config).get(key) if key else None
+def place(setup, key=None, **fields):
+    """Set what ``key`` is in ``setup`` (a new key: something added): the fields given, the rest as it is now."""
+    current = rows(setup).get(key) if key else None
     if key and current is None:
-        raise ValidationError('That is not in this configuration.')
+        raise ValidationError('That is not in this setup.')
     values = {f: v for f, v in (current or {}).items() if f in FIELDS}
     values.update(fields)
     values.setdefault('ends', {})
     values.setdefault('handles', {})
     key = key or uuid.uuid4().hex[:12]
-    Placement.objects.update_or_create(configuration=config, key=key, defaults={**values, 'removed': False})
+    Placement.objects.update_or_create(setup=setup, key=key, defaults=values)
     return key
 
 
 @transaction.atomic
-def take_away(config, key):
-    """``key`` is not in ``config`` (nor in those under it, unless they add it back). Harnesses plugged into a device
-    taken away come out of it."""
-    rows = resolve(config)
-    if key not in rows:
-        raise ValidationError('That is not in this configuration.')
-    if key not in resolve(config.parent):   # added here: the change goes
-        Placement.objects.filter(configuration=config, key=key).delete()
-    else:
-        Placement.objects.update_or_create(configuration=config, key=key, defaults={'kind': rows[key]['kind'], 'removed': True})
-    if rows[key]['kind'] == 'device':
-        for row in rows.values():
+def take_away(setup, key):
+    """``key`` is no longer in ``setup``. Harnesses plugged into a device taken away come out of it."""
+    now = rows(setup)
+    if key not in now:
+        raise ValidationError('That is not in this setup.')
+    Placement.objects.filter(setup=setup, key=key).delete()
+    if now[key]['kind'] == 'device':
+        for row in now.values():
             if row['kind'] == 'harness' and any(spot(v)[0] == key for v in row['ends'].values()):
-                place(config, row['key'], ends={e: v for e, v in row['ends'].items() if spot(v)[0] != key})
-
-
-def undo(config, placement_id):
-    """Take one of ``config``'s changes back: it is as its parent again."""
-    Placement.objects.filter(configuration=config, pk=placement_id).delete()
+                place(setup, row['key'], ends={e: v for e, v in row['ends'].items() if spot(v)[0] != key})
 
 
 @transaction.atomic
-def detach(config):
-    """``config`` becomes a setup of its own: everything it has now, no parent."""
-    rows = resolve(config)
-    config.placements.all().delete()
-    for key, row in rows.items():
-        Placement.objects.create(configuration=config, key=key, **{f: row[f] for f in FIELDS})
-    config.parent = None
-    config.save(update_fields=['parent'])
-
-
-@transaction.atomic
-def copy(config, name):
-    """A new configuration at the top of the project's tree, with everything ``config`` has now."""
-    new = Configuration.objects.create(project=config.project, name=name)
-    for key, row in resolve(config).items():
-        Placement.objects.create(configuration=new, key=key, **{f: row[f] for f in FIELDS})
+def copy(setup, name, user=None):
+    """A new setup in the same project with everything ``setup`` has now (the harnesses are the same ones, placed in
+    both)."""
+    new = Setup.objects.create(name=name, description=setup.description, in_project=setup.in_project,
+                               department=setup.department, owner=user or setup.owner)
+    for key, row in rows(setup).items():
+        Placement.objects.create(setup=new, key=key, **{f: row[f] for f in FIELDS})
     return new
 
 
 @transaction.atomic
-def connect(config, ends, name, pairs, parts=(None, None)):
-    """A new harness between two connectors in ``config``, placed and plugged in: ``ends`` [(device key, connector)]
+def connect(setup, ends, name, pairs, parts=(None, None)):
+    """A new harness between two connectors in ``setup``, placed and plugged in: ``ends`` [(device key, connector)]
     its P1 and P2 (``parts``: what each is made of, a part or a family), ``pairs`` [(pin of the first, pin of the
     second)] its wires, with the signals and sets of the pins."""
     from harnesses.models import Harness, HarnessEnd, Wire
-    rows = resolve(config)
+    now = rows(setup)
     if ends[0] == ends[1]:
         raise ValidationError('Pick two different connectors.')
     for key, connector in ends:
-        if key not in rows or rows[key]['device_id'] != connector.device_id:
-            raise ValidationError('That connector is not in this configuration.')
-    harness = Harness.objects.create(project=config.project, name=name.strip()[:200] or 'Harness')
+        if key not in now or now[key]['device_id'] != connector.device_id:
+            raise ValidationError('That connector is not in this setup.')
+    harness = Harness.objects.create(setup=setup, name=name.strip()[:200] or 'Harness')
     made = []
     for i, ((_, connector), part) in enumerate(zip(ends, parts)):
         end = HarnessEnd(harness=harness, designator=f'P{i + 1}', position=i)
@@ -180,21 +107,21 @@ def connect(config, ends, name, pairs, parts=(None, None)):
         in_set = pa if pa.wire_set else pb
         Wire.objects.create(harness=harness, from_end=made[0], from_pin=a, to_end=made[1], to_pin=b, signal=pa.signal or pb.signal,
                             wire_set=in_set.wire_set, set_type=in_set.set_type)
-    place(config, kind='harness', harness_id=harness.pk,
+    place(setup, kind='harness', harness_id=harness.pk,
           ends={str(end.pk): [key, connector.pk] for end, (key, connector) in zip(made, ends)})
     between = {ends[0][0], ends[1][0]}
-    for wanted in config.harness_requests.filter(status='open'):   # what someone asked for between these two: made
+    for wanted in setup.harness_requests.filter(status='open'):   # what someone asked for between these two: made
         if {wanted.a, wanted.b} == between:
             close_request(wanted, wanted.Status.DONE, harness=harness)
     return harness
 
 
-def sockets(config, rows=None):
-    """The device connectors of ``config`` a harness end can plug into: [(value "key:connector id", label, device key,
+def sockets(setup, now=None):
+    """The device connectors of ``setup`` a harness end can plug into: [(value "key:connector id", label, device key,
     connector)], by device then connector."""
     from devices.models import Connector
-    rows = rows if rows is not None else resolve(config)
-    placed = [(k, r) for k, r in rows.items() if r['kind'] == 'device' and r['device_id']]
+    now = now if now is not None else rows(setup)
+    placed = [(k, r) for k, r in now.items() if r['kind'] == 'device' and r['device_id']]
     connectors = {}
     for c in Connector.objects.filter(device_id__in={r['device_id'] for _, r in placed}).select_related('device', 'part', 'branch'):
         connectors.setdefault(c.device_id, []).append(c)
@@ -205,12 +132,12 @@ def sockets(config, rows=None):
     return out
 
 
-def plug(config, harness, wanted=None):
+def plug(setup, harness, wanted=None):
     """How ``harness``'s ends plug in: {end id: [device key, connector id]}. ``wanted`` ({end id: "key:connector id"})
-    where given; else, for each end, the one free connector of the configuration of the end's family (when there is
-    just one)."""
-    rows = resolve(config)
-    choices = sockets(config, rows)
+    where given; else, for each end, the one free connector of the setup of the end's family (when there is just
+    one)."""
+    now = rows(setup)
+    choices = sockets(setup, now)
     by_value = {value: (key, c) for value, _, key, c in choices}
     out = {}
     if wanted:
@@ -219,7 +146,7 @@ def plug(config, harness, wanted=None):
                 key, c = by_value[value]
                 out[str(end_id)] = [key, c.pk]
         return out
-    taken = {spot(v) for r in rows.values() if r['kind'] == 'harness' for v in r['ends'].values()}
+    taken = {spot(v) for r in now.values() if r['kind'] == 'harness' for v in r['ends'].values()}
     for end in harness.ends.select_related('part', 'branch'):
         mine = family_of(end)
         fits = [(key, c) for _, _, key, c in choices if mine and family_of(c) == mine and (key, c.pk) not in taken]
@@ -229,14 +156,14 @@ def plug(config, harness, wanted=None):
     return out
 
 
-def problems(config, rows=None):
-    """What is wrong with ``config``: [(key, message)]: a harness end not plugged in, two in one connector, a wire on a
+def problems(setup, now=None):
+    """What is wrong with ``setup``: [(key, message)]: a harness end not plugged in, two in one connector, a wire on a
     pin the device connector hasn't, a wire whose signal is not the pin's."""
     from devices.models import Connector
     from harnesses.models import HarnessEnd, Wire
-    rows = rows if rows is not None else resolve(config)
+    now = now if now is not None else rows(setup)
     found, taken = [], {}
-    for key, row in rows.items():
+    for key, row in now.items():
         if row['kind'] != 'harness':
             continue
         ends = {e.pk: e for e in HarnessEnd.objects.filter(harness_id=row['harness_id']).select_related('harness')}
@@ -244,10 +171,10 @@ def problems(config, rows=None):
         for end in ends.values():
             where, connector_id = spot(row['ends'].get(str(end.pk)))
             label = f'{end.harness.number} {end.designator}'
-            if where is None or where not in rows:
+            if where is None or where not in now:
                 found.append((key, f'{label} is not plugged in.'))
                 continue
-            target = rows[where]
+            target = now[where]
             connector = Connector.objects.filter(pk=connector_id or 0, device_id=target['device_id']).select_related('device').first()
             if connector is None:
                 found.append((key, f'{label} is plugged into {target["label"] or "a device"}, but not into one of its connectors.'))
@@ -271,15 +198,14 @@ def problems(config, rows=None):
     return found
 
 
-def needs(config):
-    """What building ``config`` once takes: (devices [(device, count)], harnesses [(harness, count)],
+def needs(setup):
+    """What building ``setup`` once takes: (devices [(device, count)], harnesses [(harness, count)],
     parts [(part, needed, on hand, on order)])."""
     from devices.models import Device
     from harnesses.models import Harness
     from orders.service import on_order
-    rows = resolve(config).values()
     device_count, harness_count = {}, {}
-    for row in rows:
+    for row in rows(setup).values():
         if row['kind'] == 'device' and row['device_id']:
             device_count[row['device_id']] = device_count.get(row['device_id'], 0) + 1
         elif row['kind'] == 'harness' and row['harness_id']:
@@ -299,21 +225,21 @@ def needs(config):
 
 # -- Asking for a harness between two devices ----------------------------------------------------------------------
 
-def ask_harness(config, a, b, text, ask, user):
-    """``user`` asks for a harness between the devices ``a`` and ``b`` of ``config``; who is asked (else the
+def ask_harness(setup, a, b, text, ask, user):
+    """``user`` asks for a harness between the devices ``a`` and ``b`` of ``setup``; who is asked (else the
     administrators) hears of it."""
     from django.contrib.auth import get_user_model
     from web.notify import notify
     from .models import HarnessRequest
-    rows = resolve(config)
+    now = rows(setup)
     if not text.strip():
         raise ValidationError('Say what is needed.')
-    if any(rows.get(k, {}).get('kind') != 'device' for k in (a, b)):
-        raise ValidationError('Pick two devices of this configuration.')
-    wanted = HarnessRequest.objects.create(configuration=config, a=a, b=b, request=text.strip(), ask=ask, created_by=user)
+    if any(now.get(k, {}).get('kind') != 'device' for k in (a, b)):
+        raise ValidationError('Pick two devices of this setup.')
+    wanted = HarnessRequest.objects.create(setup=setup, a=a, b=b, request=text.strip(), ask=ask, created_by=user)
     people = [ask] if ask else list(get_user_model().objects.filter(is_superuser=True, is_active=True))
     people = [p for p in people if p != user] or people
-    notify(people, f'{user or "Someone"} asks for a harness between {label_of(rows, a)} and {label_of(rows, b)}: {wanted.request[:200]}',
+    notify(people, f'{user or "Someone"} asks for a harness between {label_of(now, a)} and {label_of(now, b)}: {wanted.request[:200]}',
            wanted.get_absolute_url())
     return wanted
 
@@ -331,8 +257,8 @@ def close_request(wanted, status, user=None, harness=None):
         notify([wanted.created_by], f'The harness you asked for: {what}.', wanted.get_absolute_url())
 
 
-def label_of(rows, key):
+def label_of(now, key):
     from devices.models import Device
-    row = rows.get(key) or {}
+    row = now.get(key) or {}
     device = Device.objects.filter(pk=row.get('device_id')).first()
     return row.get('label') or (device.number if device else '?')

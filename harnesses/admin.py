@@ -15,8 +15,8 @@ class ItemInline(admin.TabularInline):
 
 @admin.register(Harness)
 class HarnessAdmin(admin.ModelAdmin):
-    list_display = ['number', 'name', 'project', 'status', 'version']
-    list_filter = ['status', 'project']
+    list_display = ['number', 'name', 'setup', 'status', 'version']
+    list_filter = ['status', 'setup']
     search_fields = ['number', 'name']
     inlines = [EndInline, ItemInline]
 

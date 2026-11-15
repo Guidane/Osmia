@@ -64,7 +64,7 @@ def home_reports_of(user):
 def home(request):
     """What needs attention, in reports each person picks for themselves (Edit: a ✕ on each, ＋ Add report): parts to
     order, orders still to come (late ones first), budgets overspent, what arrived lately, …"""
-    from projects.models import HarnessRequest
+    from setups.models import HarnessRequest
     from datetime import date
 
     from assets.models import Asset
@@ -87,7 +87,7 @@ def home(request):
         'to_order': needs_ordering(), 'waiting': waiting, 'late': sum(1 for o in waiting if o.overdue),
         'drafts': Order.objects.filter(status=Order.Status.DRAFT, kind=Order.Kind.ORDER).count(),
         'requests': Order.objects.filter(status=Order.Status.DRAFT, kind=Order.Kind.REQUEST).count(),
-        'harness_requests': HarnessRequest.objects.filter(status='open').select_related('configuration__project', 'created_by', 'ask'),
+        'harness_requests': HarnessRequest.objects.filter(status='open').select_related('setup', 'created_by', 'ask'),
         'received': Order.objects.filter(status=Order.Status.RECEIVED).select_related('vendor').order_by('-received_on', '-pk')[:8],
         'my_assets': Asset.objects.filter(holder=request.user).select_related('location') if 'my_assets' in mine else [],
         'active_projects': Project.objects.filter(status=Project.Status.ACTIVE, parent=None).select_related('owner') if 'projects' in mine else [],

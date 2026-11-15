@@ -1,4 +1,4 @@
-"""Projects: made, listed by status, and what is in them: wire diagrams and orders (of one project each), devices,
+"""Projects: made, listed by status, and what is in them: setups and orders (of one project each), devices,
 assets and tools (in several)."""
 from django.urls import reverse
 
@@ -6,7 +6,7 @@ from assets.models import Asset
 from devices.models import Device
 from inventory.tests.test_inventory import Base
 from orders.models import Order
-from projects.models import Project as WireDiagram
+from setups.models import Setup
 from work.models import Project
 
 
@@ -16,23 +16,23 @@ class ProjectTests(Base):
         project = Project.objects.get()
         self.assertRedirects(response, project.get_absolute_url())
         self.assertEqual(project.get_absolute_url(), f'/projects/{project.pk}/')
-        diagram = WireDiagram.objects.create(name='Rack')
+        setup = Setup.objects.create(name='Rack')
         order = Order.objects.create(vendor=self.acme)
         device = Device.objects.create(number='CTRL-1', name='Controller')
         crimper = Asset.objects.create(number='T-1', name='Crimper', kind='tool')
         scope = Asset.objects.create(number='M-1', name='Scope', kind='measuring')
         link = reverse('work:link', args=[project.pk])
-        for what, thing in (('diagram', diagram), ('order', order), ('device', device), ('asset', crimper), ('asset', scope)):
+        for what, thing in (('setup', setup), ('order', order), ('device', device), ('asset', crimper), ('asset', scope)):
             self.client.post(link, {'what': what, 'id': thing.pk})
         page = self.client.get(project.get_absolute_url())
-        self.assertEqual([list(page.context[k]) for k in ('diagrams', 'orders', 'devices', 'assets', 'tools')],
-                         [[diagram], [order], [device], [scope], [crimper]])
+        self.assertEqual([list(page.context[k]) for k in ('setups', 'orders', 'devices', 'assets', 'tools')],
+                         [[setup], [order], [device], [scope], [crimper]])
         other = Project.objects.create(name='Test rig')
         self.client.post(reverse('work:link', args=[other.pk]), {'what': 'device', 'id': device.pk})
-        self.client.post(reverse('work:link', args=[other.pk]), {'what': 'diagram', 'id': diagram.pk})
+        self.client.post(reverse('work:link', args=[other.pk]), {'what': 'setup', 'id': setup.pk})
         self.assertEqual(set(device.work_projects.all()), {project, other})              # a device: in several
-        diagram.refresh_from_db()
-        self.assertEqual(diagram.in_project, other)                                       # a wire diagram: in one
+        setup.refresh_from_db()
+        self.assertEqual(setup.in_project, other)                                       # a setup: in one
         self.client.post(link, {'what': 'device', 'id': device.pk, 'remove': '1'})
         self.assertEqual(list(device.work_projects.all()), [other])
         listed = self.client.get(reverse('work:list'))
@@ -41,14 +41,14 @@ class ProjectTests(Base):
         self.assertNotContains(self.client.get(reverse('work:list')), 'Test rig')         # active ones first
         self.assertContains(self.client.get(reverse('work:list'), {'status': 'all'}), 'Test rig')
 
-    def test_new_wire_diagrams_and_orders_start_in_the_project(self):
+    def test_new_setups_and_orders_start_in_the_project(self):
         project = Project.objects.create(name='Burn-in rack')
-        page = self.client.get(reverse('projects:new'), {'in_project': project.pk})
+        page = self.client.get(reverse('setups:new'), {'in_project': project.pk})
         self.assertEqual(page.context['form'].initial['in_project'], str(project.pk))
         page = self.client.get(reverse('orders:new'), {'in_project': project.pk})
         self.assertEqual(page.context['own'].initial['in_project'], str(project.pk))
-        self.client.post(reverse('projects:new'), {'name': 'Rack', 'in_project': project.pk})
-        self.assertEqual(WireDiagram.objects.get().in_project, project)
+        self.client.post(reverse('setups:new'), {'name': 'Rack', 'in_project': project.pk})
+        self.assertEqual(Setup.objects.get().in_project, project)
 
     def test_sub_projects(self):
         rack = Project.objects.create(name='Burn-in rack', code='BR')
@@ -66,18 +66,18 @@ class ProjectTests(Base):
         deep.devices.add(device)
         tool = Asset.objects.create(number='T-9', name='Crimper', kind='tool')
         boards.assets.add(tool)
-        WireDiagram.objects.create(name='Boards', in_project=deep)
+        Setup.objects.create(name='Boards', in_project=deep)
         page = self.client.get(rack.get_absolute_url())
         self.assertEqual(list(page.context['children']), [boards])
         self.assertEqual([(d, d.via) for d in page.context['sub_devices']], [(device, deep)])
         self.assertEqual([(t, t.via) for t in page.context['sub_tools']], [(tool, boards)])
-        self.assertEqual([d.name for d in page.context['sub_diagrams']], ['Boards'])
+        self.assertEqual([d.name for d in page.context['sub_setups']], ['Boards'])
         from harnesses.models import Harness
-        loom = Harness.objects.create(project=WireDiagram.objects.get(name='Boards'), name='Board loom')
+        loom = Harness.objects.create(setup=Setup.objects.get(name='Boards'), name='Board loom')
         page = self.client.get(rack.get_absolute_url())
-        self.assertEqual([(h, h.via) for h in page.context['sub_harnesses']], [(loom, deep)])   # a sub-project's diagram's
+        self.assertEqual([(h, h.via) for h in page.context['sub_harnesses']], [(loom, deep)])   # a sub-project's setup's
         self.assertContains(page, 'BR-LB-B')
-        for tab in ('subs', 'diagrams', 'harnesses', 'orders', 'devices', 'assets', 'tools', 'notes'):   # the page in tabs
+        for tab in ('subs', 'setups', 'harnesses', 'orders', 'devices', 'assets', 'tools', 'notes'):   # the page in tabs
             self.assertContains(page, f'data-panel="{tab}"')
         # the list: a tree on the left, the projects of the one picked, its details
         listed = self.client.get(reverse('work:list'), {'q': 'rev B'})                    # found, wherever it is

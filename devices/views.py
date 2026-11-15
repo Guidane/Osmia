@@ -65,47 +65,85 @@ def device_form(request, pk=None):
 @login_required
 @require_POST
 def device_delete(request, pk):
-    """The device, with its connectors and versions; its assets stay, no longer of a device. Not while a wire diagram
+    """The device, with its connectors and versions; its assets stay, no longer of a device. Not while a setup
     has it."""
     item = get_object_or_404(Device, pk=pk)
-    diagrams = sorted({str(p.configuration.project) for p in item.placements.filter(removed=False)
-                       .select_related('configuration__project')})
-    if diagrams:
-        messages.error(request, f'{item} is in the wire diagram {", ".join(diagrams)}: take it out there first.')
+    setups = sorted({str(p.setup) for p in item.placements.select_related('setup')})
+    if setups:
+        messages.error(request, f'{item} is in the setup {", ".join(setups)}: take it out there first.')
         return redirect('devices:list')
     with transaction.atomic():
         item.assets.update(device=None)
-        item.placements.all().delete()   # only where a configuration had taken it out
         item.delete()
     messages.success(request, f'{item} is deleted.')
     return redirect('devices:list')
 
 
-@login_required
-def device(request, pk):
+def _plugged(connectors):
+    """{connector id: [harness ends plugged into it]}, from the setups."""
     from harnesses.models import HarnessEnd
-    item = get_object_or_404(Device.objects.select_related('part', 'family'), pk=pk)
-    if request.GET.get('export'):
-        return excel.download(item.number, [('Pins', PIN_HEAD, _pin_rows([item]))])
-    connectors = list(item.connectors.select_related('part', 'family').prefetch_related('pins'))
-    from projects.configs import spot
-    from projects.models import Placement
-    plugged, mine = {}, {c.pk for c in connectors}   # the harness ends the wire diagrams plug into its connectors
-    for p in Placement.objects.filter(kind='harness', removed=False).exclude(harness=None):
+    from setups.contents import spot
+    from setups.models import Placement
+    plugged, mine = {}, {c.pk for c in connectors}
+    for p in Placement.objects.filter(kind='harness').exclude(harness=None):
         for end_id, value in (p.ends or {}).items():
             connector_id = spot(value)[1]
             if connector_id in mine:
                 plugged.setdefault(connector_id, set()).add(int(end_id))
-    ends = {e.pk: e for e in HarnessEnd.objects.filter(pk__in={e for found in plugged.values() for e in found}).select_related('harness__project')}
-    plugged = {c: sorted((ends[e] for e in found if e in ends), key=lambda e: (e.harness.number, e.designator)) for c, found in plugged.items()}
-    faces = {}
-    for c in connectors:
-        pins = c.ordered_pins()
-        faces[c.pk] = {'face': drawn(c.used, [p.number for p in pins]), 'pins': [[p.number, p.signal] for p in pins]}
-    return render(request, 'devices/device.html', {
-        'device': item, 'connectors': [(c, c.ordered_pins(), plugged.get(c.pk, [])) for c in connectors], 'faces': faces,
-        'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item),
-        'units': item.assets.select_related('location')})
+    ends = {e.pk: e for e in HarnessEnd.objects.filter(pk__in={e for found in plugged.values() for e in found}).select_related('harness__setup')}
+    return {c: sorted((ends[e] for e in found if e in ends), key=lambda e: (e.harness.number, e.designator)) for c, found in plugged.items()}
+
+
+def _face(c, pins=None):
+    pins = c.ordered_pins() if pins is None else pins
+    return {'face': drawn(c.used, [p.number for p in pins]), 'pins': [[p.number, p.signal] for p in pins]}
+
+
+@login_required
+def device(request, pk):
+    """A device as a tree (the device, its connectors, its assets) on the left; in the middle its connectors, the pins of
+    the connector picked (?connector=) or its assets (?show=assets); on the right the device itself (picture, details,
+    versions, notes, files), the connector (its face, what is plugged into it) or the row picked."""
+    from web import browse
+    item = get_object_or_404(Device.objects.select_related('part', 'family'), pk=pk)
+    if request.GET.get('export'):
+        return excel.download(item.number, [('Pins', PIN_HEAD, _pin_rows([item]))])
+    connectors = list(item.connectors.select_related('part', 'family', 'branch').prefetch_related('pins'))
+    plugged = _plugged(connectors)
+    pins = {c.pk: c.ordered_pins() for c in connectors}
+    picked = next((c for c in connectors if str(c.pk) == request.GET.get('connector')), None)
+    show = 'connector' if picked else 'assets' if request.GET.get('show') == 'assets' else 'device'
+    units = list(item.assets.select_related('location', 'category'))
+    nodes = [browse.node(item.number, '?', len(connectors), show == 'device', open=True)]
+    nodes += [browse.node(f'{c.designator} {c.name}'.strip(), f'?connector={c.pk}', len(pins[c.pk]), picked == c, 1) for c in connectors]
+    nodes.append(browse.node('Assets', '?show=assets', len(units), show == 'assets'))
+    context = {'device': item, 'show': show, 'nodes': nodes, 'picked': picked,
+               'connectors': [(c, pins[c.pk], plugged.get(c.pk, [])) for c in connectors],
+               'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item), 'units': units}
+    if picked:
+        context.update({'pins': pins[picked.pk], 'ends': plugged.get(picked.pk, []), 'face': _face(picked, pins[picked.pk])})
+    elif show == 'device' and request.GET.get('c'):
+        one = next((c for c in connectors if str(c.pk) == request.GET['c']), None)
+        if one:
+            context['row'] = one
+            context['row_brief'] = {'connector': one, 'pins': pins[one.pk], 'ends': plugged.get(one.pk, []), 'face': _face(one, pins[one.pk])}
+    elif show == 'assets' and request.GET.get('asset'):
+        from assets.views import _brief
+        one = next((u for u in units if str(u.pk) == request.GET['asset']), None)
+        if one:
+            context['row'] = one
+            context['asset_brief'] = _brief(one)
+    return render(request, 'devices/device.html', context)
+
+
+@login_required
+def connector_brief(request, pk, connector):
+    """A connector beside the device's list of connectors (fetched when one is picked): its face, its details, what is
+    plugged into it."""
+    c = get_object_or_404(Connector.objects.select_related('device', 'part', 'family', 'branch'), pk=connector, device_id=pk)
+    pins = c.ordered_pins()
+    return render(request, 'devices/_connector.html', {'connector': c, 'pins': pins, 'ends': _plugged([c]).get(c.pk, []),
+                                                       'face': _face(c, pins)})
 
 
 @login_required
@@ -120,7 +158,7 @@ def connector_form(request, pk, connector=None):
                 saved.position = item.connectors.count()
             saved.save()
             Pin.objects.bulk_create(Pin(connector=saved, number=n) for n in form.cleaned_data.get('pins') or [])
-        return redirect(f'{item.get_absolute_url()}#c{saved.pk}')
+        return redirect(f'{item.get_absolute_url()}?connector={saved.pk}')
     return render(request, 'web/form.html', {'form': form, 'back': item.get_absolute_url(),
                                                    'title': f'Change {current}' if current.pk else f'New connector on {item}'})
 
@@ -207,7 +245,7 @@ def pins(request, pk, connector):
             messages.error(request, 'Two pins have the same number: nothing was saved.')
             return redirect(request.path)
         messages.success(request, f'The pins of {item} are saved.')
-        return redirect(f'{item.device.get_absolute_url()}#c{item.pk}')
+        return redirect(f'{item.device.get_absolute_url()}?connector={item.pk}')
     return render(request, 'devices/pins.html', {'connector': item, 'pins': rows, 'new': range(5), 'set_types': SET_TYPES,
                                                  'sets': sorted({p.wire_set for p in rows if p.wire_set}, key=pin_order)})
 

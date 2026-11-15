@@ -13,6 +13,7 @@ urlpatterns = [
     path('<int:pk>/connectors/new/', views.connector_form, name='connector_new'),
     path('<int:pk>/connectors/copy/', views.connectors_copy, name='connectors_copy'),
     path('<int:pk>/connectors/<int:connector>/', views.connector_form, name='connector_edit'),
+    path('<int:pk>/connectors/<int:connector>/brief/', views.connector_brief, name='connector_brief'),
     path('<int:pk>/connectors/<int:connector>/delete/', views.connector_delete, name='connector_delete'),
     path('<int:pk>/connectors/<int:connector>/pins/', views.pins, name='pins'),
     path('<int:pk>/versions/', views.save_version, name='save_version'),

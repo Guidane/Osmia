@@ -1,4 +1,4 @@
-"""Harnesses: their connectors (what they plug into is the wire diagram's to say), the pinout edited as a table,
+"""Harnesses: their connectors (what they plug into is the setup's to say), the pinout edited as a table,
 what is wrong with it, its parts list, versions, and building one: a serial number, a checklist, parts out of stock."""
 from decimal import Decimal
 
@@ -11,7 +11,7 @@ from harnesses import views
 from assets.models import Asset
 from harnesses.models import Harness, HarnessEnd, Wire
 from inventory import stock
-from projects.models import Project
+from setups.models import Setup
 from web import versions
 
 
@@ -23,8 +23,8 @@ class HarnessBase(DeviceBase):
         cls.board_j1 = Connector.objects.create(device=cls.board, designator='J1', name='Bus in')
         for number, signal in (('1', '+24 V'), ('3', '0 V'), ('2', 'CAN H'), ('7', 'CAN L')):
             Pin.objects.create(connector=cls.board_j1, number=number, signal=signal)
-        cls.project = Project.objects.create(name='Burn-in rack')
-        cls.harness = Harness.objects.create(project=cls.project, name='Bus loom')
+        cls.setup = Setup.objects.create(name='Burn-in rack')
+        cls.harness = Harness.objects.create(setup=cls.setup, name='Bus loom')
         cls.p1 = HarnessEnd.objects.create(harness=cls.harness, designator='P1', part=cls.plug)
         cls.p2 = HarnessEnd.objects.create(harness=cls.harness, designator='P2', part=cls.plug, position=1)
 
@@ -46,7 +46,7 @@ class PinoutTests(HarnessBase):
         wires = {w.from_pin: w for w in self.harness.wires.all()}
         self.assertEqual((wires['1'].signal, wires['9'].signal), ('', 'GND'))   # its own: it knows no device
         self.assertEqual((wires['1'].wire_set, wires['1'].set_type), ('', 'Straight'))
-        self.assertEqual(self.harness.problems(), [])                           # the devices' pins: the wire diagram's to check
+        self.assertEqual(self.harness.problems(), [])                           # the devices' pins: the setup's to check
         self.assertIn((self.wire, Decimal('0.45')), self.harness.parts_list())   # metres of wire
         self.assertIn((self.plug, Decimal(2)), self.harness.parts_list())                 # its two ends
         response = self.client.post(reverse('harnesses:pinout', args=[self.harness.pk]), {
@@ -57,10 +57,10 @@ class PinoutTests(HarnessBase):
     def test_the_harness_list_as_a_tree_and_a_harness_picked(self):
         from work.models import Project as Work
         rack = Work.objects.create(code='BR', name='Rack')
-        type(self.harness.project).objects.filter(pk=self.harness.project_id).update(in_project=rack)
+        type(self.harness.setup).objects.filter(pk=self.harness.setup_id).update(in_project=rack)
         self.connect('6', '2', signal='CAN H')
         page = self.client.get(reverse('harnesses:list'), {'work': rack.pk, 'harness': self.harness.pk})
-        self.assertEqual([(kind, depth, n) for kind, _, depth, n in page.context['tree']], [('work', 0, 1), ('diagram', 1, 1)])
+        self.assertEqual([(kind, depth, n) for kind, _, depth, n in page.context['tree']], [('work', 0, 1), ('setup', 1, 1)])
         self.assertContains(page, self.harness.number)
         self.assertContains(page, 'data-brief="%d"' % self.harness.pk)                    # its details, already open
         brief = self.client.get(reverse('harnesses:brief', args=[self.harness.pk]))
@@ -72,8 +72,8 @@ class PinoutTests(HarnessBase):
         from inventory.models import Branch, Family
         self.connect('6', '2', wire_set='CAN', set_type='Twisted')
         page = self.client.get(reverse('harnesses:harness', args=[self.harness.pk]))
-        self.assertContains(page, f'?project={self.harness.project_id}&amp;harness={self.harness.pk}">← Harnesses')   # back: the list
-        self.assertContains(page, 'Used in wire diagram')
+        self.assertContains(page, f'?setup={self.harness.setup_id}&amp;harness={self.harness.pk}">← Harnesses')   # back: the list
+        self.assertContains(page, 'Used in setup')
         for tab in ('pinout', 'wires', 'connectors', 'parts', 'versions', 'built', 'notes'):         # the page in tabs
             self.assertContains(page, f'data-panel="{tab}"')
         p1, p2 = page.context['drawing']['ends']

@@ -6,7 +6,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 KINDS = {   # kind: (model, what one is called)
-    'project': ('work.Project', 'Project'), 'diagram': ('projects.Project', 'Wire diagram'), 'harness': ('harnesses.Harness', 'Harness'),
+    'project': ('work.Project', 'Project'), 'setup': ('setups.Setup', 'Setup'), 'harness': ('harnesses.Harness', 'Harness'),
     'device': ('devices.Device', 'Device'), 'part': ('inventory.Part', 'Part'), 'family': ('inventory.Family', 'Family'),
     'order': ('orders.Order', 'Order'), 'vendor': ('inventory.Vendor', 'Vendor'), 'budget': ('budgets.Budget', 'Budget'),
     'asset': ('assets.Asset', 'Asset'), 'location': ('inventory.Location', 'Location'), 'page': ('web.Page', 'Page'),

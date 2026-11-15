@@ -1,5 +1,6 @@
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.generic import RedirectView
 
 urlpatterns = [
     path('accounts/', include('accounts.urls')),
@@ -9,7 +10,8 @@ urlpatterns = [
     path('orders/', include('orders.urls')),
     path('devices/', include('devices.urls')),
     path('harnesses/', include('harnesses.urls')),
-    path('wire-diagrams/', include('projects.urls')),
+    path('setups/', include('setups.urls')),
+    re_path(r'^wire-diagrams/(?P<rest>.*)$', RedirectView.as_view(url='/setups/%(rest)s', query_string=True)),   # the old address
     path('projects/', include('work.urls')),
     path('budgets/', include('budgets.urls')),
     path('assets/', include('assets.urls')),

@@ -1,10 +1,9 @@
-/* A project configuration drawn: each device a box with its name; each of its connectors a square, with its name, on
+/* A setup drawn: each device a box with its name; each of its connectors a square, with its name, on
    the box's outline (drag it along the outline to move it, saved with the device; click it for its pinout; drag it away
    onto another square to make a harness between the two, its wires matched by signal, else by pin number); each harness
    a pill joined to the squares of the connectors its ends plug into, each line with a handle (grey: it finds its own
    way; click or drag it to pin it there, blue; click a blue one to let it go). Drag a box to move it (saved in the
-   configuration), its lines going with it; click a box or a harness to find it in the lists below; what the
-   configuration added is green, what it changed orange, what it took away faded. Zoom with the buttons or Ctrl + the
+   setup), its lines going with it; click a box or a harness to find it in the lists below. Zoom with the buttons or Ctrl + the
    wheel; drag the background to move around. */
 (function () {
   'use strict';
@@ -103,12 +102,8 @@
     function render() {
       svg.innerHTML = '';
       lines = el('g', {}, svg); boxes = el('g', {}, svg); squares = el('g', {}, svg); pills = el('g', {}, svg);
-      data.ghosts.forEach(function (g) {
-        el('rect', { x: g.x, y: g.y, width: 170, height: 64, rx: 8, class: 'ghost' }, boxes);
-        text(boxes, g.x + 85, g.y + 36, g.label + ' (taken away)', 'ghost-label');
-      });
       data.devices.forEach(function (d) {
-        var g = el('g', { class: 'device ' + d.state, 'data-key': d.key, transform: 'translate(' + d.x + ',' + d.y + ')' }, boxes);
+        var g = el('g', { class: 'device', 'data-key': d.key, transform: 'translate(' + d.x + ',' + d.y + ')' }, boxes);
         el('title', {}, g).textContent = d.number + ' · ' + d.name;
         d.box = el('rect', { rx: 8, class: 'box' }, g);
         d.bar = el('rect', { height: 6, rx: 3, fill: d.colour }, g);
@@ -135,7 +130,7 @@
           c = { x: ports.reduce(function (s, p) { return s + p.x + p.n.x * reach; }, 0) / ports.length,
                 y: ports.reduce(function (s, p) { return s + p.y + p.n.y * reach; }, 0) / ports.length };
         }
-        var cls = 'harness ' + h.state + (h.bad ? ' bad' : '');
+        var cls = 'harness' + (h.bad ? ' bad' : '');
         ports.forEach(function (p) {
           var pinned = h.handles[p.end.id];
           var at = pinned ? { x: pinned[0], y: pinned[1] } : { x: (p.x + p.n.x * 40 + c.x) / 2, y: (p.y + p.n.y * 40 + c.y) / 2 };
@@ -236,7 +231,6 @@
     function fit() {   // everything in view, the drawing as tall as it needs (within limits)
       var xs = [0], ys = [0], xe = [400], ye = [200];
       data.devices.forEach(function (d) { var s = size(d); xs.push(d.x); ys.push(d.y); xe.push(d.x + s.w); ye.push(d.y + s.h); });
-      data.ghosts.forEach(function (g) { xs.push(g.x); ys.push(g.y); xe.push(g.x + 170); ye.push(g.y + 64); });
       Object.keys(handleAt).forEach(function (k) { xs.push(handleAt[k].x); ys.push(handleAt[k].y); xe.push(handleAt[k].x); ye.push(handleAt[k].y); });
       var x0 = Math.min.apply(null, xs) - 140, y0 = Math.min.apply(null, ys) - 60;
       var x1 = Math.max.apply(null, xe) + 140, y1 = Math.max.apply(null, ye) + 60;
@@ -264,7 +258,7 @@
     }
 
     function send(fields) {
-      fetch(opts.url, { method: 'POST', body: new URLSearchParams(Object.assign({ config: opts.config }, fields)),
+      fetch(opts.url, { method: 'POST', body: new URLSearchParams(fields),
                         headers: { 'X-CSRFToken': opts.csrf } });
     }
 

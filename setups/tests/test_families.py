@@ -9,12 +9,12 @@ from harnesses import views
 from inventory import stock
 from inventory.models import Branch, Family, Part
 from orders.models import Order
-from projects import configs
-from projects.tests.test_projects import ProjectBase
+from setups import contents
+from setups.tests.test_setups import SetupBase
 from web import versions
 
 
-class FamilyTests(ProjectBase):
+class FamilyTests(SetupBase):
     def setUp(self):
         super().setUp()
         self.alt = Part.objects.create(number='DSUB-9-ALT', description='D-sub 9 plug, other make', vendor=self.acme)
@@ -51,9 +51,9 @@ class FamilyTests(ProjectBase):
         stock.add(self.alt, 3, self.shelf, self.ada)
         views.build(self.harness, 'H-1', None, self.ada, take_from=self.shelf)
         self.assertEqual((self.plug.on_hand, self.alt.on_hand), (1, 1))          # the most stocked first
-        _, _, parts = configs.needs(self.base)
+        _, _, parts = contents.needs(self.setup)
         self.assertIn((self.family, Decimal(2), Decimal(2), Decimal(0)), parts)   # their stock together
-        self.client.post(reverse('projects:needs', args=[self.project.pk]) + f'?config={self.base.pk}&count=3')
+        self.client.post(reverse('setups:needs', args=[self.setup.pk]) + '?count=3')
         line = Order.objects.get().lines.get()
         self.assertEqual((line.part, line.quantity), (self.alt, 4))              # 6 needed, 2 on hand
 
@@ -79,20 +79,20 @@ class FamilyTests(ProjectBase):
                                                                           'colour': '#3b7dd8', 'used': 'D-sub 9 plug'})
         self.board.refresh_from_db()
         self.assertEqual(self.board.used, self.family)                          # a device bought as any part of the family
-        _, _, parts = configs.needs(self.base)
+        _, _, parts = contents.needs(self.setup)
         self.assertIn(self.family, [p for p, _, _, _ in parts])
 
     def test_a_harness_made_between_connectors_gets_its_parts(self):
-        self.client.post(reverse('projects:change', args=[self.project.pk]), {
-            'config': self.base.pk, 'action': 'connect', 'name': 'Made', 'a': self.ctrl, 'a_connector': self.j1.pk,
+        self.client.post(reverse('setups:change', args=[self.setup.pk]), {
+            'action': 'connect', 'name': 'Made', 'a': self.ctrl, 'a_connector': self.j1.pk,
             'b': self.load, 'b_connector': self.board_j1.pk, 'a_part': 'D-sub 9 plug', 'b_part': 'dsub-9-alt'})
-        p1, p2 = self.project.harnesses.get(name='Made').ends.all()
+        p1, p2 = self.setup.harnesses.get(name='Made').ends.all()
         self.assertEqual((p1.used, p2.used), (self.family, self.alt))
-        response = self.client.post(reverse('projects:change', args=[self.project.pk]), {
-            'config': self.base.pk, 'action': 'connect', 'name': 'Wrong', 'a': self.ctrl, 'a_connector': self.j1.pk,
+        response = self.client.post(reverse('setups:change', args=[self.setup.pk]), {
+            'action': 'connect', 'name': 'Wrong', 'a': self.ctrl, 'a_connector': self.j1.pk,
             'b': self.load, 'b_connector': self.board_j1.pk, 'a_part': 'NOPE'}, follow=True)
         self.assertContains(response, 'There is no part or family &quot;NOPE&quot;.')
-        self.assertFalse(self.project.harnesses.filter(name='Wrong').exists())
+        self.assertFalse(self.setup.harnesses.filter(name='Wrong').exists())
 
     def test_branches_of_a_family(self):
         page = self.family.get_absolute_url()
@@ -115,9 +115,9 @@ class FamilyTests(ProjectBase):
         self.assertEqual(self.harness.parts_list(), [(pin, Decimal(2))])
         stock.add(self.alt, 9, self.shelf, self.ada)                                   # a socket: not for the pins
         self.assertEqual(pin.on_hand, 0)
-        _, _, parts = configs.needs(self.base)
+        _, _, parts = contents.needs(self.setup)
         self.assertIn((pin, Decimal(2), Decimal(0), Decimal(0)), parts)
-        self.client.post(reverse('projects:needs', args=[self.project.pk]) + f'?config={self.base.pk}')
+        self.client.post(reverse('setups:needs', args=[self.setup.pk]))
         self.assertEqual(Order.objects.get().lines.get().part, self.plug)              # one of the pins
         self.client.post(reverse('devices:connector_edit', args=[self.controller.pk, self.j1.pk]),
                          {'designator': 'J1', 'used': 'd-sub 9 plug / SOCKET'})

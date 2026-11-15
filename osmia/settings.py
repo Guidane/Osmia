@@ -42,7 +42,8 @@ INSTALLED_APPS = [
     'inventory',
     'orders',
     'devices',
-    'projects',
+    'projects',   # only the migrations of setups before 5.18 (the app was called projects)
+    'setups',
     'harnesses',
     'budgets',
     'assets',

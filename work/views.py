@@ -1,5 +1,5 @@
 """Projects: the list (a tree: sub-projects under the project they are part of), a project's page (its sub-projects;
-its wire diagrams, their harnesses, orders, devices, assets and tools, and those of its sub-projects; notes, files and documentation),
+its setups, their harnesses, orders, devices, assets and tools, and those of its sub-projects; notes, files and documentation),
 making and changing one, and adding things to it or taking them out."""
 from django import forms
 from django.contrib import messages
@@ -13,7 +13,7 @@ from assets.models import Asset
 from devices.models import Device
 from harnesses.models import Harness
 from orders.models import Order
-from projects.models import Project as WireDiagram
+from setups.models import Setup
 from web.forms import TreeForm, initial_for
 from web.shortcuts import edit_page
 
@@ -45,7 +45,7 @@ def project_list(request):
     from web import briefs, browse
     shown = request.GET.get('status', 'active')
     every = {p.pk: p for p in Project.objects.select_related('owner').annotate(
-        n_diagrams=Count('wire_diagrams', distinct=True), n_orders=Count('orders', distinct=True),
+        n_setups=Count('setups', distinct=True), n_orders=Count('orders', distinct=True),
         n_devices=Count('devices', distinct=True), n_assets=Count('assets', distinct=True))}
     fits = {pk for pk, p in every.items() if shown not in Project.Status.values or p.status == shown}
     q = request.GET.get('q', '').strip()
@@ -104,38 +104,38 @@ def project(request, pk):
     context = {
         'project': item,
         'children': item.children.order_by('code', 'name'),
-        'sub_diagrams': rolled(WireDiagram.objects.filter(in_project__in=under).prefetch_related('harnesses'), [], lambda t: t.in_project_id),
-        'harnesses': Harness.objects.filter(project__in_project=item).select_related('project').order_by('number'),
-        'sub_harnesses': rolled(Harness.objects.filter(project__in_project__in=under).select_related('project').order_by('number'), [],
-                                lambda t: t.project.in_project_id),
+        'sub_setups': rolled(Setup.objects.filter(in_project__in=under).prefetch_related('harnesses'), [], lambda t: t.in_project_id),
+        'harnesses': Harness.objects.filter(setup__in_project=item).select_related('setup').order_by('number'),
+        'sub_harnesses': rolled(Harness.objects.filter(setup__in_project__in=under).select_related('setup').order_by('number'), [],
+                                lambda t: t.setup.in_project_id),
         'sub_orders': rolled(Order.objects.filter(in_project__in=under).select_related('vendor'), [], lambda t: t.in_project_id),
         'sub_devices': rolled(Device.objects.filter(work_projects__in=under).annotate(via_pk=Min('work_projects', filter=Q(work_projects__in=under))).order_by('number'),
                               item.devices.all(), lambda t: t.via_pk),
         'sub_assets': [a for a in sub_assets if a.kind != Asset.Kind.TOOL],
         'sub_tools': [a for a in sub_assets if a.kind == Asset.Kind.TOOL],
-        'diagrams': item.wire_diagrams.prefetch_related('harnesses'),
+        'setups': item.setups.prefetch_related('harnesses'),
         'orders': item.orders.select_related('vendor', 'created_by'),
         'devices': item.devices.all(),
         'assets': [a for a in assets if a.kind != Asset.Kind.TOOL],
         'tools': [a for a in assets if a.kind == Asset.Kind.TOOL],
-        'free_diagrams': WireDiagram.objects.filter(in_project=None),
+        'free_setups': Setup.objects.filter(in_project=None),
         'free_orders': Order.objects.filter(in_project=None).exclude(status=Order.Status.CANCELLED).order_by('-number')[:200],
         'other_devices': Device.objects.exclude(pk__in=item.devices.values('pk')),
         'other_assets': Asset.objects.exclude(pk__in=item.assets.values('pk')).exclude(kind=Asset.Kind.TOOL),
         'other_tools': Asset.objects.exclude(pk__in=item.assets.values('pk')).filter(kind=Asset.Kind.TOOL),
     }
-    context['n_sub'] = {k: len(context['sub_' + k]) for k in ('diagrams', 'harnesses', 'orders', 'devices', 'assets', 'tools')}
+    context['n_sub'] = {k: len(context['sub_' + k]) for k in ('setups', 'harnesses', 'orders', 'devices', 'assets', 'tools')}
     return render(request, 'work/project.html', context)
 
 
 @login_required
 @require_POST
 def link(request, pk):
-    """Something put into the project, or taken out (``remove``): a wire diagram, an order, a device, an asset."""
+    """Something put into the project, or taken out (``remove``): a setup, an order, a device, an asset."""
     item = get_object_or_404(Project, pk=pk)
     what, thing_id, out = request.POST.get('what'), request.POST.get('id') or 0, bool(request.POST.get('remove'))
-    if what in ('diagram', 'order'):
-        thing = get_object_or_404(WireDiagram if what == 'diagram' else Order, pk=thing_id)
+    if what in ('setup', 'order'):
+        thing = get_object_or_404(Setup if what == 'setup' else Order, pk=thing_id)
         if out and thing.in_project_id == item.pk:
             thing.in_project = None
         elif not out:

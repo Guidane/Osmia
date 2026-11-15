@@ -6,7 +6,7 @@ from web.models import Tree
 
 
 class Department(Tree):
-    """A part of the company (a tree: Engineering › Test), with its manager, its people, budgets and projects."""
+    """A part of the company (a tree: Engineering › Test), with its manager, its people, budgets and setups."""
     description = models.TextField(blank=True)
     manager = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='managed')
 

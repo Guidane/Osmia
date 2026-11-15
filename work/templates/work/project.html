@@ -13,7 +13,7 @@
 
 <nav class="tabs page-tabs" data-tabs aria-label="Project">
   <a href="#subs" data-tab="subs">Sub-projects <span class="muted small">{{ children|length }}</span></a>
-  <a href="#diagrams" data-tab="diagrams">Wire diagrams <span class="muted small">{{ diagrams|length|add:n_sub.diagrams }}</span></a>
+  <a href="#setups" data-tab="setups">Setups <span class="muted small">{{ setups|length|add:n_sub.setups }}</span></a>
   <a href="#harnesses" data-tab="harnesses">Harnesses <span class="muted small">{{ harnesses|length|add:n_sub.harnesses }}</span></a>
   <a href="#orders" data-tab="orders">Orders <span class="muted small">{{ orders|length|add:n_sub.orders }}</span></a>
   <a href="#devices" data-tab="devices">Devices <span class="muted small">{{ devices|length|add:n_sub.devices }}</span></a>
@@ -31,19 +31,19 @@
   </section>
 </div>
 
-<div class="tab-panel" data-panel="diagrams" hidden>
+<div class="tab-panel" data-panel="setups" hidden>
 <section class="card flush">
-    <div class="card-head"><h3>Wire diagrams <span class="muted small">{{ diagrams|length|add:n_sub.diagrams }}</span></h3><a class="btn small" href="{% url 'projects:new' %}?in_project={{ project.pk }}">＋ New</a></div>
-    <table class="list">{% for d in diagrams %}<tr><td><a href="{{ d.get_absolute_url }}">{{ d }}</a></td><td class="small muted">{{ d.harnesses.all|length }} harness{{ d.harnesses.all|length|pluralize:"es" }}</td>
-      <td class="num">{% include "work/_out.html" with what="diagram" id=d.pk name=d %}</td></tr>{% endfor %}
-      {% for d in sub_diagrams %}<tr><td><a href="{{ d.get_absolute_url }}">{{ d }}</a> {% include "work/_via.html" with via=d.via %}</td><td class="small muted">{{ d.harnesses.all|length }} harness{{ d.harnesses.all|length|pluralize:"es" }}</td><td></td></tr>{% endfor %}</table>
-    {% include "work/_add.html" with what="diagram" choices=free_diagrams label="A wire diagram" %}
+    <div class="card-head"><h3>Setups <span class="muted small">{{ setups|length|add:n_sub.setups }}</span></h3><a class="btn small" href="{% url 'setups:new' %}?in_project={{ project.pk }}">＋ New</a></div>
+    <table class="list">{% for d in setups %}<tr><td><a href="{{ d.get_absolute_url }}">{{ d }}</a></td><td class="small muted">{{ d.harnesses.all|length }} harness{{ d.harnesses.all|length|pluralize:"es" }}</td>
+      <td class="num">{% include "work/_out.html" with what="setup" id=d.pk name=d %}</td></tr>{% endfor %}
+      {% for d in sub_setups %}<tr><td><a href="{{ d.get_absolute_url }}">{{ d }}</a> {% include "work/_via.html" with via=d.via %}</td><td class="small muted">{{ d.harnesses.all|length }} harness{{ d.harnesses.all|length|pluralize:"es" }}</td><td></td></tr>{% endfor %}</table>
+    {% include "work/_add.html" with what="setup" choices=free_setups label="A setup" %}
   </section>
 </div>
 
 <div class="tab-panel" data-panel="harnesses" hidden>
 <section class="card flush">
-    <div class="card-head"><h3>Harnesses <span class="muted small">{{ harnesses|length|add:n_sub.harnesses }}</span></h3>{% if diagrams %}<a class="btn small" href="{% url 'harnesses:list' %}?work={{ project.pk }}">Open in Harnesses</a>{% endif %}</div>
+    <div class="card-head"><h3>Harnesses <span class="muted small">{{ harnesses|length|add:n_sub.harnesses }}</span></h3>{% if setups %}<a class="btn small" href="{% url 'harnesses:list' %}?work={{ project.pk }}">Open in Harnesses</a>{% endif %}</div>
     <table class="list">
       {% for h in harnesses %}{% include "work/_harness_row.html" %}{% endfor %}
       {% for h in sub_harnesses %}{% include "work/_harness_row.html" with via=h.via %}{% endfor %}

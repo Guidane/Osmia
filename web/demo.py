@@ -2,8 +2,8 @@
 
 Switched on, example data is made alongside what is there already: departments, parts and assets with their categories'
 attributes (an auto ID too), parts in locations, budgets, an order on its way and a late one, devices with their
-connectors and pins (a bought power supply among them) and the assets that are them, and a project with harnesses and a
-tree of configurations. Every row it made is remembered (DemoRecord); switched off, those rows go, and nothing else."""
+connectors and pins (a bought power supply among them) and the assets that are them, and a project with four setups
+and their harnesses. Every row it made is remembered (DemoRecord); switched off, those rows go, and nothing else."""
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -20,8 +20,8 @@ from inventory import stock
 from inventory.models import Attribute, Branch, Category, Family, Location, Part, PartLink, PartValue, Vendor, part_or_family
 from orders import service
 from orders.models import Order
-from projects import configs
-from projects.models import Configuration, Project
+from setups import contents
+from setups.models import Setup
 from assets.models import Asset, PartAsset
 from inventory.attributes import number_up
 from web import versions
@@ -184,14 +184,13 @@ def _make(user):
     Asset.objects.create(number='PSU-01', name='Lab power supply 24 V', kind='lab', category=lab, device=psu, version=1,
                          manufacturer='Delta', model='E 030-5', serial='DE-77812', location=store, keeper=user)
 
-    project = Project.objects.create(code='BR-1', name='Burn-in rack', owner=user, department=engineering,
-                                     description='The burn-in rack: a controller and its load boards.')
-    Budget.objects.create(number='FY26-ENG-BR', name='Burn-in rack', parent=eng_budget, project=project, amount=8000, owner=user)
-    bus = _harness(project, 'Controller to load board', [('P1', 'DSUB-9-PLUG', devices['CTRL-100'], 'J1'), ('P2', 'DSUB-9-PLUG', devices['LOAD-200'], 'J1')],
+    setup = Setup.objects.create(code='BR-1', name='Base', owner=user, department=engineering, description='The controller and one load board.')
+    Budget.objects.create(number='FY26-ENG-BR', name='Burn-in rack', parent=eng_budget, setup=setup, amount=8000, owner=user)
+    bus = _harness(setup, 'Controller to load board', [('P1', 'DSUB-9-PLUG', devices['CTRL-100'], 'J1'), ('P2', 'DSUB-9-PLUG', devices['LOAD-200'], 'J1')],
                        [('1', '1', 'red', 'WIRE-22-RED', 'PWR', 'Twisted'), ('2', '3', 'black', 'WIRE-22-BLK', 'PWR', 'Twisted'),
                         ('3', '5', 'blue', '', '', 'Straight'), ('6', '2', 'white', 'WIRE-24-TP', 'CAN', 'Shielded twisted'),
                         ('7', '7', 'green', 'WIRE-24-TP', 'CAN', 'Shielded twisted'), ('9', '8', 'grey', '', 'CAN', 'Shield')], parts, user)
-    link = _harness(project, 'Load board link', [('P1', pin.number, devices['LOAD-200'], 'J2'), ('P2', pin.number, devices['LOAD-200'], 'J1')],
+    link = _harness(setup, 'Load board link', [('P1', pin.number, devices['LOAD-200'], 'J2'), ('P2', pin.number, devices['LOAD-200'], 'J1')],
                         [('1', '1', 'red', 'WIRE-22-RED', '', 'Straight'), ('3', '3', 'black', 'WIRE-22-BLK', '', 'Straight'),
                          ('2', '2', 'white', 'WIRE-24-TP', 'P1', 'Shielded twisted'), ('7', '7', 'green', 'WIRE-24-TP', 'P1', 'Shielded twisted')], parts, user)
     # the rack hub's two D-sub 25s to five devices' D-sub 9s, each with power and shielded data: every kind of set, a
@@ -199,7 +198,7 @@ def _make(user):
     hub = devices['HUB-500']
     ends = [('P1', 'D-sub 25 / pin', hub, 'J1'), ('P2', 'D-sub 25 / pin', hub, 'J2')]
     ends += [(f'P{i}', pin.number, devices[n], 'J1') for i, n in enumerate(['SENS-10', 'FAN-20', 'LED-30', 'MOT-40', 'CAM-50'], 3)]
-    loom = _harness(project, 'Rack loom', ends, [
+    loom = _harness(setup, 'Rack loom', ends, [
         ('P1:1', 'P3:1', 'red', 'WIRE-22-RED', 'PWR1', 'Twisted'), ('P1:14', 'P3:6', 'black', 'WIRE-22-BLK', 'PWR1', 'Twisted'),
         ('P1:2', 'P3:2', 'white', 'WIRE-24-TP', 'DATA1', 'Shielded twisted'), ('P1:15', 'P3:7', 'brown', 'WIRE-24-TP', 'DATA1', 'Shielded twisted'),
         ('P1:3', 'P3:5', 'grey', '', 'DATA1', 'Shield'),
@@ -217,23 +216,26 @@ def _make(user):
         ('P2:6', 'P7:3', 'green', '', 'DATA5', 'Shielded twisted'),                                                        # a twist of three
         ('P2:7', 'P7:5', 'grey', '', 'DATA5', 'Shield')], parts, user)
     Harness.objects.filter(pk=bus.pk).update(notes='Keep it under 50 cm: the rack is tight behind the controller.')
-    base = Configuration.objects.create(project=project, name='Base', description='One load board.')
-    ctrl = configs.place(base, kind='device', device_id=devices['CTRL-100'].pk, label='Controller', x=40, y=60)
-    first = configs.place(base, kind='device', device_id=devices['LOAD-200'].pk, label='Load board 1', x=420, y=40)
-    configs.place(base, kind='harness', harness_id=bus.pk, ends={str(e.pk): [k, bus.plugs[e.pk].pk] for e, k in zip(bus.ends.all(), (ctrl, first))})
-    two = Configuration.objects.create(project=project, name='Two load boards', parent=base)
-    second = configs.place(two, kind='device', device_id=devices['LOAD-200'].pk, label='Load board 2', x=420, y=260)
-    configs.place(two, kind='harness', harness_id=link.pk, ends={str(e.pk): [k, link.plugs[e.pk].pk] for e, k in zip(link.ends.all(), (first, second))})
-    Configuration.objects.create(project=project, name='Test rig', parent=two, description='Two load boards, on the bench.')
-    rack = Configuration.objects.create(project=project, name='Rack hub', description='The rack hub and the five devices it feeds.')
-    at = {'HUB-500': configs.place(rack, kind='device', device_id=hub.pk, label='Rack hub', x=40, y=250)}
+    ctrl = contents.place(setup, kind='device', device_id=devices['CTRL-100'].pk, label='Controller', x=40, y=60)
+    first = contents.place(setup, kind='device', device_id=devices['LOAD-200'].pk, label='Load board 1', x=420, y=40)
+    contents.place(setup, kind='harness', harness_id=bus.pk, ends={str(e.pk): [k, bus.plugs[e.pk].pk] for e, k in zip(bus.ends.all(), (ctrl, first))})
+    two = contents.copy(setup, 'Two load boards', user)
+    Setup.objects.filter(pk=two.pk).update(code='BR-2', description='The controller and two load boards.')
+    second = contents.place(two, kind='device', device_id=devices['LOAD-200'].pk, label='Load board 2', x=420, y=260)
+    Harness.objects.filter(pk=link.pk).update(setup=two)
+    contents.place(two, kind='harness', harness_id=link.pk, ends={str(e.pk): [k, link.plugs[e.pk].pk] for e, k in zip(link.ends.all(), (first, second))})
+    rig = contents.copy(two, 'Test rig', user)
+    Setup.objects.filter(pk=rig.pk).update(code='BR-3', description='Two load boards, on the bench.')
+    rack = Setup.objects.create(code='BR-4', name='Rack hub', owner=user, department=engineering, description='The rack hub and the five devices it feeds.')
+    Harness.objects.filter(pk=loom.pk).update(setup=rack)
+    at = {'HUB-500': contents.place(rack, kind='device', device_id=hub.pk, label='Rack hub', x=40, y=250)}
     for i, n in enumerate(['SENS-10', 'FAN-20', 'LED-30', 'MOT-40', 'CAM-50']):
-        at[n] = configs.place(rack, kind='device', device_id=devices[n].pk, label=devices[n].name, x=840, y=20 + i * 120)
-    configs.place(rack, kind='harness', harness_id=loom.pk,
-                  ends={str(e.pk): [at[loom.plugs[e.pk].device.number], loom.plugs[e.pk].pk] for e in loom.ends.all()})
-    configs.ask_harness(two, ctrl, second, 'The sensor cable from the controller to load board 2, about 2 m, shielded.', user, sam)
+        at[n] = contents.place(rack, kind='device', device_id=devices[n].pk, label=devices[n].name, x=840, y=20 + i * 120)
+    contents.place(rack, kind='harness', harness_id=loom.pk,
+                   ends={str(e.pk): [at[loom.plugs[e.pk].device.number], loom.plugs[e.pk].pk] for e in loom.ends.all()})
+    contents.ask_harness(two, ctrl, second, 'The sensor cable from the controller to load board 2, about 2 m, shielded.', user, sam)
     number_up(asset_id, list(Asset.objects.filter(category__in=workshop.below()).order_by('pk')))
-    _work(user, engineering, project, devices, psu, parts, [late, coming, asked, mine])
+    _work(user, engineering, [setup, two, rig, rack], devices, psu, parts, [late, coming, asked, mine])
 
 
 def _picture(shape, colour, holes=0):
@@ -306,7 +308,7 @@ def _page(title, body, user, owner=None, parent=None, position=0):
     return page
 
 
-def _work(user, engineering, diagram, devices, psu, parts, orders):
+def _work(user, engineering, setups, devices, psu, parts, orders):
     """Projects with what is in them, documentation pages, and pictures and files of things."""
     from work.models import Project as Work
     tools = list(Asset.objects.filter(kind='tool'))
@@ -314,7 +316,7 @@ def _work(user, engineering, diagram, devices, psu, parts, orders):
                                description='The burn-in rack: a controller, its load boards, the rack hub and the five devices it feeds.',
                                notes='Ready for the test lab by the end of the quarter.')
     burn.assets.set(tools)
-    Project.objects.filter(pk=diagram.pk).update(in_project=burn)
+    Setup.objects.filter(pk__in=[s.pk for s in setups]).update(in_project=burn)
     Order.objects.filter(pk__in=[o.pk for o in orders[:3]]).update(in_project=burn)
     for device in sorted(devices.values(), key=lambda d: d.number):   # a sub-project for each of its devices, with the units built
         sub = Work.objects.create(code=f'BR-{device.number.split("-")[0]}', name=device.name, parent=burn, owner=user,
@@ -347,9 +349,9 @@ def _work(user, engineering, diagram, devices, psu, parts, orders):
     _attach(orders[0], 'Quote from Acme.pdf', PDF, user)
 
     # documentation
-    start = _page('Getting started', '<p>Osmia keeps the lab\'s <b>parts</b>, <b>orders</b>, <b>devices</b>, <b>wire diagrams</b> '
+    start = _page('Getting started', '<p>Osmia keeps the lab\'s <b>parts</b>, <b>orders</b>, <b>devices</b>, <b>setups</b> '
                   'and <b>assets</b> together, grouped by <b>project</b>.</p><h2>Where to look</h2><ul><li>Projects: what the work is for</li>'
-                  '<li>Parts and orders: what is in stock and what is coming</li><li>Wire diagrams: how the devices are wired</li></ul>', user)
+                  '<li>Parts and orders: what is in stock and what is coming</li><li>Setups: how the devices are wired</li></ul>', user)
     _page('Crimping D-sub contacts', '<h2>Tools</h2><p>Use the <a href="/assets/">D-sub crimp tool</a> (T-001) for 20-24 AWG.</p>'
           '<h2>Steps</h2><ol><li>Strip 3 mm.</li><li>Crimp the contact in the 22 AWG nest.</li><li>Pull test: it must hold 20 N.</li></ol>',
           user, parent=start)
@@ -363,9 +365,9 @@ def _work(user, engineering, diagram, devices, psu, parts, orders):
     _page('Wiring notes', '<p>Each D-sub 9 gets two power wires and one shielded data set. The motor driver\'s power is spliced '
           'from the sensor\'s.</p>', user, owner=devices['HUB-500'])
 
-def _harness(project, name, ends, wires, parts, user):
-    h = Harness.objects.create(project=project, name=name, status='released')
-    made, h.plugs = [], {}   # (where each end plugs in is the wire diagram's: kept here for placing it there)
+def _harness(setup, name, ends, wires, parts, user):
+    h = Harness.objects.create(setup=setup, name=name, status='released')
+    made, h.plugs = [], {}   # (where each end plugs in is the setup's: kept here for placing it there)
     for position, (designator, part, device, connector) in enumerate(ends):   # a part, or a family
         end = HarnessEnd(harness=h, designator=designator, position=position)
         end.used = part_or_family(part) if part else None

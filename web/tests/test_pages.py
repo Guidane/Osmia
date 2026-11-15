@@ -80,7 +80,7 @@ class BrowserTests(TestCase):
         pages = [('inventory:parts', 'part', 'inventory.Part', None), ('assets:list', 'asset', 'assets.Asset', None),
                  ('harnesses:list', 'harness', 'harnesses.Harness', None), ('inventory:families', 'family', 'inventory.Family', None),
                  ('devices:list', 'device', 'devices.Device', 'device'), ('orders:list', 'order', 'orders.Order', 'order'),
-                 ('inventory:vendors', 'vendor', 'inventory.Vendor', 'vendor'), ('projects:list', 'diagram', 'projects.Project', 'diagram'),
+                 ('inventory:vendors', 'vendor', 'inventory.Vendor', 'vendor'), ('setups:list', 'setup', 'setups.Setup', 'setup'),
                  ('work:list', 'project', 'work.Project', 'project'), ('budgets:list', 'budget', 'budgets.Budget', 'budget'),
                  ('accounts:users', 'user', 'accounts.User', 'user'), ('inventory:locations', 'part', 'inventory.Part', None)]
         for name, param, model, kind in pages:

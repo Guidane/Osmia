@@ -2,7 +2,7 @@
 {% block title %}Pins of {{ connector }} · Osmia{% endblock %}
 {% block leave_to %}{{ connector.device.get_absolute_url }}{% endblock %}
 {% block content %}
-<p class="small"><a href="{{ connector.device.get_absolute_url }}#c{{ connector.pk }}">← {{ connector.device }}</a></p>
+<p class="small"><a href="{{ connector.device.get_absolute_url }}?connector={{ connector.pk }}">← {{ connector.device }}</a></p>
 <h1>Pins of {{ connector.designator }} <span class="muted small">{{ connector.name }}</span></h1>
 <form method="post" class="card flush" id="pins">{% csrf_token %}
   <table class="list rows-form">

@@ -1,4 +1,4 @@
-"""Budgets: a tree (FY2026 › Engineering › Test equipment), each with an amount, an owner and maybe a project. What
+"""Budgets: a tree (FY2026 › Engineering › Test equipment), each with an amount, an owner and maybe a setup. What
 is spent on one is the value of the orders charged to it (once placed) and its other costs, with all of that of the
 budgets under it. See ``budgets.money``."""
 from django.conf import settings
@@ -10,8 +10,8 @@ from web.models import Tree
 
 class Budget(Tree):
     number = models.CharField(max_length=50, blank=True)
-    project = models.ForeignKey('projects.Project', null=True, blank=True, on_delete=models.SET_NULL, related_name='budgets',
-                                verbose_name='wire diagram')
+    setup = models.ForeignKey('setups.Setup', null=True, blank=True, on_delete=models.SET_NULL, related_name='budgets',
+                                verbose_name='setup')
     department = models.ForeignKey('accounts.Department', null=True, blank=True, on_delete=models.SET_NULL, related_name='budgets')
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='budgets')
     amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)

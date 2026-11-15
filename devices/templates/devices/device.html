@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% load osmia %}
 {% block title %}{{ device.number }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'devices:list' %}">← Devices</a></p>
+<p class="small"><a href="{% url 'devices:list' %}?device={{ device.pk }}">← Devices</a></p>
 <div class="page-head">
   <h1><span class="dot big" style="background:{{ device.colour }}"></span>{{ device.number }}</h1><span class="muted">{{ device.name }}</span>{% if device.origin == 'external' %}<span class="badge">Bought (external)</span>{% endif %}
   {% if device.version %}<span class="badge{% if not changed %} ok{% endif %}">v{{ device.version }}{% if changed %} + changes{% endif %}</span>{% endif %}
@@ -10,94 +11,95 @@
   <a class="btn" href="{% url 'devices:edit' device.pk %}">Change</a>
 </div>
 
-<div class="with-notes">
-<div class="columns">
-  <section class="card">
-    {% preview device %}
-    <dl class="details">
-      {% if device.description %}<dt>Description</dt><dd>{{ device.description|linebreaksbr }}</dd>{% endif %}
-      <dt>Manufacturer</dt><dd>{{ device.manufacturer|default:"—" }}{% if device.model %} · {{ device.model }}{% endif %}</dd>
-      <dt>As a part</dt><dd>{% if device.used %}<a href="{{ device.used.get_absolute_url }}">{{ device.used }}</a>{% else %}—{% endif %}</dd>
-    </dl>
-  </section>
-  <section class="card">
-    <h3>Versions</h3>
-    <p class="small muted">{% if not versions %}Not saved as a version yet.{% elif changed %}Changed since v{{ device.version }}.{% else %}As saved in v{{ device.version }}.{% endif %}</p>
-    {% if changed %}<form method="post" action="{% url 'devices:save_version' device.pk %}" class="inline-form">{% csrf_token %}
-      <input type="text" name="note" placeholder="What changed (optional)" maxlength="300" aria-label="What changed">
-      <button class="btn small primary">Save as v{{ device.version|add:1 }}</button></form>{% endif %}
-    <table class="list compact">{% for v in versions %}<tr><td><a href="{% url 'devices:version' device.pk v.number %}">v{{ v.number }}</a></td>
-      <td class="small">{{ v.note }}</td><td class="small muted nowrap">{{ v.created_by|default:"" }}, {{ v.created_at|date:"j M Y" }}</td></tr>{% endfor %}</table>
-  </section>
-</div>
-<div class="side">{% include "web/_notes.html" with notes=device.notes owner=device %}{% side device %}</div>
-</div>
+<div class="parts-browser" data-param="{% if show == 'assets' %}asset{% else %}c{% endif %}">
+  {% include "web/_tree_nav.html" with label=device.number %}
 
-<section class="card flush connectors-card">
-<div class="card-head"><h3>Connectors</h3><a class="btn small" href="{% url 'devices:connectors_copy' device.pk %}">Copy connectors</a><a class="btn small" href="{% url 'devices:connector_new' device.pk %}">＋ Connector</a></div>
-{% if connectors %}<div class="connector-pick">
-  <nav class="connector-list">{% for c, pins, ends in connectors %}
-    <a href="#c{{ c.pk }}" data-connector="c{{ c.pk }}"><b>{{ c.designator }}</b> <span class="muted">{{ c.name }}</span>
-      <span class="small muted">{{ c.used_name|default:"" }} · {{ pins|length }} pin{{ pins|length|pluralize }}</span></a>{% endfor %}
-  </nav>
-  <div>{% for c, pins, ends in connectors %}
-  <section class="connector-pins" id="c{{ c.pk }}"{% if not forloop.first %} hidden{% endif %}>
-    <div class="card-head"><h3>{{ c.designator }} <span class="muted small">{{ c.name }}</span></h3>
-      {% if c.used %}<a class="small" href="{{ c.used.get_absolute_url }}">{{ c.used }}</a>{% endif %}
-      <a class="btn small" href="{% url 'devices:pins' device.pk c.pk %}">Pins</a>
-      <a class="btn small ghost" href="{% url 'devices:connector_edit' device.pk c.pk %}">Change</a>
-      <form method="post" action="{% url 'devices:connector_delete' device.pk c.pk %}" data-confirm="Take {{ c.designator }} away, with its pins?">{% csrf_token %}<button class="btn small ghost" title="Take it away">✕</button></form></div>
-    {% if pins %}<div class="connector-face"><svg class="pinout-drawing" data-face="{{ c.pk }}"></svg></div>{% endif %}
-    <table class="list compact">
-      <tr><th>Pin</th><th>Signal</th><th>Set</th><th>Description</th></tr>
-      {% for p in pins %}<tr data-pin="{{ p.number }}"><td>{{ p.number }}</td><td>{{ p.signal }}</td><td class="small">{% if p.wire_set %}{{ p.wire_set }} · {{ p.set_type|lower }}{% endif %}</td><td class="small muted">{{ p.description }}</td></tr>
-      {% empty %}<tr><td colspan="4" class="empty small">No pins yet.</td></tr>{% endfor %}
-    </table>
-    {% if ends %}<p class="small pad">Plugged in: {% for e in ends %}<a href="{{ e.harness.get_absolute_url }}">{{ e.harness.number }} {{ e.designator }}</a> <span class="muted">({{ e.harness.project }})</span>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
-  </section>{% endfor %}</div>
-</div>
-<script>
-(function () {   // a connector picked from the list shows its pins (and stays picked in the address)
-  var list = document.querySelector('.connector-list');
-  function show(id) {
-    var panel = id && document.getElementById(id);
-    if (!panel || !panel.classList.contains('connector-pins')) panel = document.querySelector('.connector-pins');
-    document.querySelectorAll('.connector-pins').forEach(function (p) { p.hidden = p !== panel; });
-    list.querySelectorAll('a').forEach(function (a) { a.classList.toggle('on', a.dataset.connector === panel.id); });
-  }
-  list.addEventListener('click', function (e) {
-    var a = e.target.closest('a[data-connector]');
-    if (!a) return;
-    e.preventDefault();
-    history.replaceState(null, '', '#' + a.dataset.connector);
-    show(a.dataset.connector);
-  });
-  show(location.hash.slice(1));
-})();
-</script>
-{{ faces|json_script:"connector-faces" }}
-{% else %}<p class="muted small pad">No connectors yet.</p>{% endif %}
-</section>
+  <div class="parts-middle">
+  {% if show == 'connector' %}
+    <section class="card flush">
+      <div class="card-head"><h3>{{ picked.designator }} <span class="muted small">{{ picked.name }}</span></h3>
+        {% if picked.used %}<a class="small" href="{{ picked.used.get_absolute_url }}">{{ picked.used }}</a>{% endif %}
+        <span class="spacer"></span>
+        <a class="btn small" href="{% url 'devices:pins' device.pk picked.pk %}">Pins</a>
+        <a class="btn small ghost" href="{% url 'devices:connector_edit' device.pk picked.pk %}">Change</a>
+        <form method="post" action="{% url 'devices:connector_delete' device.pk picked.pk %}" data-confirm="Take {{ picked.designator }} away, with its pins?">{% csrf_token %}<button class="btn small ghost" title="Take it away">✕</button></form></div>
+      <table class="list compact" data-pins>
+        <tr><th>Pin</th><th>Signal</th><th>Set</th><th>Description</th></tr>
+        {% for p in pins %}<tr data-pin="{{ p.number }}" tabindex="0"><td>{{ p.number }}</td><td>{{ p.signal }}</td><td class="small">{% if p.wire_set %}{{ p.wire_set }} · {{ p.set_type|lower }}{% endif %}</td><td class="small muted">{{ p.description }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="empty small">No pins yet.</td></tr>{% endfor %}
+      </table>
+    </section>
+  {% elif show == 'assets' %}
+    <section class="card flush">
+      <table class="list parts-list">
+        <tr><th></th><th>Asset tag</th><th>Serial number</th><th>Version</th><th>Status</th><th>Where</th></tr>
+        {% for u in units %}<tr data-part="{{ u.pk }}" data-brief-url="{% url 'assets:brief' u.pk %}" class="{% if row.pk == u.pk %}on{% endif %}" tabindex="0">
+          <td class="thumb-cell">{% thumb u %}</td><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td class="small">{{ u.serial }}</td><td>{% if u.version %}v{{ u.version }}{% else %}—{% endif %}</td>
+          <td><span class="badge{% if u.status == 'in_use' or u.status == 'available' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>
+          <td class="small">{{ u.location|default:"" }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="empty small">None yet.</td></tr>{% endfor %}
+      </table>
+    </section>
+  {% else %}
+    <section class="card flush">
+      <div class="card-head"><h3>Connectors</h3><span class="spacer"></span><a class="btn small" href="{% url 'devices:connectors_copy' device.pk %}">Copy connectors</a><a class="btn small" href="{% url 'devices:connector_new' device.pk %}">＋ Connector</a></div>
+      <table class="list parts-list">
+        <tr><th>Connector</th><th>Name</th><th>Part or family</th><th class="num">Pins</th><th>Plugged in</th></tr>
+        {% for c, pins, ends in connectors %}<tr data-part="{{ c.pk }}" data-brief-url="{% url 'devices:connector_brief' device.pk c.pk %}" class="{% if row.pk == c.pk %}on{% endif %}" tabindex="0">
+          <td><a href="?connector={{ c.pk }}"><b>{{ c.designator }}</b></a></td><td>{{ c.name }}</td><td class="small">{{ c.used_name|default:"" }}</td>
+          <td class="num">{{ pins|length }}</td>
+          <td class="small">{% for e in ends %}{{ e.harness.number }} {{ e.designator }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>
+        {% empty %}<tr><td colspan="5" class="empty small">No connectors yet.</td></tr>{% endfor %}
+      </table>
+    </section>
+  {% endif %}
+  </div>
 
-<section class="card flush" id="units">
-  <div class="card-head"><h3>Assets</h3></div>
-  <table class="list">
-    <tr><th>Asset tag</th><th>Serial number</th><th>Version</th><th>Status</th><th>Where</th></tr>
-    {% for u in units %}<tr><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td class="small">{{ u.serial }}</td><td>{% if u.version %}v{{ u.version }}{% else %}—{% endif %}</td>
-      <td><span class="badge{% if u.status == 'in_use' or u.status == 'available' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>
-      <td class="small">{{ u.location|default:"" }}</td></tr>
-    {% empty %}<tr><td colspan="5" class="empty small">None yet.</td></tr>{% endfor %}
-  </table>
-</section>
+  <aside class="card parts-detail" data-detail>
+  {% if show == 'connector' %}{% include "devices/_connector.html" with connector=picked %}
+  {% elif row_brief %}{% include "devices/_connector.html" with connector=row_brief.connector pins=row_brief.pins ends=row_brief.ends face=row_brief.face %}
+  {% elif asset_brief %}{% include "assets/_brief.html" with asset=asset_brief.asset attributes=asset_brief.attributes events=asset_brief.events %}
+  {% elif show == 'assets' %}<p class="muted small pad">Pick an asset to see it here.</p>
+  {% else %}
+    <div class="brief">
+      <div class="brief-head"><h3>{{ device.number }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'devices:edit' device.pk %}">Change</a></div>
+      <p class="brief-what">{{ device.name }}</p>
+      {% preview device %}
+      <dl class="details">
+        {% if device.description %}<dt>Description</dt><dd>{{ device.description|linebreaksbr }}</dd>{% endif %}
+        <dt>Manufacturer</dt><dd>{{ device.manufacturer|default:"—" }}{% if device.model %} · {{ device.model }}{% endif %}</dd>
+        <dt>As a part</dt><dd>{% if device.used %}<a href="{{ device.used.get_absolute_url }}">{{ device.used }}</a>{% else %}—{% endif %}</dd>
+      </dl>
+      <h4>Versions</h4>
+      <p class="small muted">{% if not versions %}Not saved as a version yet.{% elif changed %}Changed since v{{ device.version }}.{% else %}As saved in v{{ device.version }}.{% endif %}</p>
+      {% if changed %}<form method="post" action="{% url 'devices:save_version' device.pk %}" class="inline-form">{% csrf_token %}
+        <input type="text" name="note" placeholder="What changed (optional)" maxlength="300" aria-label="What changed">
+        <button class="btn small primary">Save as v{{ device.version|add:1 }}</button></form>{% endif %}
+      <table class="list compact">{% for v in versions %}<tr><td><a href="{% url 'devices:version' device.pk v.number %}">v{{ v.number }}</a></td>
+        <td class="small">{{ v.note }}</td><td class="small muted nowrap">{{ v.created_by|default:"" }}, {{ v.created_at|date:"j M Y" }}</td></tr>{% endfor %}</table>
+    </div>
+    {% include "web/_notes.html" with notes=device.notes owner=device %}{% side device %}
+  {% endif %}
+  </aside>
+</div>
 {% endblock %}
-{% block scripts %}<script src="{% fresh 'harnesses/pinout.js' %}"></script><script>
-(function () {   // each connector's face; a pin pointed at lights up its row in the table
-  var faces = JSON.parse(document.getElementById('connector-faces').textContent);
-  document.querySelectorAll('svg[data-face]').forEach(function (svg) {
-    var table = svg.closest('.connector-pins').querySelector('table');
-    Pinout.face(svg, faces[svg.dataset.face], function (pin, on) {
-      table.querySelectorAll('tr[data-pin]').forEach(function (tr) { if (tr.dataset.pin === pin) tr.classList.toggle('lit', on); });
+{% block scripts %}<script src="{% fresh 'harnesses/pinout.js' %}"></script><script src="{% fresh 'web/browser.js' %}"></script><script>
+(function () {   // the connector's face in the details; a pin pointed at (on the face or in the table) lights up in both
+  function draw() {
+    var svg = document.querySelector('[data-detail] svg[data-face]'), data = document.querySelector('[data-detail] #connector-face');
+    if (!svg || !data) return;
+    var face = JSON.parse(data.textContent);
+    function light(pin, on) {
+      document.querySelectorAll('tr[data-pin]').forEach(function (tr) { if (tr.dataset.pin === pin) tr.classList.toggle('lit', on); });
+      svg.querySelectorAll('g[data-pin]').forEach(function (g) { if (g.dataset.pin === pin) g.classList.toggle('lit', on); });
+    }
+    Pinout.face(svg, face, light);
+    document.querySelectorAll('tr[data-pin]').forEach(function (tr) {
+      tr.addEventListener('mouseenter', function () { light(tr.dataset.pin, true); });
+      tr.addEventListener('mouseleave', function () { light(tr.dataset.pin, false); });
     });
-  });
+  }
+  document.addEventListener('brief', draw);
+  draw();
 })();
 </script>{% endblock %}

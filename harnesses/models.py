@@ -1,4 +1,4 @@
-"""Harnesses: each belongs to a project. Its ends (each a connector, plugged into a device's connector), its pinout
+"""Harnesses: each belongs to a setup. Its ends (each a connector, plugged into a device's connector), its pinout
 (wires from an end's pin to another end's pin), extra items (contacts, ties, sleeving), saved as versions. Each one
 built is an asset (``assets``) with a checklist of its wires, placed and verified."""
 from collections import OrderedDict
@@ -21,7 +21,7 @@ class Harness(models.Model):
         RELEASED = 'released', 'Released'
         OBSOLETE = 'obsolete', 'Obsolete'
 
-    project = models.ForeignKey('projects.Project', on_delete=models.PROTECT, related_name='harnesses', verbose_name='wire diagram')
+    setup = models.ForeignKey('setups.Setup', on_delete=models.PROTECT, related_name='harnesses', verbose_name='setup')
     number = models.CharField(max_length=20, unique=True, editable=False)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -59,7 +59,7 @@ class Harness(models.Model):
 
     def problems(self):
         """What is wrong with its pinout: [(wire or end or None, message)]. (What it plugs into, and whether the
-        devices' pins fit, is its wire diagram's to say: ``projects.configs.problems``.)"""
+        devices' pins fit, is its setup's to say: ``setups.contents.problems``.)"""
         found, joined = [], {}
         for wire in self.ordered_wires():   # a pin with several wires is a splice; the same two pins joined twice isn't
             pair = frozenset(((wire.from_end_id, wire.from_pin.lower()), (wire.to_end_id, wire.to_pin.lower())))

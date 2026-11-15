@@ -17,7 +17,7 @@
       <table class="list parts-list">
         <tr><th>Budget</th><th>Owner</th><th class="num">Amount</th><th class="num">Spent</th><th class="num">Left</th><th>Used</th></tr>
         {% for b, depth, t in listed %}<tr data-part="{{ b.pk }}" data-brief-url="{% url 'web:brief' 'budget' b.pk %}" class="{% if picked.pk == b.pk %}on{% endif %}" tabindex="0">
-          <td><a href="{{ b.get_absolute_url }}">{{ b }}</a>{% if b.project %} <span class="muted small">{{ b.project }}</span>{% endif %}{% if not b.active %} <span class="badge">Closed</span>{% endif %}</td>
+          <td><a href="{{ b.get_absolute_url }}">{{ b }}</a>{% if b.setup %} <span class="muted small">{{ b.setup }}</span>{% endif %}{% if not b.active %} <span class="badge">Closed</span>{% endif %}</td>
           <td class="small">{{ b.owner|default:"" }}</td>
           <td class="num">{{ b.amount|money }}</td><td class="num">{{ t.spent|money }}</td>
           <td class="num{% if t.over %} low{% endif %}">{{ t.remaining|money }}</td>

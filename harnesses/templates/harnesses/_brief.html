@@ -4,7 +4,7 @@
     <span class="spacer"></span><a class="btn small" href="{{ harness.get_absolute_url }}">Open</a></div>
   <p class="brief-what">{{ harness.name }}</p>
   <dl class="details">
-    <dt>Wire diagram</dt><dd><a href="{{ harness.project.get_absolute_url }}">{{ harness.project }}</a></dd>
+    <dt>Setup</dt><dd><a href="{{ harness.setup.get_absolute_url }}">{{ harness.setup }}</a></dd>
     <dt>Version</dt><dd>{% if harness.version %}v{{ harness.version }}{% else %}not saved{% endif %}</dd>
     {% if harness.description %}<dt>Description</dt><dd>{{ harness.description|linebreaksbr }}</dd>{% endif %}
   </dl>
