@@ -76,6 +76,7 @@
   window.OSMIA_CSRF = "{{ csrf_token }}";
 </script>
 <script src="{% fresh 'web/files.js' %}"></script>
+<script src="{% fresh 'web/tree.js' %}"></script>
 <script>
   function osmiaTheme() {
     const root = document.documentElement, dark = matchMedia('(prefers-color-scheme: dark)').matches;

@@ -558,3 +558,7 @@ tr.muted > td > a { color: var(--muted); }
 .parts-tree a.on::before { background: var(--brand-soft); box-shadow: inset 3px 0 0 var(--brand); }
 .parts-tree .tree-sep { margin: 0; border-top: 3px solid var(--border); }
 .parts-tree .tree-sep + a::before { border-top: 0; }
+.parts-tree a[hidden] { display: none; }
+.tree-twist { display: inline-block; width: 16px; flex: none; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; text-align: center; }
+.tree-twist:empty { cursor: default; }
+.tree-twist:hover, .tree-twist:focus-visible { color: var(--brand); }
