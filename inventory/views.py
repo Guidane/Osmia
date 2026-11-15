@@ -314,6 +314,18 @@ def family_brief(request, pk):
 
 @login_required
 @require_POST
+def standard_categories(request):
+    """The categories of single parts a lab keeps (electronic components, connectors, fasteners, wire, …), those not
+    there yet, with their attributes: ``inventory.category_presets``."""
+    from .category_presets import standard_categories as make
+    categories, attributes = make()
+    messages.success(request, f'{categories} standard categor{"y" if categories == 1 else "ies"} and {attributes} attribute{"" if attributes == 1 else "s"} added.'
+                     if categories or attributes else 'The standard categories are all there.')
+    return redirect(f"{reverse('inventory:categories')}?kind=parts")
+
+
+@login_required
+@require_POST
 def standard_families(request):
     """The connectors made often (D-sub, D-sub HD, Gecko) as families, those not there yet."""
     from .faces import standard_families as make

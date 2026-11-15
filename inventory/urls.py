@@ -14,6 +14,7 @@ urlpatterns = [
     path('parts/<int:pk>/stock/', views.part_stock, name='part_stock'),
     path('parts/<int:pk>/reorder/', views.part_reorder, name='part_reorder'),
     path('categories/', views.categories, name='categories'),
+    path('categories/standard/', views.standard_categories, name='categories_standard'),
     path('categories/<int:pk>/', views.category, name='category'),
     path('categories/<int:pk>/attributes/', views.attribute_form, name='attribute_new'),
     path('categories/<int:pk>/attributes/<int:attribute>/', views.attribute_form, name='attribute_edit'),

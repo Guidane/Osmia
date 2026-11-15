@@ -4,6 +4,7 @@
 {% block content %}
 <p class="small">{% if kind == 'assets' %}<a href="{% url 'assets:list' %}">← Assets</a>{% else %}<a href="{% url 'inventory:parts' %}">← Parts</a>{% endif %}</p>
 <div class="page-head"><h1>Categories</h1><span class="spacer"></span>
+  {% if kind == 'parts' %}<form method="post" action="{% url 'inventory:categories_standard' %}">{% csrf_token %}<button class="btn">＋ Standard categories</button></form>{% endif %}
   {% if picked %}<a class="btn" href="{{ picked.get_absolute_url }}">Attributes of {{ picked.name }}</a>{% endif %}</div>
 
 <div class="parts-browser" data-param="category">

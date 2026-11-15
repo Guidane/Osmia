@@ -126,3 +126,24 @@ class LinkTests(Base):
         stock.add(self.plug, 4, self.shelf, self.ada)
         page = self.client.get(self.plug.get_absolute_url())
         self.assertContains(page, f'<a href="{self.shelf.get_absolute_url()}">')    # its location, a link
+
+
+class StandardCategoryTests(Base):
+    def test_standard_categories_added_once_with_their_attributes(self):
+        from inventory.models import Attribute, Category
+        connectors = self.connectors                                                   # there already, with D-sub
+        Attribute.objects.create(category=self.dsub, name='Mounting', kind='text')    # its own already
+        self.client.post(reverse('inventory:categories_standard'))
+        resistors = Category.objects.get(name='Resistors', parent__name='Electronic components')
+        self.assertEqual([a.name for a in resistors.all_attributes()][:2], ['Package', 'Mounting'])   # from above
+        self.assertTrue(Category.objects.filter(name='Nuts', parent__name='Fasteners').exists())
+        self.assertEqual(Category.objects.filter(name__iexact='connectors', parent=None).count(), 1)   # the one there, used
+        self.assertEqual(Category.objects.filter(name='D-sub').count(), 1)
+        self.assertFalse(connectors.attributes.filter(name='Mounting').exists())       # D-sub has one: not twice
+        threads = Attribute.objects.get(category__name='Fasteners', name='Thread')
+        self.assertIn('M3', threads.choice_list())
+        before = (Category.objects.count(), Attribute.objects.count())
+        response = self.client.post(reverse('inventory:categories_standard'), follow=True)   # again: nothing new
+        self.assertEqual((Category.objects.count(), Attribute.objects.count()), before)
+        self.assertContains(response, 'The standard categories are all there.')
+        self.assertFalse(Category.objects.filter(kind='assets').exists())
