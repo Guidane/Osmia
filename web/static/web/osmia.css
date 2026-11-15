@@ -499,9 +499,9 @@ tr.muted > td > a { color: var(--muted); }
 .parts-tree { padding: 6px 0; position: sticky; top: 8px; max-height: calc(100vh - 70px); overflow: auto; }
 .parts-tree a { display: flex; justify-content: space-between; gap: 8px; padding: 5px 12px 5px calc(12px + var(--depth, 0) * 1.1em);
   color: var(--text); text-decoration: none; border-left: 3px solid transparent; }
-.parts-tree a:hover { background: var(--hover); }
+.parts-tree a:hover { background-color: var(--hover); }
 .parts-tree a.open { font-weight: 600; }
-.parts-tree a.on { background: var(--brand-soft); border-left-color: var(--brand); font-weight: 600; }
+.parts-tree a.on { background-color: var(--brand-soft); font-weight: 600; }
 .parts-middle .filters { margin-top: 0; }
 .parts-list tr[data-part] { cursor: pointer; }
 .parts-list tr[data-part]:hover { background: var(--hover); }
@@ -542,3 +542,19 @@ tr.muted > td > a { color: var(--muted); }
 .parts-detail > .details { margin-top: 8px; }
 @media (max-width: 1100px) { .parts-browser.wide { grid-template-columns: 200px minmax(0, 1fr); } }
 .parts-detail [data-home] > .card, .parts-detail [data-home] > section.card { margin: 12px 0 0; }
+
+/* The trees on the left (.parts-tree) as nested boxes, like tabs with sub-tabs: each node a box ruled off from the one
+   above; each level in a column further right, the columns to its left left empty, ruled down their side. */
+.parts-tree { --gutter: 22px; padding: 0; overflow-x: hidden; }
+.parts-tree a { position: relative; isolation: isolate; border-left: 0; padding: 9px 12px 9px calc(var(--depth, 0) * var(--gutter) + 12px);
+  background: repeating-linear-gradient(90deg, transparent 0 calc(var(--gutter) - 1px), var(--border) calc(var(--gutter) - 1px) var(--gutter))
+              left top / calc(var(--depth, 0) * var(--gutter)) 100% no-repeat; }
+.parts-tree a::before { content: ''; position: absolute; z-index: -1; top: 0; bottom: 0; right: 0; left: calc(var(--depth, 0) * var(--gutter));
+  border-top: 1px solid var(--border); }
+.parts-tree > a:first-child::before { border-top: 0; }
+.parts-tree a:hover { background-color: transparent; }
+.parts-tree a:hover::before { background: var(--hover); }
+.parts-tree a.on { background-color: transparent; }
+.parts-tree a.on::before { background: var(--brand-soft); box-shadow: inset 3px 0 0 var(--brand); }
+.parts-tree .tree-sep { margin: 0; border-top: 3px solid var(--border); }
+.parts-tree .tree-sep + a::before { border-top: 0; }
