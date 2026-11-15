@@ -9,7 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
 
-from inventory.models import Part
+from inventory.models import ItemDefinition
 from inventory.tests.test_inventory import Base
 from web.models import Attachment, Page
 from web.things import files_of, pages_of, preview_of
@@ -31,8 +31,8 @@ class MediaBase(Base):
 
 
 class FileTests(MediaBase):
-    def test_files_of_a_part_its_preview_and_deleting(self):
-        url = reverse('web:files', args=['part', self.plug.pk])
+    def test_files_of_a_definition_its_preview_and_deleting(self):
+        url = reverse('web:files', args=['definition', self.plug.pk])
         self.client.post(url, {'file': [SimpleUploadedFile('sheet.pdf', b'%PDF-1.4', 'application/pdf'),
                                         SimpleUploadedFile('front.png', PNG, 'image/png')]})
         self.client.post(url, {'file': SimpleUploadedFile('back.png', PNG, 'image/png')})
@@ -41,7 +41,7 @@ class FileTests(MediaBase):
         page = self.client.get(self.plug.get_absolute_url())
         self.assertContains(page, 'class="main-image"')
         self.assertContains(page, 'sheet.pdf')
-        self.assertContains(self.client.get(reverse('inventory:parts')), 'class="thumb-sm"')   # in the list too
+        self.assertContains(self.client.get(reverse('inventory:definitions')), 'class="thumb-sm"')   # in the list too
         back = Attachment.objects.get(name='back.png')
         card = self.client.post(reverse('web:file_preview', args=[back.pk]), HTTP_X_FILES_CARD='1')
         self.assertContains(card, 'files-card')                                          # the card, drawn again
@@ -56,11 +56,11 @@ class FileTests(MediaBase):
         self.assertIsNone(preview_of(self.plug))
 
     def test_files_and_pages_go_with_what_is_deleted(self):
-        part = Part.objects.create(number='GONE-1')
-        self.client.post(reverse('web:files', args=['part', part.pk]), {'file': SimpleUploadedFile('x.png', PNG, 'image/png')})
+        definition = ItemDefinition.objects.create(number='GONE-1')
+        self.client.post(reverse('web:files', args=['definition', definition.pk]), {'file': SimpleUploadedFile('x.png', PNG, 'image/png')})
         stored = Path(self.media) / Attachment.objects.get().file.name
-        Page.objects.create(title='How', content_type_id=Attachment.objects.get().content_type_id, object_id=part.pk)
-        part.delete()
+        Page.objects.create(title='How', content_type_id=Attachment.objects.get().content_type_id, object_id=definition.pk)
+        definition.delete()
         self.assertFalse(Attachment.objects.exists())
         self.assertFalse(stored.exists())
         self.assertFalse(Page.objects.exists())
@@ -75,14 +75,14 @@ class FileTests(MediaBase):
 
 
 class PageTests(MediaBase):
-    def test_a_page_of_a_part_cleaned_with_a_page_under_it(self):
-        response = self.client.post(f"{reverse('web:page_new')}?kind=part&pk={self.plug.pk}", {
+    def test_a_page_of_a_definition_cleaned_with_a_page_under_it(self):
+        response = self.client.post(f"{reverse('web:page_new')}?kind=definition&pk={self.plug.pk}", {
             'title': 'Crimping', 'body': '<h2>Use</h2><p onclick="x()">Crimp <b>first</b></p><script>alert(1)</script>'
                                          '<a href="javascript:x()">bad</a>'})
         page = Page.objects.get()
         self.assertRedirects(response, page.get_absolute_url())
         self.assertEqual((page.owner, page.body), (self.plug, '<h2>Use</h2><p>Crimp <b>first</b></p><a rel="noopener noreferrer">bad</a>'))
-        self.assertContains(self.client.get(self.plug.get_absolute_url()), 'Crimping')      # on the part's page
+        self.assertContains(self.client.get(self.plug.get_absolute_url()), 'Crimping')      # on the item definition's page
         self.client.post(f"{reverse('web:page_new')}?parent={page.pk}", {'title': 'Tools', 'body': '<p>The crimper</p>', 'parent': page.pk})
         under = Page.objects.get(title='Tools')
         self.assertEqual((under.parent, under.owner), (page, self.plug))                    # in the same place

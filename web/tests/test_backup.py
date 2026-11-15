@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError
 from django.test import TransactionTestCase, override_settings
 from django.urls import reverse
 
-from inventory.models import Part
+from inventory.models import ItemDefinition
 from web import backup
 
 
@@ -31,15 +31,15 @@ class BackupTests(TransactionTestCase):
         self.tmp.cleanup()
 
     def test_exported_and_imported_back(self):
-        Part.objects.create(number='OURS-1', description='Ours')
+        ItemDefinition.objects.create(number='OURS-1', description='Ours')
         out = io.BytesIO()
         backup.export_to(out)
-        Part.objects.all().delete()
-        Part.objects.create(number='LATER')
+        ItemDefinition.objects.all().delete()
+        ItemDefinition.objects.create(number='LATER')
         (self.media / 'images' / 'plug.png').unlink()
         out.seek(0)
         manifest = backup.import_from(out)
-        self.assertEqual(list(Part.objects.values_list('number', flat=True)), ['OURS-1'])
+        self.assertEqual(list(ItemDefinition.objects.values_list('number', flat=True)), ['OURS-1'])
         self.assertEqual((self.media / 'images' / 'plug.png').read_bytes(), b'a picture')
         self.assertIn(['inventory', '0001_initial'], manifest['migrations'])
         saved = list((Path(self.tmp.name) / 'backups').glob('before-import-*.zip'))

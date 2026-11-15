@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
-from inventory.models import Location, Part, Vendor
+from inventory.models import Location, ItemDefinition, Vendor
 from orders.models import Order, OrderLine
 from web import demo
 from web.models import DemoRecord
@@ -19,7 +19,7 @@ def counts():
 class DemoTests(TestCase):
     def setUp(self):
         self.ada = get_user_model().objects.create_superuser('ada', 'ada@example.com', 'pw')
-        self.real = Part.objects.create(number='MY-PART', description='Ours')
+        self.real = ItemDefinition.objects.create(number='MY-PART', description='Ours')
         Location.objects.create(name='Our store')
         self.client.force_login(self.ada)
 
@@ -27,7 +27,7 @@ class DemoTests(TestCase):
         before = counts()
         demo.switch_on(self.ada)
         self.assertTrue(demo.is_on())
-        self.assertTrue(Part.objects.filter(number='DSUB-9-PLUG').exists())
+        self.assertTrue(ItemDefinition.objects.filter(number='DSUB-9-PLUG').exists())
         with self.assertRaisesMessage(ValidationError, 'on already'):
             demo.switch_on(self.ada)
         self.assertEqual(demo.switch_off(), [])
@@ -35,37 +35,37 @@ class DemoTests(TestCase):
         after.pop('web.DemoRecord')
         before.pop('web.DemoRecord')
         self.assertEqual(after, before)
-        self.assertTrue(Part.objects.filter(pk=self.real.pk).exists())
+        self.assertTrue(ItemDefinition.objects.filter(pk=self.real.pk).exists())
         self.assertFalse(demo.is_on())
 
     def test_what_real_data_uses_is_kept(self):
         demo.switch_on(self.ada)
         real_vendor = Vendor.objects.create(name='Our vendor')
         order = Order.objects.create(vendor=real_vendor)
-        OrderLine.objects.create(order=order, part=Part.objects.get(number='TIE-100'), quantity=5)
+        OrderLine.objects.create(order=order, definition=ItemDefinition.objects.get(number='TIE-100'), quantity=5)
         kept = demo.switch_off()
         self.assertEqual(kept, ['TIE-100'])
-        self.assertFalse(Part.objects.filter(number='DSUB-9-PLUG').exists())
+        self.assertFalse(ItemDefinition.objects.filter(number='DSUB-9-PLUG').exists())
         self.assertFalse(DemoRecord.objects.exists())
 
     def test_stock_real_movements_changed_is_kept(self):
         from inventory import stock
         from inventory.models import Stock
         demo.switch_on(self.ada)
-        tie = Part.objects.get(number='TIE-100')
-        row = Stock.objects.get(part=tie)
+        tie = ItemDefinition.objects.get(number='TIE-100')
+        row = Stock.objects.get(definition=tie)
         stock.add(tie, 34, row.location, self.ada, 'received')                  # real: after the demo
         kept = demo.switch_off()
         self.assertIn('TIE-100', kept)
-        self.assertEqual(Stock.objects.get(part=tie).quantity, 534)             # what was there, and what came in
-        self.assertFalse(Part.objects.filter(number='DSUB-9-PLUG').exists())
+        self.assertEqual(Stock.objects.get(definition=tie).quantity, 534)             # what was there, and what came in
+        self.assertFalse(ItemDefinition.objects.filter(number='DSUB-9-PLUG').exists())
 
     def test_names_already_taken_are_refused(self):
-        Part.objects.create(number='DSUB-9-PLUG')
+        ItemDefinition.objects.create(number='DSUB-9-PLUG')
         with self.assertRaisesMessage(ValidationError, "can't go in"):
             demo.switch_on(self.ada)
         self.assertFalse(DemoRecord.objects.exists())
-        self.assertFalse(Part.objects.filter(number='TIE-100').exists())
+        self.assertFalse(ItemDefinition.objects.filter(number='TIE-100').exists())
 
     def test_the_page_is_for_administrators(self):
         self.client.post(reverse('web:demo'), {'action': 'on'})

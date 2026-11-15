@@ -12,6 +12,7 @@ urlpatterns = [
     path('harnesses/', include('harnesses.urls')),
     path('setups/', include('setups.urls')),
     re_path(r'^wire-diagrams/(?P<rest>.*)$', RedirectView.as_view(url='/setups/%(rest)s', query_string=True)),   # the old address
+    re_path(r'^parts/(?P<rest>.*)$', RedirectView.as_view(url='/item-definitions/%(rest)s', query_string=True)),   # the old address
     path('projects/', include('work.urls')),
     path('budgets/', include('budgets.urls')),
     path('assets/', include('assets.urls')),

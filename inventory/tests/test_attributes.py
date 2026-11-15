@@ -1,12 +1,12 @@
 """Category attributes: they trickle down the tree, each kind takes only what fits (text, whole numbers, numbers,
-a choice from a list, yes/no), parts fill them in on their form, the parts list shows and filters by them, and
+a choice from a list, yes/no), item definitions fill them in on their form, the parts list shows and filters by them, and
 changing an attribute is refused while values wouldn't fit any more."""
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from inventory.models import Attribute, Part, PartValue
+from inventory.models import Attribute, ItemDefinition, DefinitionValue
 
 from .test_inventory import Base
 
@@ -53,56 +53,56 @@ class TrickleDownTests(AttributeBase):
         self.assertContains(page, 'List the choices')
 
 
-class PartFormTests(AttributeBase):
-    def test_a_part_fills_in_its_category_s_attributes(self):
-        response = self.client.post(reverse('inventory:part_new'), self.form('DSUB-25', self.dsub, **{
+class DefinitionFormTests(AttributeBase):
+    def test_a_definition_fills_in_its_category_s_attributes(self):
+        response = self.client.post(reverse('inventory:definition_new'), self.form('DSUB-25', self.dsub, **{
             str(self.positions.pk): '25', str(self.gender.pk): 'female', str(self.pitch.pk): '2.77', str(self.shielded.pk): 'No'}))
-        part = Part.objects.get(number='DSUB-25')
-        self.assertRedirects(response, reverse('inventory:part', args=[part.pk]))
-        self.assertEqual({v.attribute.name: v.value for v in part.values.all()}, {'Positions': '25', 'Gender': 'female', 'Pitch': '2.77', 'Shielded': 'No'})
-        page = self.client.get(reverse('inventory:part', args=[part.pk]))
+        definition = ItemDefinition.objects.get(number='DSUB-25')
+        self.assertRedirects(response, reverse('inventory:definition', args=[definition.pk]))
+        self.assertEqual({v.attribute.name: v.value for v in definition.values.all()}, {'Positions': '25', 'Gender': 'female', 'Pitch': '2.77', 'Shielded': 'No'})
+        page = self.client.get(reverse('inventory:definition', args=[definition.pk]))
         self.assertContains(page, '2.77 mm')
 
-    def test_editing_a_part_keeps_its_category(self):
-        Part.objects.filter(pk=self.plug.pk).update(category=self.dsub)
-        page = self.client.get(reverse('inventory:part_edit', args=[self.plug.pk]))
+    def test_editing_a_definition_keeps_its_category(self):
+        ItemDefinition.objects.filter(pk=self.plug.pk).update(category=self.dsub)
+        page = self.client.get(reverse('inventory:definition_edit', args=[self.plug.pk]))
         self.assertContains(page, f'<option value="{self.dsub.pk}" selected>', html=False)
         self.assertContains(page, 'Mounting')
-        page = self.client.get(reverse('inventory:part_new'), {'category': self.dsub.pk})
+        page = self.client.get(reverse('inventory:definition_new'), {'category': self.dsub.pk})
         self.assertContains(page, f'<option value="{self.dsub.pk}" selected>', html=False)
 
     def test_what_doesn_t_fit_or_is_missing_is_refused(self):
-        page = self.client.post(reverse('inventory:part_new'), self.form('DSUB-X', self.dsub, **{str(self.pitch.pk): 'wide'}))
+        page = self.client.post(reverse('inventory:definition_new'), self.form('DSUB-X', self.dsub, **{str(self.pitch.pk): 'wide'}))
         self.assertContains(page, '&quot;wide&quot; is not a number')
         self.assertContains(page, 'This field is required')                     # Positions
-        self.assertFalse(Part.objects.filter(number='DSUB-X').exists())
+        self.assertFalse(ItemDefinition.objects.filter(number='DSUB-X').exists())
 
     def test_picking_another_category_shows_its_attributes_first(self):
         data = self.form('NEW-1', self.dsub)
         data['attributes_of'] = ''                                                # the form showed no category's yet
-        page = self.client.post(reverse('inventory:part_new'), data | {'refresh': '1'})
+        page = self.client.post(reverse('inventory:definition_new'), data | {'refresh': '1'})
         self.assertContains(page, 'Mounting')
-        self.assertFalse(Part.objects.filter(number='NEW-1').exists())
+        self.assertFalse(ItemDefinition.objects.filter(number='NEW-1').exists())
         data.pop('attributes_of')
-        self.client.post(reverse('inventory:part_new'), data)                   # just picked: not refused for Positions
-        self.assertTrue(Part.objects.filter(number='NEW-1').exists())
+        self.client.post(reverse('inventory:definition_new'), data)                   # just picked: not refused for Positions
+        self.assertTrue(ItemDefinition.objects.filter(number='NEW-1').exists())
 
-    def test_moving_a_part_to_another_category_drops_what_no_longer_applies(self):
-        PartValue.objects.create(part=self.plug, attribute=self.mounting, value='cable')
-        PartValue.objects.create(part=self.plug, attribute=self.positions, value='9', number=9)
-        self.client.post(reverse('inventory:part_edit', args=[self.plug.pk]), self.form('DSUB-9-PLUG', self.connectors, **{str(self.positions.pk): '9'}))
+    def test_moving_a_definition_to_another_category_drops_what_no_longer_applies(self):
+        DefinitionValue.objects.create(definition=self.plug, attribute=self.mounting, value='cable')
+        DefinitionValue.objects.create(definition=self.plug, attribute=self.positions, value='9', number=9)
+        self.client.post(reverse('inventory:definition_edit', args=[self.plug.pk]), self.form('DSUB-9-PLUG', self.connectors, **{str(self.positions.pk): '9'}))
         self.assertEqual([v.attribute.name for v in self.plug.values.all()], ['Positions'])
 
 
 class ListTests(AttributeBase):
     def test_the_list_shows_and_filters_by_attributes(self):
-        recept = Part.objects.create(number='DSUB-9-RECEPT', category=self.dsub)
-        for part, positions, gender in ((self.plug, 9, 'male'), (recept, 9, 'female')):
-            PartValue.objects.create(part=part, attribute=self.positions, value=str(positions), number=positions)
-            PartValue.objects.create(part=part, attribute=self.gender, value=gender)
-        big = Part.objects.create(number='DSUB-25-PLUG', category=self.dsub)
-        PartValue.objects.create(part=big, attribute=self.positions, value='25', number=25)
-        url = reverse('inventory:parts')
+        recept = ItemDefinition.objects.create(number='DSUB-9-RECEPT', category=self.dsub)
+        for definition, positions, gender in ((self.plug, 9, 'male'), (recept, 9, 'female')):
+            DefinitionValue.objects.create(definition=definition, attribute=self.positions, value=str(positions), number=positions)
+            DefinitionValue.objects.create(definition=definition, attribute=self.gender, value=gender)
+        big = ItemDefinition.objects.create(number='DSUB-25-PLUG', category=self.dsub)
+        DefinitionValue.objects.create(definition=big, attribute=self.positions, value='25', number=25)
+        url = reverse('inventory:definitions')
         page = self.client.get(url, {'category': self.connectors.pk})
         self.assertContains(page, '<th>Positions</th>', html=True)
         page = self.client.get(url, {'category': self.dsub.pk, f'a{self.gender.pk}': 'female'})
@@ -115,15 +115,15 @@ class ListTests(AttributeBase):
 
 class ChangingAttributesTests(AttributeBase):
     def test_a_change_that_values_wouldn_t_fit_is_refused(self):
-        PartValue.objects.create(part=self.plug, attribute=self.gender, value='male')
+        DefinitionValue.objects.create(definition=self.plug, attribute=self.gender, value='male')
         url = reverse('inventory:attribute_edit', args=[self.connectors.pk, self.gender.pk])
         page = self.client.post(url, {'name': 'Gender', 'kind': 'choice', 'choices': 'M\nF'})
         self.assertContains(page, 'DSUB-9-PLUG: &quot;male&quot;')
         self.client.post(url, {'name': 'Gender', 'kind': 'text'})               # text takes anything
         self.assertEqual(Attribute.objects.get(pk=self.gender.pk).kind, 'text')
-        PartValue.objects.create(part=self.plug, attribute=self.pitch, value='2.50', number=Decimal('2.5'))
+        DefinitionValue.objects.create(definition=self.plug, attribute=self.pitch, value='2.50', number=Decimal('2.5'))
         self.client.post(reverse('inventory:attribute_edit', args=[self.dsub.pk, self.pitch.pk]), {'name': 'Pitch', 'kind': 'text', 'unit': 'mm'})
-        self.assertEqual(PartValue.objects.get(attribute=self.pitch).number, None)
+        self.assertEqual(DefinitionValue.objects.get(attribute=self.pitch).number, None)
 
     def test_categories_page_and_excel(self):
         page = self.client.get(reverse('inventory:category', args=[self.dsub.pk]))
@@ -131,6 +131,6 @@ class ChangingAttributesTests(AttributeBase):
         from io import BytesIO
 
         from openpyxl import load_workbook
-        PartValue.objects.create(part=self.plug, attribute=self.positions, value='9', number=9)
-        book = load_workbook(BytesIO(self.client.get(reverse('inventory:parts'), {'export': 1}).content))
+        DefinitionValue.objects.create(definition=self.plug, attribute=self.positions, value='9', number=9)
+        book = load_workbook(BytesIO(self.client.get(reverse('inventory:definitions'), {'export': 1}).content))
         self.assertIn(('DSUB-9-PLUG', 'Connectors / D-sub', 'Positions', 9, None), [tuple(r) for r in book['Attributes'].values])

@@ -6,18 +6,18 @@
 <div class="page-head"><h1>{{ category.path }}</h1><span class="spacer"></span>
   {% if category.kind == 'assets' %}<a class="btn" href="{% url 'assets:list' %}?category={{ category.pk }}">{{ assets }} asset{{ assets|pluralize }}</a>
   <a class="btn" href="{% url 'assets:new' %}?category={{ category.pk }}">＋ Asset</a>
-  {% else %}<a class="btn" href="{% url 'inventory:parts' %}?category={{ category.pk }}">{{ parts }} part{{ parts|pluralize }}</a>
-  <a class="btn" href="{% url 'inventory:part_new' %}?category={{ category.pk }}">＋ Part</a>{% endif %}
+  {% else %}<a class="btn" href="{% url 'inventory:definitions' %}?category={{ category.pk }}">{{ definitions }} item definition{{ definitions|pluralize }}</a>
+  <a class="btn" href="{% url 'inventory:definition_new' %}?category={{ category.pk }}">＋ Item definition</a>{% endif %}
   <a class="btn" href="{% url 'inventory:categories' %}?edit={{ category.pk }}">Change</a></div>
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ category.name }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ category.name }}">
     {% for c in category.chain %}{% if c != category %}<a href="{{ c.get_absolute_url }}" style="--depth: {{ forloop.counter0 }}"><span>{{ c.name }}</span><span class="muted small"></span></a>{% endif %}{% endfor %}
     <a href="#attributes" data-section="attributes" class="tree-head" style="--depth: {{ category.chain|length|add:-1 }}"><span>{{ category.name }} · attributes</span><span class="muted small"></span></a>
     <a href="#new" data-section="new" style="--depth: {{ category.chain|length }}"><span>＋ New attribute</span><span class="muted small"></span></a>
     {% for c in children %}<a href="{{ c.get_absolute_url }}" style="--depth: {{ category.chain|length }}"><span>{{ c.name }}</span><span class="muted small"></span></a>{% endfor %}
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <div data-panel="attributes">
 <section class="card flush" id="attributes">
   <div class="card-head"><h3>Attributes</h3></div>
@@ -51,14 +51,14 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ category.name }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'inventory:categories' %}?edit={{ category.pk }}">Change</a></div>
       <dl class="details">
         <dt>Path</dt><dd>{{ category.path }}</dd>
-        <dt>Of</dt><dd>{% if category.kind == 'assets' %}assets{% else %}parts{% endif %}</dd>
+        <dt>Of</dt><dd>{% if category.kind == 'assets' %}assets{% else %}item definitions{% endif %}</dd>
         {% if category.kind == 'assets' %}<dt>Assets</dt><dd><a href="{% url 'assets:list' %}?category={{ category.pk }}">{{ assets }}</a></dd>
-        {% else %}<dt>Parts</dt><dd><a href="{% url 'inventory:parts' %}?category={{ category.pk }}">{{ parts }}</a></dd>{% endif %}
+        {% else %}<dt>Item definitions</dt><dd><a href="{% url 'inventory:definitions' %}?category={{ category.pk }}">{{ definitions }}</a></dd>{% endif %}
         <dt>Under it</dt><dd>{% for c in children %}<a href="{{ c.get_absolute_url }}">{{ c.name }}</a>{% if not forloop.last %} · {% endif %}{% empty %}—{% endfor %}</dd>
       </dl>
     </div>

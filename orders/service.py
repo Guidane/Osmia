@@ -1,4 +1,4 @@
-"""What happens to orders: reordering a part, placing an order, receiving what arrived (into stock), cancelling."""
+"""What happens to orders: reordering an item definition, placing an order, receiving what arrived (into stock), cancelling."""
 from datetime import date
 from decimal import Decimal
 
@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import F, Sum
 
 from inventory import stock
-from inventory.models import Movement, Part
+from inventory.models import Movement, ItemDefinition
 from web.notify import notify
 
 from .models import Order, OrderLine
@@ -31,35 +31,35 @@ def order_asset(asset, user):
     return OrderLine.objects.create(order=_draft_for(asset.vendor, user), asset=asset, quantity=1, price=asset.price)
 
 
-def on_order(part):
-    """How many of ``part`` (or of the parts of a family) are ordered and not yet received."""
+def on_order(definition):
+    """How many of ``item definition`` (or of the item definitions of a family) are ordered and not yet received."""
     lines = OrderLine.objects.filter(order__status__in=Order.OPEN)
-    lines = lines.filter(part__in=part.members()) if hasattr(part, 'members') else lines.filter(part=part)
+    lines = lines.filter(definition__in=definition.members()) if hasattr(definition, 'members') else lines.filter(definition=definition)
     left = lines.aggregate(n=Sum(F('quantity') - F('received')))['n']
     return max(left or Decimal(0), Decimal(0))
 
 
 def needs_ordering():
-    """The active parts whose stock, with what is on order, is below their minimum: [(part, on hand, on order)]."""
+    """The active item definitions whose stock, with what is on order, is below their minimum: [(item definition, on hand, on order)]."""
     out = []
-    for part in Part.objects.filter(active=True, minimum__gt=0).select_related('vendor'):
-        have, coming = part.on_hand, on_order(part)
-        if have + coming < part.minimum:
-            out.append((part, have, coming))
+    for definition in ItemDefinition.objects.filter(active=True, minimum__gt=0, kind=ItemDefinition.Kind.PHYSICAL).select_related('vendor'):
+        have, coming = definition.on_hand, on_order(definition)
+        if have + coming < definition.minimum:
+            out.append((definition, have, coming))
     return out
 
 
 @transaction.atomic
-def reorder(part, user, quantity=None):
-    """Put ``part`` on the draft order for its vendor (a new one if there is none): ``quantity``, else its reorder
+def reorder(definition, user, quantity=None):
+    """Put ``item definition`` on the draft order for its vendor (a new one if there is none): ``quantity``, else its reorder
     quantity, else enough to get back above its minimum. Returns the line."""
-    if part.vendor_id is None:
-        raise ValidationError(f'{part} has no vendor: say where it is ordered first.')
-    order = _draft_for(part.vendor, user)
-    wanted = quantity or part.reorder_quantity or max(part.minimum - part.on_hand - on_order(part), Decimal(1))
-    line = order.lines.filter(part=part).first()
+    if definition.vendor_id is None:
+        raise ValidationError(f'{definition} has no vendor: say where it is ordered first.')
+    order = _draft_for(definition.vendor, user)
+    wanted = quantity or definition.reorder_quantity or max(definition.minimum - definition.on_hand - on_order(definition), Decimal(1))
+    line = order.lines.filter(definition=definition).first()
     if line is None:
-        line = OrderLine.objects.create(order=order, part=part, quantity=wanted, price=part.price)
+        line = OrderLine.objects.create(order=order, definition=definition, quantity=wanted, price=definition.price)
     else:
         line.quantity += wanted
         line.save(update_fields=['quantity'])
@@ -76,7 +76,7 @@ def ask(order):
 
 @transaction.atomic
 def place(order, user, expected_on=None):
-    """The order went to the vendor: from now on it is waiting for its parts. Who asked for it hears."""
+    """The order went to the vendor: from now on it is waiting for its item definitions. Who asked for it hears."""
     if order.status != Order.Status.DRAFT:
         raise ValidationError(f'{order} is {order.get_status_display().lower()} already.')
     if not order.lines.exists():
@@ -86,9 +86,9 @@ def place(order, user, expected_on=None):
     order.status, order.ordered_on = Order.Status.ORDERED, date.today()
     order.expected_on = expected_on or order.expected_on
     order.save()
-    for line in order.lines.filter(part__isnull=False).select_related('part'):   # the price ordered at is the part's last price
-        if line.price is not None and line.part.price != line.price:
-            Part.objects.filter(pk=line.part_id).update(price=line.price)
+    for line in order.lines.filter(definition__isnull=False).select_related('definition'):   # the price ordered at is the item definition's last price
+        if line.price is not None and line.definition.price != line.price:
+            ItemDefinition.objects.filter(pk=line.definition_id).update(price=line.price)
     if order.budget_id:
         from budgets.money import warn_if_over
         warn_if_over(order.budget)
@@ -98,7 +98,8 @@ def place(order, user, expected_on=None):
 
 @transaction.atomic
 def receive(order, arrived, user):
-    """What arrived for ``order``: [(line, quantity, location)], booked into stock. The order is received when
+    """What arrived for ``order``: [(line, quantity, location)], booked into stock (a service, subscription, … just
+    counts as received, without a location). The order is received when
     nothing is outstanding; whoever made it hears what came."""
     if order.status not in Order.OPEN:
         raise ValidationError(f'{order} is {order.get_status_display().lower()}: there is nothing to receive.')
@@ -107,14 +108,14 @@ def receive(order, arrived, user):
         if line.order_id != order.pk:
             raise ValidationError('That line is on another order.')
         quantity = stock.amount(quantity)
-        if location is None:
+        if location is None and line.stocked:
             raise ValidationError(f'Say where the {line.item} goes.')
         if quantity > line.outstanding:
             raise ValidationError(f'Only {line.outstanding.normalize():f} of {line.item} are still to come.')
         if line.asset_id:
             _asset_arrived(line.asset, location, user, order)
-        else:
-            stock.add(line.part, quantity, location, user, kind=Movement.Kind.RECEIVED, reference=order.number,
+        elif line.stocked:
+            stock.add(line.definition, quantity, location, user, kind=Movement.Kind.RECEIVED, reference=order.number,
                       url=order.get_absolute_url())
         OrderLine.objects.filter(pk=line.pk).update(received=F('received') + quantity)
         booked.append(f'{quantity.normalize():f} × {line.item.number}')

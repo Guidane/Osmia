@@ -5,14 +5,14 @@ from . import views
 app_name = 'inventory'
 
 urlpatterns = [
-    path('parts/', views.parts, name='parts'),
-    path('parts/new/', views.part_form, name='part_new'),
-    path('parts/find/', views.find, name='find'),
-    path('parts/<int:pk>/', views.part, name='part'),
-    path('parts/<int:pk>/brief/', views.part_brief, name='part_brief'),
-    path('parts/<int:pk>/edit/', views.part_form, name='part_edit'),
-    path('parts/<int:pk>/stock/', views.part_stock, name='part_stock'),
-    path('parts/<int:pk>/reorder/', views.part_reorder, name='part_reorder'),
+    path('item-definitions/', views.definitions, name='definitions'),
+    path('item-definitions/new/', views.definition_form, name='definition_new'),
+    path('item-definitions/find/', views.find, name='find'),
+    path('item-definitions/<int:pk>/', views.definition, name='definition'),
+    path('item-definitions/<int:pk>/brief/', views.definition_brief, name='definition_brief'),
+    path('item-definitions/<int:pk>/edit/', views.definition_form, name='definition_edit'),
+    path('item-definitions/<int:pk>/stock/', views.definition_stock, name='definition_stock'),
+    path('item-definitions/<int:pk>/reorder/', views.definition_reorder, name='definition_reorder'),
     path('categories/', views.categories, name='categories'),
     path('categories/standard/', views.standard_categories, name='categories_standard'),
     path('categories/<int:pk>/', views.category, name='category'),

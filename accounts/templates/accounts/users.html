@@ -7,10 +7,10 @@
   <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ Excel</a>
   <a class="btn primary" href="{% url 'accounts:user_new' %}{% if department %}?department={{ department.pk }}{% endif %}">＋ New user</a></div>
 
-<div class="parts-browser" data-param="user">
+<div class="browser" data-param="user">
   {% include "web/_tree_nav.html" with label="Departments" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters">
       {% if department %}<input type="hidden" name="department" value="{{ department.pk }}">{% elif loose %}<input type="hidden" name="none" value="1">{% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Name, user name, email, job…" aria-label="Search users">
@@ -18,9 +18,9 @@
       <button class="btn">Find</button>
     </form>
     <div class="card flush">
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th>Name</th><th>User name</th><th>Job title</th>{% if not department %}<th>Department</th>{% endif %}<th>Email</th><th>Last logged in</th><th></th></tr>
-        {% for u in users %}<tr data-part="{{ u.pk }}" data-brief-url="{% url 'web:brief' 'user' u.pk %}" class="{% if picked.pk == u.pk %}on{% endif %}" tabindex="0">
+        {% for u in users %}<tr data-row="{{ u.pk }}" data-brief-url="{% url 'web:brief' 'user' u.pk %}" class="{% if picked.pk == u.pk %}on{% endif %}" tabindex="0">
           <td><a href="{% url 'accounts:user_edit' u.pk %}">{{ u }}</a></td><td class="small">{{ u.username }}</td><td class="small">{{ u.job_title }}</td>
           {% if not department %}<td class="small">{% if u.department %}<a href="{{ u.department.get_absolute_url }}">{{ u.department.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>{% endif %}
           <td class="small">{% if u.email %}<a href="mailto:{{ u.email }}">{{ u.email }}</a>{% endif %}</td>
@@ -31,7 +31,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick someone to see it here.</p>{% endif %}
   </aside>
 </div>

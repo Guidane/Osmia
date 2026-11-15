@@ -1,8 +1,8 @@
 """Assets: every thing kept one by one with an asset tag — tools, lab equipment (power supplies, scopes), measuring
 instruments, electronics, the devices and harnesses built or bought, IT. Its kind is picked from a list; its category (the
-same tree as parts') gives it attributes, shared with the parts of that category. Its location, who looks after it, who has it out now,
+same tree as item definitions') gives it attributes, shared with the item definitions of that category. Its location, who looks after it, who has it out now,
 when it is due for calibration, everything that happened to it; what it was bought for (an order line) or built as (a
-device or harness design, the version, a harness's checklist). Parts link to assets they need with a "link to an
+device or harness design, the version, a harness's checklist). Item definitions link to assets they need with a "link to an
 asset" attribute (a contact's "Crimped with")."""
 import calendar
 from datetime import date
@@ -11,7 +11,7 @@ from django.conf import settings
 from django.db import models
 from django.urls import reverse
 
-from inventory.models import Attribute, Category, Location, Part, Vendor
+from inventory.models import Attribute, Category, Location, ItemDefinition, Vendor
 
 
 class Asset(models.Model):
@@ -72,7 +72,7 @@ class Asset(models.Model):
         return reverse('assets:asset', args=[self.pk])
 
     @property
-    def description(self):   # what lists of parts and assets show next to the number
+    def description(self):   # what lists of item definitions and assets show next to the number
         return self.name
 
     @property
@@ -103,22 +103,22 @@ class AssetValue(models.Model):
 
 
 class AssetLink(models.Model):
-    """An asset naming a part or another asset with an "interacts with" attribute or a link (a crimp tool that crimps
+    """An asset naming an item definition or another asset with an "interacts with" attribute or a link (a crimp tool that crimps
     these contacts, a die that fits that tool)."""
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name='links')
     attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE, related_name='asset_targets')
-    part = models.ForeignKey(Part, null=True, blank=True, on_delete=models.CASCADE, related_name='linked_from_assets')
+    definition = models.ForeignKey(ItemDefinition, null=True, blank=True, on_delete=models.CASCADE, related_name='linked_from_assets')
     target = models.ForeignKey(Asset, null=True, blank=True, on_delete=models.CASCADE, related_name='linked_from')
 
 
-class PartAsset(models.Model):
-    """A part linking to an asset with a "link to an asset" attribute (a contact "Crimped with" a crimp tool)."""
-    part = models.ForeignKey(Part, on_delete=models.CASCADE, related_name='asset_links')
+class DefinitionAsset(models.Model):
+    """An item definition linking to an asset with a "link to an asset" attribute (a contact "Crimped with" a crimp tool)."""
+    definition = models.ForeignKey(ItemDefinition, on_delete=models.CASCADE, related_name='asset_links')
     attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE, related_name='asset_links')
-    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name='part_links')
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name='definition_links')
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['part', 'attribute', 'asset'], name='unique_part_asset')]
+        constraints = [models.UniqueConstraint(fields=['definition', 'attribute', 'asset'], name='unique_definition_asset')]
 
 
 class AssetCheck(models.Model):

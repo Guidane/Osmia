@@ -3,14 +3,14 @@
 {% block content_class %}narrow{% endblock %}
 {% block leave_to %}{{ back|default:"" }}{% endblock %}
 {% block content %}
-<form method="post" class="form with-notes" id="part-form">{% csrf_token %}
+<form method="post" class="form with-notes" id="definition-form">{% csrf_token %}
   <div class="card">
   <h1>{{ title }}</h1>
   <input type="hidden" name="attributes_of" value="{{ form.shown_category }}">
   {% if form.non_field_errors %}<div class="flash error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
   <div class="fields">
   {% for f in form %}{% if not f.name|slice:":5" == "attr_" and f.name != 'notes' %}
-    <div class="field{% if f.errors %} has-error{% endif %}">
+    <div class="field{% if f.errors %} has-error{% endif %}"{% if f.name == 'kin' or f.name == 'minimum' or f.name == 'reorder_quantity' %} data-physical{% endif %}>
       {% if f.widget_type == 'checkbox' %}<label class="inline">{{ f }} {{ f.label }}</label>{% else %}<label for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% endif %}
       {{ f.errors }}
     </div>
@@ -23,7 +23,7 @@
     </fieldset>{% endif %}
   {% endif %}{% endfor %}
   </div>
-  {% if part_numbers %}<datalist id="part-numbers">{% for number, description in part_numbers %}<option value="{{ number }}">{{ description }}</option>{% endfor %}</datalist>{% endif %}
+  {% if definition_numbers %}<datalist id="definition-numbers">{% for number, description in definition_numbers %}<option value="{{ number }}">{{ description }}</option>{% endfor %}</datalist>{% endif %}
   <div class="actions"><button class="btn primary">Save</button>{% if back %} <a href="{{ back }}">Cancel</a>{% endif %}</div>
   </div>
   {% include "web/_notes_field.html" %}
@@ -31,7 +31,7 @@
 {% endblock %}
 {% block scripts %}<script>
   /* Another category has other attributes: show them (what is filled in stays). */
-  var form = document.getElementById('part-form');
+  var form = document.getElementById('definition-form');
   form.querySelector('[name=category]').addEventListener('change', function () {
     var flag = document.createElement('input');
     flag.type = 'hidden'; flag.name = 'refresh'; flag.value = '1';
@@ -39,4 +39,10 @@
     form.noValidate = true;
     form.submit();
   });
+  /* Only what is physical is kept in stock: no family, minimum or reorder quantity for a service, licence, … */
+  var kind = form.querySelector('[name=kind]');
+  function physical() {
+    form.querySelectorAll('[data-physical]').forEach(function (f) { f.hidden = kind.value !== 'physical'; });
+  }
+  if (kind) { kind.addEventListener('change', physical); physical(); }
 </script>{% endblock %}

@@ -7,16 +7,16 @@
   <a class="btn" href="?export=1{% if request.GET.all %}&amp;all=1{% endif %}">⬇ Excel</a>
   <a class="btn primary" href="{% url 'budgets:new' %}{% if inside %}?parent={{ inside.pk }}{% endif %}">＋ New budget{% if inside %} in it{% endif %}</a></div>
 
-<div class="parts-browser" data-param="budget">
+<div class="browser" data-param="budget">
   {% include "web/_tree_nav.html" with label="Budgets" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters">{% if inside %}<input type="hidden" name="in" value="{{ inside.pk }}">{% endif %}
       <label class="small"><input type="checkbox" name="all" value="1"{% if request.GET.all %} checked{% endif %} onchange="this.form.submit()"> also closed ones</label></form>
     <div class="card flush">
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th>Budget</th><th>Owner</th><th class="num">Amount</th><th class="num">Spent</th><th class="num">Left</th><th>Used</th></tr>
-        {% for b, depth, t in listed %}<tr data-part="{{ b.pk }}" data-brief-url="{% url 'web:brief' 'budget' b.pk %}" class="{% if picked.pk == b.pk %}on{% endif %}" tabindex="0">
+        {% for b, depth, t in listed %}<tr data-row="{{ b.pk }}" data-brief-url="{% url 'web:brief' 'budget' b.pk %}" class="{% if picked.pk == b.pk %}on{% endif %}" tabindex="0">
           <td><a href="{{ b.get_absolute_url }}">{{ b }}</a>{% if b.setup %} <span class="muted small">{{ b.setup|link }}</span>{% endif %}{% if not b.active %} <span class="badge">Closed</span>{% endif %}</td>
           <td class="small">{{ b.owner|default:"" }}</td>
           <td class="num">{{ b.amount|money }}</td><td class="num">{{ t.spent|money }}</td>
@@ -27,7 +27,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick a budget to see it here.</p>{% endif %}
   </aside>
 </div>

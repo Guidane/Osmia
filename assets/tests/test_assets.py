@@ -1,6 +1,6 @@
 """Assets: checked out and back, calibration (due after its interval, overdue on Home), sent away, in use and retired;
-the list by kind and category; categories of their own (not parts'), with attributes (an auto number counting through
-the tree); a tool linking to the parts it crimps."""
+the list by kind and category; categories of their own (not item definitions'), with attributes (an auto number counting through
+the tree); a tool linking to the item definitions it crimps."""
 from datetime import date, timedelta
 
 from django.core.exceptions import ValidationError
@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from assets import service
 from assets.models import Asset
-from inventory.models import Attribute, Category, Part
+from inventory.models import Attribute, Category, ItemDefinition
 from inventory.tests.test_inventory import Base
 
 
@@ -78,14 +78,14 @@ class AssetTests(Base):
 
 
 class AssetCategoryTests(Base):
-    """Assets have categories of their own, with attributes as parts' have (linking to parts too)."""
+    """Assets have categories of their own, with attributes as item definitions' have (linking to item definitions too)."""
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
         cls.workshop = Category.objects.create(name='Workshop', kind='assets')
         cls.crimpers = Category.objects.create(name='Crimp tools', parent=cls.workshop, kind='assets')
 
-    def test_an_asset_fills_in_its_category_s_attributes_and_links_to_parts(self):
+    def test_an_asset_fills_in_its_category_s_attributes_and_links_to_definitions(self):
         wire = Attribute.objects.create(category=self.workshop, name='Wire size', kind='decimal', unit='mm²')
         crimps = Attribute.objects.create(category=self.crimpers, name='Crimps', kind='interacts', target=self.dsub, reverse_name='Crimped by')
         tool = Asset.objects.create(number='T-002', name='Crimp tool', category=self.crimpers)
@@ -94,7 +94,7 @@ class AssetCategoryTests(Base):
             f'attr_{wire.pk}': '0,5', f'attr_{crimps.pk}': [self.plug.pk]})
         self.assertRedirects(response, reverse('assets:asset', args=[tool.pk]))
         self.assertContains(self.client.get(reverse('assets:asset', args=[tool.pk])), '0.5 mm²')
-        self.assertContains(self.client.get(reverse('inventory:part', args=[self.plug.pk])), 'Crimped by')
+        self.assertContains(self.client.get(reverse('inventory:definition', args=[self.plug.pk])), 'Crimped by')
         self.assertContains(self.client.get(reverse('inventory:category', args=[self.workshop.pk])), '1 asset')
         self.assertContains(self.client.get(reverse('assets:list'), {'category': self.workshop.pk, f'a{wire.pk}_min': '0.4'}), 'T-002')
 
@@ -102,16 +102,16 @@ class AssetCategoryTests(Base):
         page = self.client.get(reverse('assets:new'))
         self.assertContains(page, 'Crimp tools')
         self.assertNotContains(page, 'D-sub')
-        self.assertNotContains(self.client.get(reverse('inventory:part_new')), 'Crimp tools')
+        self.assertNotContains(self.client.get(reverse('inventory:definition_new')), 'Crimp tools')
         response = self.client.post(reverse('assets:new'), {'number': 'T-009', 'name': 'Meter', 'kind': 'measuring', 'category': self.dsub.pk})
-        self.assertEqual(response.status_code, 200)                              # a part category is not one of assets
+        self.assertEqual(response.status_code, 200)                              # an item definition category is not one of assets
         self.assertFalse(Asset.objects.filter(number='T-009').exists())
         tabs = self.client.get(reverse('inventory:categories'), {'kind': 'assets'})
         self.assertContains(tabs, 'Crimp tools')
         self.assertNotContains(tabs, 'D-sub')
         self.client.post(reverse('inventory:categories') + '?kind=assets', {'name': 'Meters', 'parent': self.workshop.pk})
         self.assertEqual(Category.objects.get(name='Meters').kind, 'assets')
-        self.client.post(reverse('inventory:categories') + '?kind=parts', {'name': 'Sleeves', 'parent': self.workshop.pk})
+        self.client.post(reverse('inventory:categories') + '?kind=definitions', {'name': 'Sleeves', 'parent': self.workshop.pk})
         self.assertFalse(Category.objects.filter(name='Sleeves').exists())        # not under an asset category
 
     def test_an_auto_number_counts_through_its_tree(self):
@@ -126,8 +126,8 @@ class AssetCategoryTests(Base):
 
 class DocumentAndLabelTests(Base):
     def test_labels_of_several_on_a_sheet_and_a_saved_layout(self):
-        tie = Part.objects.create(number='TIE-100', description='Cable tie 100 mm')
-        url = reverse('web:labels', args=['part'])
+        tie = ItemDefinition.objects.create(number='TIE-100', description='Cable tie 100 mm')
+        url = reverse('web:labels', args=['definition'])
         page = self.client.get(url, {'ids': f'{self.plug.pk},{tie.pk}'})
         self.assertContains(page, 'DSUB-9-PLUG')
         self.assertContains(page, 'Cable tie 100 mm')

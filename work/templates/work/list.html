@@ -5,10 +5,10 @@
 <div class="page-head"><h1>Projects</h1><span class="spacer"></span>
   <a class="btn primary" href="{% url 'work:new' %}{% if inside %}?parent={{ inside.pk }}{% endif %}">＋ New {% if inside %}sub-project{% else %}project{% endif %}</a></div>
 
-<div class="parts-browser" data-param="project">
+<div class="browser" data-param="project">
   {% include "web/_tree_nav.html" with label="Projects" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters">
       {% if inside %}<input type="hidden" name="in" value="{{ inside.pk }}">{% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Find…" aria-label="Find a project">
@@ -17,9 +17,9 @@
       <button class="btn">Find</button>
     </form>
     <div class="card flush">
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th></th><th>{% if inside and not q %}Sub-project{% else %}Project{% endif %}</th><th>Status</th><th>Owner</th><th class="num">Setups</th><th class="num">Orders</th><th class="num">Devices</th><th class="num">Assets and tools</th></tr>
-        {% for p in projects %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'project' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
+        {% for p in projects %}<tr data-row="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'project' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
           <td class="thumb-cell">{% thumb p %}</td>
           <td><a href="{{ p.get_absolute_url }}">{{ p }}</a> <span class="muted small">{{ p.description|truncatechars:80 }}</span></td>
           <td><span class="badge{% if p.status == 'active' %} ok{% endif %}">{{ p.get_status_display }}</span></td>
@@ -30,7 +30,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick a project to see it here.</p>{% endif %}
   </aside>
 </div>

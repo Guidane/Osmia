@@ -1,0 +1,27 @@
+{% load osmia %}<div class="brief" data-brief="{{ definition.pk }}">
+  <div class="brief-head"><h3><a href="{{ definition.get_absolute_url }}">{{ definition.number }}</a></h3>
+    {% if not definition.active %}<span class="badge">Inactive</span>{% endif %}<span class="spacer"></span>
+    <a class="btn small" href="{{ definition.get_absolute_url }}">Open</a><a class="btn small ghost" href="{% url 'inventory:definition_edit' definition.pk %}">Change</a></div>
+  {% if definition.description %}<p class="brief-what">{{ definition.description }}</p>{% endif %}
+  {% preview definition %}
+  <div class="tiles brief-tiles">
+    {% if definition.physical %}<div class="tile"><b class="{% if definition.minimum and on_hand < definition.minimum %}low{% endif %}">{{ on_hand|qty }}</b> {{ definition.unit }} on hand</div>{% endif %}
+    <div class="tile"><b>{{ on_order|qty }}</b> on order</div>
+  </div>
+  <dl class="details">
+    <dt>Kind</dt><dd>{{ definition.get_kind_display }}</dd>
+    <dt>Category</dt><dd>{{ definition.category|link|default:"—" }}</dd>
+    {% include "inventory/_attribute_values.html" %}
+    {% if definition.physical %}<dt>Family</dt><dd>{% if definition.family %}<a href="{{ definition.family.get_absolute_url }}">{% if definition.branch %}{{ definition.branch }}{% else %}{{ definition.family }}{% endif %}</a>{% else %}—{% endif %}</dd>{% endif %}
+    <dt>Manufacturer</dt><dd>{{ definition.manufacturer|default:"—" }}{% if definition.mpn %} · {{ definition.mpn }}{% endif %}</dd>
+    <dt>Vendor</dt><dd>{% if definition.vendor %}<a href="{{ definition.vendor.get_absolute_url }}">{{ definition.vendor }}</a>{% if definition.vendor_number %} · {{ definition.vendor_number }}{% endif %}{% else %}—{% endif %}</dd>
+    <dt>Last price</dt><dd>{{ definition.price|qty|default:"—" }}</dd>
+    {% if definition.physical %}<dt>Minimum</dt><dd>{{ definition.minimum|qty }} {{ definition.unit }}</dd>{% endif %}
+    {% if definition.datasheet %}<dt>Datasheet</dt><dd><a href="{{ definition.datasheet }}" target="_blank" rel="noopener noreferrer">Open ↗</a></dd>{% endif %}
+  </dl>
+  {% if definition.physical %}<h4>Locations</h4>
+  <table class="list compact">
+    {% for s in stock %}<tr><td>{{ s.location|link }}</td><td class="num">{{ s.quantity|qty }} {{ definition.unit }}</td></tr>
+    {% empty %}<tr><td class="empty small">None in stock.</td></tr>{% endfor %}
+  </table>{% endif %}
+</div>

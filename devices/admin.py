@@ -10,7 +10,7 @@ class PinInline(admin.TabularInline):
 
 @admin.register(Connector)
 class ConnectorAdmin(admin.ModelAdmin):
-    list_display = ['device', 'designator', 'name', 'part']
+    list_display = ['device', 'designator', 'name', 'definition']
     inlines = [PinInline]
 
 

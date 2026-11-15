@@ -1,4 +1,4 @@
-"""Assets: the list (like the parts: the categories as a tree on the left, the assets of the one picked in the middle,
+"""Assets: the list (like the item definitions: the categories as a tree on the left, the assets of the one picked in the middle,
 by status, those due for calibration; the details of the asset picked on the right), an asset's page (checking it out and
 back, calibration, sending it away, putting it on an order, a harness's checklist, its history and what links to it)."""
 from datetime import date
@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from inventory import attributes as kept
 from inventory.attributes import AssetStore
 from inventory.forms import AttributesForm
-from inventory.models import Attribute, Category, Location, Part
+from inventory.models import Attribute, Category, Location, ItemDefinition
 from web import excel
 from web.shortcuts import errors
 from web.forms import initial_for
@@ -122,10 +122,10 @@ def asset_form(request, pk=None):
         item = form.save()
         messages.success(request, f'{item} is saved.')
         return redirect(item)
-    numbers = Part.objects.filter(active=True).values_list('number', 'description')[:5000] \
+    numbers = ItemDefinition.objects.filter(active=True).values_list('number', 'description')[:5000] \
         if any(a.kind == Attribute.Kind.LINK and not a.to_assets for a in form.attributes) else []
     return render(request, 'inventory/attributes_form.html', {'form': form, 'title': f'Change {item}' if item else 'New asset',
-                                                              'back': item.get_absolute_url() if item else None, 'part_numbers': numbers})
+                                                              'back': item.get_absolute_url() if item else None, 'definition_numbers': numbers})
 
 
 @login_required

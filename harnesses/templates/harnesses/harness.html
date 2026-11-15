@@ -15,18 +15,18 @@
 
 {% if problems %}<div class="flash warning"><b>To look at:</b><ul class="tight">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
 
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ harness.number }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ harness.number }}">
     <a href="#pinout" data-section="pinout" class="tree-head"><span>{{ harness.number }} · pinout</span><span class="muted small">{{ wire_count }}</span></a>
     <a href="#wires" data-section="wires" style="--depth: 1"><span>Wire list</span><span class="muted small">{{ wire_count }}</span></a>
     <a href="#connectors" data-section="connectors" style="--depth: 1"><span>Connectors</span><span class="muted small">{{ ends|length }}</span></a>
     <a href="#items" data-section="items" style="--depth: 1"><span>Other items</span><span class="muted small">{{ items|length }}</span></a>
-    <a href="#parts" data-section="parts" style="--depth: 1"><span>Parts list</span><span class="muted small">{{ parts|length }}</span></a>
+    <a href="#definitions" data-section="definitions" style="--depth: 1"><span>Parts list</span><span class="muted small">{{ definitions|length }}</span></a>
     <a href="#versions" data-section="versions" style="--depth: 1"><span>Versions</span><span class="muted small">{{ versions|length }}</span></a>
     <a href="#built" data-section="built" style="--depth: 1"><span>Built</span><span class="muted small">{{ units|length }}</span></a>
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <div data-panel="pinout" data-wide>
       <section class="card flush">
         <div class="pinout-draw" id="pinout-draw" data-url="{% url 'harnesses:pinout_draw' harness.pk %}" data-csrf="{{ csrf_token }}"><div class="set-chips" id="set-chips"></div><svg id="pinout-drawing" class="pinout-drawing" role="img" aria-label="The pinout drawn"></svg></div>
@@ -53,7 +53,7 @@
       <section class="card flush">
         <div class="card-head"><h3>Connectors</h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:ends' harness.pk %}">Change</a></div>
         <table class="list">
-          <tr><th>Connector</th><th>Part or family</th></tr>
+          <tr><th>Connector</th><th>Item definition or family</th></tr>
           {% for e in ends %}<tr{% if e.used %} data-brief-url="{{ e.used|brief_url }}"{% endif %}><td><b>{{ e.designator }}</b></td><td class="small">{% if e.used %}<a href="{{ e.used.get_absolute_url }}">{{ e.used }}</a>{% endif %}</td></tr>
           {% empty %}<tr><td colspan="2" class="empty small">No connectors yet.</td></tr>{% endfor %}
         </table>
@@ -68,13 +68,13 @@
       </section>
     </div>
 
-    <div data-panel="parts" hidden>
+    <div data-panel="definitions" hidden>
       <section class="card flush">
         <div class="card-head"><h3>Parts list</h3><span class="muted small">for one</span></div>
-        <table class="list"><tr><th>Part</th><th class="num">Needed</th><th class="num">On hand</th></tr>
-          {% for p, q in parts %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.description }}</span></td>
+        <table class="list"><tr><th>Item definition</th><th class="num">Needed</th><th class="num">On hand</th></tr>
+          {% for p, q in definitions %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.description }}</span></td>
             <td class="num">{{ q|qty }} {{ p.unit }}</td><td class="num{% if p.on_hand < q %} low{% endif %}">{{ p.on_hand|qty }}</td></tr>
-          {% empty %}<tr><td colspan="3" class="empty small">Give the connectors, wires and items their parts to see what it takes.</td></tr>{% endfor %}</table>
+          {% empty %}<tr><td colspan="3" class="empty small">Give the connectors, wires and items their item definitions to see what it takes.</td></tr>{% endfor %}</table>
       </section>
     </div>
 
@@ -103,14 +103,14 @@
         <form method="post" action="{% url 'harnesses:unit_add' harness.pk %}" class="inline-form pad">{% csrf_token %}
           <input type="text" name="serial" value="{{ next_serial }}" aria-label="Asset tag" required>
           <select name="version" aria-label="Version">{% for v in versions %}<option value="{{ v.pk }}">v{{ v.number }}</option>{% endfor %}<option value="">as it is now</option></select>
-          <select name="take_from" aria-label="Take its parts from"><option value="">Don't take parts from stock</option>
-            {% for l, depth in locations %}<option value="{{ l.pk }}">Take its parts from {% for _ in ""|ljust:depth %}&nbsp;&nbsp;{% endfor %}{{ l.name }}</option>{% endfor %}</select>
+          <select name="take_from" aria-label="Take its item definitions from"><option value="">Don't take item definitions from stock</option>
+            {% for l, depth in locations %}<option value="{{ l.pk }}">Take its item definitions from {% for _ in ""|ljust:depth %}&nbsp;&nbsp;{% endfor %}{{ l.name }}</option>{% endfor %}</select>
           <button class="btn">＋ Build one</button></form>
       </section>
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ harness.number }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'harnesses:edit' harness.pk %}">Change</a></div>
       <p class="brief-what">{{ harness.name }}</p>

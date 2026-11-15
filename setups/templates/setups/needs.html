@@ -8,26 +8,26 @@
     <label>to build <input type="number" name="count" value="{{ count }}" min="1" max="10000" class="qty" aria-label="How many to build"></label>
     <button class="btn small">Work it out</button></form><span class="spacer"></span>
   <a class="btn" href="?count={{ count }}&amp;export=1">⬇ Excel</a></div>
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="What {{ setup }} needs">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="What {{ setup }} needs">
     <a href="{{ setup.get_absolute_url }}" class="tree-head"><span>{{ setup }}</span><span class="muted small"></span></a>
-    <a href="#parts" data-section="parts" style="--depth: 1"><span>Parts</span><span class="muted small">{{ parts|length }}</span></a>
+    <a href="#definitions" data-section="definitions" style="--depth: 1"><span>Item definitions</span><span class="muted small">{{ definitions|length }}</span></a>
     <a href="#devices" data-section="devices" style="--depth: 1"><span>Devices</span><span class="muted small">{{ devices|length }}</span></a>
     <a href="#harnesses" data-section="harnesses" style="--depth: 1"><span>Harnesses</span><span class="muted small">{{ harnesses|length }}</span></a>
   </nav>
 
-  <div class="parts-middle">
-    <div data-panel="parts">
+  <div class="browser-middle">
+    <div data-panel="definitions">
 <form method="post" class="card flush">{% csrf_token %}
-  <div class="card-head"><h3>Parts</h3>
+  <div class="card-head"><h3>Item definitions</h3>
     <button class="btn small primary">🛒 Order what is missing</button></div>
   <table class="list">
-    <tr><th>Part</th><th class="num">Needed</th><th class="num">On hand</th><th class="num">On order</th><th class="num">Missing</th></tr>
-    {% for p, q, have, coming, missing in parts %}<tr data-brief-url="{{ p|brief_url }}">
+    <tr><th>Item definition</th><th class="num">Needed</th><th class="num">On hand</th><th class="num">On order</th><th class="num">Missing</th></tr>
+    {% for p, q, have, coming, missing in definitions %}<tr data-brief-url="{{ p|brief_url }}">
       <td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.description }}</span></td>
       <td class="num">{{ q|qty }} {{ p.unit }}</td><td class="num">{{ have|qty }}</td><td class="num">{{ coming|qty }}</td>
       <td class="num{% if missing %} low{% endif %}">{% if missing %}{{ missing|qty }}{% if not p.vendor_id %} <span class="muted small">(no vendor)</span>{% endif %}{% else %}—{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="5" class="empty small">No parts: give its harnesses and devices their parts.</td></tr>{% endfor %}
+    </tr>{% empty %}<tr><td colspan="5" class="empty small">No item definitions: give its harnesses and devices their item definitions.</td></tr>{% endfor %}
   </table>
 </form>
     </div>
@@ -43,13 +43,13 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>To build {{ count }}</h3></div>
       <dl class="details">
         <dt>Setup</dt><dd><a href="{{ setup.get_absolute_url }}">{{ setup }}</a></dd>
-        <dt>Kinds of parts</dt><dd>{{ parts|length }}</dd>
-        <dt>Missing</dt><dd>{% for p, q, have, coming, missing in parts %}{% if missing %}<a href="{{ p.get_absolute_url }}">{{ p.number }}</a> {% endif %}{% empty %}—{% endfor %}</dd>
+        <dt>Kinds of item definitions</dt><dd>{{ definitions|length }}</dd>
+        <dt>Missing</dt><dd>{% for p, q, have, coming, missing in definitions %}{% if missing %}<a href="{{ p.get_absolute_url }}">{{ p.number }}</a> {% endif %}{% empty %}—{% endfor %}</dd>
       </dl>
     </div>
   </aside>

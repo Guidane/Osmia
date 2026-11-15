@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from assets.models import Asset
 from budgets.models import Budget
 from inventory import stock
-from inventory.models import Category, Location, Part, Vendor
+from inventory.models import Category, Location, ItemDefinition, Vendor
 from web import excel
 from web.forms import initial_for
 from web.templatetags.osmia import qty
@@ -69,17 +69,17 @@ class RequestForm(OrderForm):
 @login_required
 def order_list(request):
     shown = request.GET.get('show') if request.GET.get('show') in SHOWN else 'open'
-    found = Order.objects.filter(SHOWN[shown][1]).select_related('vendor').prefetch_related('lines__part', 'lines__asset')
+    found = Order.objects.filter(SHOWN[shown][1]).select_related('vendor').prefetch_related('lines__definition', 'lines__asset')
     q = request.GET.get('q', '').strip()
     if q:
         found = found.filter(Q(number__icontains=q) | Q(vendor__name__icontains=q) | Q(vendor_reference__icontains=q) | Q(request__icontains=q)
-                             | Q(lines__part__number__icontains=q) | Q(lines__asset__number__icontains=q)).distinct()
+                             | Q(lines__definition__number__icontains=q) | Q(lines__asset__number__icontains=q)).distinct()
     if request.GET.get('export'):
         return excel.download('orders', [
             ('Orders', ['Order', 'Asked for', 'Vendor', 'Status', "Vendor's number", 'Ordered', 'Expected', 'Received', 'Late'],
              [(o.number, o.request, o.vendor.name if o.vendor else '', o.get_status_display(), o.vendor_reference, o.ordered_on, o.expected_on, o.received_on,
                'yes' if o.overdue else '') for o in found]),
-            ('Lines', ['Order', 'Part number or asset', 'Description', 'Ordered', 'Received', 'Price each'],
+            ('Lines', ['Order', 'Item number or asset', 'Description', 'Ordered', 'Received', 'Price each'],
              [(o.number, line.item.number, line.text, line.quantity, line.received, line.price)
               for o in found for line in o.lines.all()])])
     found = list(found[:300])
@@ -116,10 +116,10 @@ def order_new(request):
 
 
 def _where(line):
-    """Where a received part most likely goes: the location that holds most of it."""
+    """Where a received item definition most likely goes: the location that holds most of it."""
     if line.asset_id:
         return line.asset.location_id
-    row = line.part.stock.filter(quantity__gt=0).order_by('-quantity').first()
+    row = line.definition.stock.filter(quantity__gt=0).order_by('-quantity').first()
     return row.location_id if row else None
 
 
@@ -131,7 +131,7 @@ def order(request, pk):
         form.save()
         messages.success(request, f'{item} is saved.')
         return redirect(item)
-    lines = list(item.lines.select_related('part', 'asset'))
+    lines = list(item.lines.select_related('definition', 'asset'))
     left = None   # what the budget has left once this draft is placed
     if item.budget_id and item.status == Order.Status.DRAFT:
         from budgets.money import totals
@@ -139,7 +139,7 @@ def order(request, pk):
     return render(request, 'orders/order.html', {
         'budget_left': left,
         'order': item, 'form': form, 'lines': [(line, _where(line)) for line in lines], 'locations': Location.ordered(),
-        'today': date.today(), 'categories': Category.of(Category.Kind.PARTS),
+        'today': date.today(), 'categories': Category.of(Category.Kind.DEFINITIONS),
         'assets_json': [{'number': a.number, 'description': a.name, 'category': a.get_kind_display(), 'have': '', 'asset': True,
                          'price': qty(a.price)} for a in Asset.objects.filter(status=Asset.Status.ORDERED, order_lines=None)]})
 
@@ -156,25 +156,25 @@ def _draft(request, pk):
 def line_add(request, pk):
     try:
         item = _draft(request, pk)
-        number = request.POST.get('part', '').strip()
-        part = Part.objects.filter(number__iexact=number).first()
-        asset = Asset.objects.filter(number__iexact=number).first() if part is None else None
+        number = request.POST.get('definition', '').strip()
+        definition = ItemDefinition.objects.filter(number__iexact=number).first()
+        asset = Asset.objects.filter(number__iexact=number).first() if definition is None else None
         if asset is not None:   # an asset on order, by its asset tag
             if asset.status != Asset.Status.ORDERED or asset.order_lines.exclude(order__status=Order.Status.CANCELLED).exists():
                 raise ValidationError(f'{asset} is not an asset waiting to be ordered.')
             OrderLine.objects.create(order=item, asset=asset, quantity=1, price=asset.price)
             return redirect(reverse('orders:order', args=[pk]) + '#add')
-        if part is None:
-            raise ValidationError(f'There is no part or asset "{number}".')
+        if definition is None:
+            raise ValidationError(f'There is no item definition or asset "{number}".')
         quantity = stock.amount(request.POST.get('quantity'))
         price = request.POST.get('price', '').strip()
-        line = item.lines.filter(part=part).first()
+        line = item.lines.filter(definition=definition).first()
         if line:
             line.quantity += quantity
             line.save(update_fields=['quantity'])
         else:
-            OrderLine.objects.create(order=item, part=part, quantity=quantity,
-                                     price=stock.amount(price, allow_zero=True) if price else part.price)
+            OrderLine.objects.create(order=item, definition=definition, quantity=quantity,
+                                     price=stock.amount(price, allow_zero=True) if price else definition.price)
     except ValidationError as exc:
         errors(request, exc)
     return redirect(reverse('orders:order', args=[pk]) + '#add')   # the popup opens again, for the next one
@@ -217,7 +217,7 @@ def receive(request, pk):
     item = get_object_or_404(Order, pk=pk)
     locations = {loc.pk: loc for loc in Location.objects.all()}
     arrived = []
-    for line in item.lines.select_related('part'):
+    for line in item.lines.select_related('definition'):
         quantity = request.POST.get(f'q_{line.pk}', '').strip()
         if quantity and quantity != '0':
             where = request.POST.get(f'l_{line.pk}', '')

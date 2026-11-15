@@ -1,17 +1,17 @@
 from django import forms
 
-from inventory.forms import PartOrFamilyField, PartOrFamilyForm, PartOrFamilyInput
+from inventory.forms import DefinitionOrFamilyField, DefinitionOrFamilyForm, DefinitionOrFamilyInput
 
 from .models import Connector, Device
 
 
-class DeviceForm(PartOrFamilyForm):
+class DeviceForm(DefinitionOrFamilyForm):
     """A device, and (ticked) a unit of it made as an asset, with the next free asset tag."""
     make_asset = forms.BooleanField(required=False, label='Make an asset')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['used'].label = 'As a part'
+        self.fields['used'].label = 'As an item definition'
         if self.instance.pk:
             self.fields['make_asset'].label = 'Make another asset'
 
@@ -31,24 +31,24 @@ class DeviceForm(PartOrFamilyForm):
                    'colour': forms.TextInput(attrs={'type': 'color'})}
 
 
-class GenderField(PartOrFamilyField):
-    """A part, a family or one of its genders; "<family> / pin" or "/ socket" makes that gender when it hasn't one."""
+class GenderField(DefinitionOrFamilyField):
+    """An item definition, a family or one of its genders; "<family> / pin" or "/ socket" makes that gender when it hasn't one."""
     def to_python(self, value):
         from inventory.picker import with_gender
         return super().to_python(with_gender(value))
 
 
-class FamilyPicker(PartOrFamilyInput):
+class FamilyPicker(DefinitionOrFamilyInput):
     """The family (or one of its genders) a connector is, picked in the family popup (``inventory.picker``); what it is
     now on a button that opens it."""
     def render(self, name, value, attrs=None, renderer=None):
         from django.utils.html import format_html
 
         from inventory import picker
-        from inventory.models import Part, part_or_family
+        from inventory.models import ItemDefinition, definition_or_family
         attrs = attrs or {}
-        found = part_or_family(value) if value else None   # a part: shown as its gender (else family) in the popup
-        current = (found.branch or found.family or found).number if isinstance(found, Part) else value or ''
+        found = definition_or_family(value) if value else None   # an item definition: shown as its gender (else family) in the popup
+        current = (found.branch or found.family or found).number if isinstance(found, ItemDefinition) else value or ''
         box = forms.HiddenInput().render(name, value, {**attrs, 'data-family-value': '', 'data-current': current}, renderer)
         return format_html(
             '{}<span class="family-pick"><button type="button" class="btn" data-family-open>{}</button>'
@@ -56,7 +56,7 @@ class FamilyPicker(PartOrFamilyInput):
             box, value or 'Choose…', '' if value else ' hidden', picker.dialog())
 
 
-class ConnectorForm(PartOrFamilyForm):
+class ConnectorForm(DefinitionOrFamilyForm):
     used = GenderField(required=False, label='Family', widget=FamilyPicker)
 
     pins = forms.CharField(required=False, label='Pins',

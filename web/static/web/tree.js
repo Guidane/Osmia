@@ -1,4 +1,4 @@
-/* The trees on the left (.parts-tree) fold: a node with nodes under it (a deeper --depth right after it) gets a ▸ / ▾
+/* The trees on the left (.browser-tree) fold: a node with nodes under it (a deeper --depth right after it) gets a ▸ / ▾
    in front that shows or hides them, without following the node's link. A long tree starts folded but for the way down
    to the node picked (.on, .open); a short one starts open. What was opened or closed stays so in this browser. */
 (function () {
@@ -6,7 +6,7 @@
   var LONG = 15;   // nodes: more than this, and it starts folded
   function depth(a) { return parseInt(a.style.getPropertyValue('--depth'), 10) || 0; }
 
-  document.querySelectorAll('.parts-tree').forEach(function (nav) {
+  document.querySelectorAll('.browser-tree').forEach(function (nav) {
     var nodes = Array.prototype.slice.call(nav.querySelectorAll(':scope > a'));
     if (!nodes.some(function (a, i) { return nodes[i + 1] && depth(nodes[i + 1]) > depth(a); })) return;   // flat: nothing to fold
     var key = 'osmia-tree:' + location.pathname + ':' + (nav.getAttribute('aria-label') || ''), saved = {};

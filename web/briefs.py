@@ -31,7 +31,7 @@ def _date(value):
 
 def device(d):
     connectors = [((c.designator, f'{d.get_absolute_url()}?connector={c.pk}'), c.name, _link(c.used), f'{c.pins.count()} pins')
-                  for c in d.connectors.select_related('part', 'family', 'branch')]
+                  for c in d.connectors.select_related('definition', 'family', 'branch')]
     return {'badges': [('Bought', '')] if d.origin == 'external' else [], 'what': d.name,
             'edit_url': reverse('devices:edit', args=[d.pk]), 'title': d.number,
             'details': [('Made', d.get_origin_display(), ''), ('Manufacturer', ' · '.join(x for x in (d.manufacturer, d.model) if x), ''),
@@ -42,7 +42,7 @@ def device(d):
 
 def order(o):
     lines = [(_link(line.item) if hasattr(line.item, 'get_absolute_url') else line.item.number,
-              f'{qty(line.quantity)}', f'{qty(line.received)} in', money(line.price)) for line in o.lines.select_related('part', 'asset')]
+              f'{qty(line.quantity)}', f'{qty(line.received)} in', money(line.price)) for line in o.lines.select_related('definition', 'asset')]
     late = o.overdue
     return {'title': o.number, 'what': '',
             'badges': [('Late' if late else o.get_status_display(), 'ok' if o.status == 'received' else 'failed' if late or o.status == 'cancelled' else '')],
@@ -78,7 +78,7 @@ def vendor(v):
             'details': [('Email', v.email, f'mailto:{v.email}' if v.email else ''), ('Phone', v.phone, ''), ('Website', v.website, v.website),
                         ('Our account number', v.account_number, ''), ('Address', v.address, '')],
             'tables': [_table('Orders', [((o.number, o.get_absolute_url()), o.get_status_display(), _date(o.ordered_on)) for o in v.orders.all()[:10]]),
-                       _table('Parts', [((p.number, p.get_absolute_url()), p.description[:40]) for p in v.parts.filter(active=True)[:15]])]}
+                       _table('Item definitions', [((p.number, p.get_absolute_url()), p.description[:40]) for p in v.definitions.filter(active=True)[:15]])]}
 
 
 def budget(b):
@@ -114,13 +114,13 @@ def location(l):
 
 def category(c):
     from assets.models import Asset
-    from inventory.models import Part
+    from inventory.models import ItemDefinition
     below = c.below()
-    many = Asset.objects.filter(category_id__in=below).exclude(status='retired') if c.kind == 'assets' else Part.objects.filter(category_id__in=below, active=True)
-    listed = reverse('assets:list' if c.kind == 'assets' else 'inventory:parts')
+    many = Asset.objects.filter(category_id__in=below).exclude(status='retired') if c.kind == 'assets' else ItemDefinition.objects.filter(category_id__in=below, active=True)
+    listed = reverse('assets:list' if c.kind == 'assets' else 'inventory:definitions')
     return {'title': c.name, 'what': c.path, 'edit_url': f"{reverse('inventory:categories')}?edit={c.pk}",
-            'details': [('Of', 'assets' if c.kind == 'assets' else 'parts', ''),
-                        ('Assets' if c.kind == 'assets' else 'Parts', many.count(), f'{listed}?category={c.pk}')],
+            'details': [('Of', 'assets' if c.kind == 'assets' else 'definitions', ''),
+                        ('Assets' if c.kind == 'assets' else 'Item definitions', many.count(), f'{listed}?category={c.pk}')],
             'tables': [_table('Attributes', [(a.name, a.get_kind_display(), '' if a.category_id == c.pk else f'from {a.category.name}')
                                              for a in c.all_attributes()]),
                        _table('Under it', [((k.name, k.get_absolute_url()),) for k in c.children.all()])]}

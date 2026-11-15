@@ -1,5 +1,5 @@
-"""Orders to vendors, charged to a budget: parts and assets ordered, when they are expected, and what has arrived.
-Receiving books the parts into stock and makes the assets available (``orders.service``). An order can start as a
+"""Orders to vendors, charged to a budget: item definitions and assets ordered, when they are expected, and what has arrived.
+Receiving books the item definitions into stock and makes the assets available (``orders.service``). An order can start as a
 request: someone describes what they need and asks someone else to order it, who adds the lines and places it."""
 from datetime import date
 
@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import models, transaction
 from django.urls import reverse
 
-from inventory.models import Part, Vendor
+from inventory.models import ItemDefinition, Vendor
 
 
 class Order(models.Model):
@@ -69,9 +69,9 @@ class Order(models.Model):
 
 
 class OrderLine(models.Model):
-    """A part (so many) or an asset (one) on an order."""
+    """An item definition (so many) or an asset (one) on an order."""
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='lines')
-    part = models.ForeignKey(Part, null=True, blank=True, on_delete=models.PROTECT, related_name='order_lines')
+    definition = models.ForeignKey(ItemDefinition, null=True, blank=True, on_delete=models.PROTECT, related_name='order_lines')
     asset = models.ForeignKey('assets.Asset', null=True, blank=True, on_delete=models.PROTECT, related_name='order_lines')
     quantity = models.DecimalField(max_digits=12, decimal_places=3)
     price = models.DecimalField('price each', max_digits=12, decimal_places=4, null=True, blank=True)
@@ -85,13 +85,18 @@ class OrderLine(models.Model):
 
     @property
     def item(self):
-        """The part or asset ordered."""
-        return self.part or self.asset
+        """The item definition or asset ordered."""
+        return self.definition or self.asset
+
+    @property
+    def stocked(self):
+        """Whether what arrives of it goes somewhere: an asset, or a physical item definition (not a service, ...)."""
+        return bool(self.asset_id) or bool(self.definition and self.definition.physical)
 
     @property
     def text(self):
-        """What it is, in words: a part's description, an asset's name."""
-        return self.part.description if self.part else self.asset.name
+        """What it is, in words: an item definition's description, an asset's name."""
+        return self.definition.description if self.definition else self.asset.name
 
     @property
     def vendor_number(self):

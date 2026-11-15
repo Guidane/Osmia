@@ -24,9 +24,9 @@
     {% empty %}<tr><td class="empty small">No wires yet.</td></tr>{% endfor %}
   </table>
 
-  {% if parts %}<h4>Made of</h4>
+  {% if definitions %}<h4>Made of</h4>
   <table class="list compact">
-    {% for part, quantity in parts %}<tr><td class="small"><a href="{{ part.get_absolute_url }}">{{ part.number }}</a></td><td class="num">{{ quantity|qty }} {{ part.unit }}</td></tr>{% endfor %}
+    {% for definition, quantity in definitions %}<tr><td class="small"><a href="{{ definition.get_absolute_url }}">{{ definition.number }}</a></td><td class="num">{{ quantity|qty }} {{ definition.unit }}</td></tr>{% endfor %}
   </table>{% endif %}
 
   {% if problems %}<h4>To look at</h4>

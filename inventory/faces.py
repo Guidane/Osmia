@@ -215,7 +215,7 @@ def preset(key):
 def natural(name):
     """A sort key that puts numbers in their order: Gecko 4 before Gecko 10."""
     import re
-    return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', str(name))]
+    return [int(definition) if definition.isdigit() else definition.lower() for definition in re.split(r'(\d+)', str(name))]
 
 
 def family_name(key):
@@ -274,7 +274,7 @@ def mirrored(face):
 
 
 def face_of(found):
-    """The face of a part, a branch or a family (their family's; mirrored for sockets); None when it has none."""
+    """The face of an item definition, a branch or a family (their family's; mirrored for sockets); None when it has none."""
     family = found if found is not None and type(found).__name__ == 'Family' else getattr(found, 'family', None)
     if family is None or not (family.face or {}).get('contacts'):
         return None

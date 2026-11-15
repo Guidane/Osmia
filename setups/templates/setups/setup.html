@@ -15,8 +15,8 @@
   <a class="btn" href="{% url 'setups:edit' setup.pk %}">Change</a></div>
 {% if problems %}<div class="flash warning"><b>To look at:</b><ul class="tight">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
 
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ setup }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ setup }}">
     {% if setup.in_project %}<a href="{{ setup.in_project.get_absolute_url }}"><span>📁 {{ setup.in_project.code|default:setup.in_project.name }}</span><span class="muted small"></span></a>{% endif %}
     <a href="#diagram" data-section="diagram" class="tree-head" style="--depth: {% if setup.in_project %}1{% else %}0{% endif %}"><span>{{ setup }}</span><span class="muted small"></span></a>
     <a href="#devices" data-section="devices" style="--depth: {% if setup.in_project %}2{% else %}1{% endif %}"><span>Devices</span><span class="muted small">{{ placed_devices|length }}</span></a>
@@ -25,7 +25,7 @@
     {% for s in siblings %}<a href="{{ s.get_absolute_url }}" style="--depth: 1"><span>{{ s }}</span><span class="muted small"></span></a>{% endfor %}
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <div data-panel="diagram" data-wide>
     <div class="card flush diagram-card">
       <div class="card-head"><h3>Diagram</h3><span class="spacer"></span>
@@ -47,9 +47,9 @@
         <input type="hidden" name="a"><input type="hidden" name="a_connector"><input type="hidden" name="b"><input type="hidden" name="b_connector">
         <div class="finder-head"><h3>New harness</h3><input type="text" name="name" required maxlength="200" aria-label="Name" class="grow">
           <button type="button" class="btn small ghost" data-close title="Close">✕</button></div>
-        <div class="plug-form pad"><label><span data-a></span> <input type="text" name="a_part" list="connect-parts" placeholder="Part or family" autocomplete="off"></label>
-          <label><span data-b></span> <input type="text" name="b_part" list="connect-parts" placeholder="Part or family" autocomplete="off"></label>
-          <datalist id="connect-parts">{% for number, what in part_choices %}<option value="{{ number }}">{{ what }}</option>{% endfor %}</datalist></div>
+        <div class="plug-form pad"><label><span data-a></span> <input type="text" name="a_definition" list="connect-definitions" placeholder="Item definition or family" autocomplete="off"></label>
+          <label><span data-b></span> <input type="text" name="b_definition" list="connect-definitions" placeholder="Item definition or family" autocomplete="off"></label>
+          <datalist id="connect-definitions">{% for number, what in definition_choices %}<option value="{{ number }}">{{ what }}</option>{% endfor %}</datalist></div>
         <table class="list"><thead><tr><th><input type="checkbox" data-all-wires checked aria-label="All wires"></th><th>P1</th><th>P2</th><th>Signal</th><th>Set</th></tr></thead><tbody></tbody></table>
         <p class="empty small" data-none>No matching pins.</p>
         <div class="actions pad"><button class="btn primary">Make the harness</button></div>
@@ -130,7 +130,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ setup }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'setups:edit' setup.pk %}">Change</a></div>
       {% if setup.description %}<p class="brief-what">{{ setup.description|linebreaksbr }}</p>{% endif %}

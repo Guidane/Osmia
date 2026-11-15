@@ -193,7 +193,7 @@
       form.elements.name.value = (a.d.label + ' ' + a.c.designator + ' – ' + b.d.label + ' ' + b.c.designator).slice(0, 200);
       box.querySelector('[data-a]').textContent = 'P1 · ' + a.d.label + ' ' + a.c.designator;
       box.querySelector('[data-b]').textContent = 'P2 · ' + b.d.label + ' ' + b.c.designator;
-      form.elements.a_part.value = ''; form.elements.b_part.value = '';
+      form.elements.a_definition.value = ''; form.elements.b_definition.value = '';
       var body = box.querySelector('tbody'), wires = match(a.c, b.c);
       body.replaceChildren();
       wires.forEach(function (w) {
@@ -213,7 +213,7 @@
     function pinout(d, c) {   // the connector's pins in the popup
       var box = opts.pinout;
       if (!box) return;
-      box.querySelector('[data-title]').textContent = d.label + ' · ' + c.designator + (c.name ? ' ' + c.name : '') + (c.part ? ' · ' + c.part : '');
+      box.querySelector('[data-title]').textContent = d.label + ' · ' + c.designator + (c.name ? ' ' + c.name : '') + (c.definition ? ' · ' + c.definition : '');
       box.querySelector('[data-edit]').href = c.pins_url;
       var body = box.querySelector('tbody');
       body.replaceChildren();

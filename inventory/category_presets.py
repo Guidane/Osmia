@@ -1,6 +1,7 @@
-"""Standard categories of parts: single small items a lab keeps (electronic components, connectors and their contacts,
-fasteners, wire, mechanical bits, consumables), not assemblies such as power supplies. Each with the attributes its
-parts fill in; a category's attributes are those of the categories above it too, so the shared ones sit high up.
+"""Standard categories of item definitions: single small items a lab keeps (electronic components, connectors and their contacts,
+fasteners, wire, mechanical bits, consumables), not assemblies such as power supplies; and what is bought that is not a
+thing (services, software). Each with the attributes its
+item definitions fill in; a category's attributes are those of the categories above it too, so the shared ones sit high up.
 ``standard_categories()`` adds the ones not there yet (by name, under the same parent) and the attributes they lack
 (by name); nothing there is changed or taken away."""
 
@@ -137,11 +138,21 @@ TREE = [
         ('Thermal interface', [('Type', 'choice', ['Paste', 'Pad', 'Tape']), ('Conductivity', 'decimal', 'W/mK')], []),
         ('Cleaning', [('Type', 'choice', ['Isopropyl alcohol', 'Flux remover', 'Contact cleaner', 'Wipes'])], []),
     ]),
+    ('Services', [], [
+        ('Calibration', [], []),
+        ('Repair', [], []),
+        ('Engineering work', [], []),
+        ('Training', [], []),
+    ]),
+    ('Software', [], [
+        ('Licences', [], []),
+        ('Subscriptions', [], []),
+    ]),
 ]
 
 
 def standard_categories():
-    """Add the standard part categories not there yet, with the attributes they lack: (categories, attributes) added."""
+    """Add the standard item definition categories not there yet, with the attributes they lack: (categories, attributes) added."""
     from django.db import transaction
 
     from .models import Attribute, Category
@@ -161,9 +172,9 @@ def standard_categories():
 
     def add(parent, nodes):
         for name, attributes, children in nodes:
-            category = Category.objects.filter(kind=Category.Kind.PARTS, parent=parent, name__iexact=name).first()
+            category = Category.objects.filter(kind=Category.Kind.DEFINITIONS, parent=parent, name__iexact=name).first()
             if category is None:
-                category = Category.objects.create(kind=Category.Kind.PARTS, parent=parent, name=name)
+                category = Category.objects.create(kind=Category.Kind.DEFINITIONS, parent=parent, name=name)
                 made[0] += 1
             for spec in attributes:
                 attribute(category, spec)

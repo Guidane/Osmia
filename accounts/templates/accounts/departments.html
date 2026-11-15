@@ -6,24 +6,24 @@
   {% if user.is_superuser %}<a class="btn" href="{% url 'accounts:users' %}">Users</a>
   <a class="btn primary" href="{% url 'accounts:department_new' %}{% if picked %}?parent={{ picked.pk }}{% endif %}">＋ New department</a>{% endif %}</div>
 
-<div class="parts-browser" data-param="{% if picked %}person{% else %}department{% endif %}">
+<div class="browser" data-param="{% if picked %}person{% else %}department{% endif %}">
   {% include "web/_tree_nav.html" with label="Departments" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <div class="card flush">
       {% if picked %}
       <div class="card-head"><h3>People of {{ picked.name }} <span class="muted small">{{ people|length }}</span></h3><span class="spacer"></span><a class="btn small" href="{{ picked.get_absolute_url }}">Open</a></div>
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th>Name</th><th>Job</th><th>Department</th><th>Email</th></tr>
-        {% for p in people %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'user' p.pk %}" tabindex="0">
+        {% for p in people %}<tr data-row="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'user' p.pk %}" tabindex="0">
           <td>{{ p }}{% if p == p.department.manager %} <span class="badge ok">Manager</span>{% endif %}</td><td class="small">{{ p.job_title }}</td>
           <td class="small">{% if p.department %}<a href="{{ p.department.get_absolute_url }}">{{ p.department.name }}</a>{% endif %}</td><td class="small">{% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% endif %}</td></tr>
         {% empty %}<tr><td colspan="4" class="empty small">Nobody yet.</td></tr>{% endfor %}
       </table>
       {% else %}
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th>Department</th><th>Manager</th><th class="num">People</th>{% if user.is_superuser %}<th></th>{% endif %}</tr>
-        {% for d, depth, n in departments %}<tr data-part="{{ d.pk }}" data-brief-url="{% url 'web:brief' 'department' d.pk %}" tabindex="0">
+        {% for d, depth, n in departments %}<tr data-row="{{ d.pk }}" data-brief-url="{% url 'web:brief' 'department' d.pk %}" tabindex="0">
           <td style="padding-left:{{ depth|add:1 }}em"><a href="{{ d.get_absolute_url }}">{{ d.name }}</a></td>
           <td class="small">{{ d.manager|default:"" }}</td><td class="num">{{ n|default:"" }}</td>
           {% if user.is_superuser %}<td class="small"><a href="{% url 'accounts:department_new' %}?parent={{ d.pk }}">＋ under it</a></td>{% endif %}
@@ -34,7 +34,7 @@
     {% if without and user.is_superuser %}<p class="small"><a href="{% url 'accounts:users' %}?none=1">{{ without }} {{ without|pluralize:"person is,people are" }} in no department.</a></p>{% endif %}
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick a department to see it here.</p>{% endif %}
   </aside>
 </div>

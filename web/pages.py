@@ -1,5 +1,5 @@
 """Documentation pages, like a wiki: each has a title and its text (written in the editor; cleaned, see ``web.markup``),
-may sit under another page, and belongs to something (a project, a part, a device, …) or to the general documentation.
+may sit under another page, and belongs to something (a project, an item definition, a device, …) or to the general documentation.
 Every save is kept: a page's history shows each version, and an old one can be brought back."""
 from django import forms
 from django.contrib import messages
@@ -116,7 +116,7 @@ def _save(request, item, form, new):
 
 @login_required
 def page_new(request):
-    """A new page: under ``?parent=`` (in its place), or of ``?kind=&pk=`` (a project, a part, …), or general."""
+    """A new page: under ``?parent=`` (in its place), or of ``?kind=&pk=`` (a project, an item definition, …), or general."""
     parent = Page.objects.filter(pk=request.GET.get('parent') or 0).first()
     owner = parent.owner if parent else (thing(request.GET['kind'], request.GET.get('pk') or 0) if request.GET.get('kind') else None)
     item = Page(parent=parent)

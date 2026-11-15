@@ -20,14 +20,14 @@ def spot(value):
 
 
 def family_of(thing):
-    """The family a harness end or a device connector is of (its part's, its branch's, its own), or None."""
+    """The family a harness end or a device connector is of (its item definition's, its branch's, its own), or None."""
     if thing is None:
         return None
     if thing.family_id:
         return thing.family_id
     if thing.branch_id:
         return thing.branch.family_id
-    return thing.part.family_id if thing.part_id else None
+    return thing.definition.family_id if thing.definition_id else None
 
 
 def _row(placement):
@@ -81,9 +81,9 @@ def copy(setup, name, user=None):
 
 
 @transaction.atomic
-def connect(setup, ends, name, pairs, parts=(None, None)):
+def connect(setup, ends, name, pairs, definitions=(None, None)):
     """A new harness between two connectors in ``setup``, placed and plugged in: ``ends`` [(device key, connector)]
-    its P1 and P2 (``parts``: what each is made of, a part or a family), ``pairs`` [(pin of the first, pin of the
+    its P1 and P2 (``item definitions``: what each is made of, an item definition or a family), ``pairs`` [(pin of the first, pin of the
     second)] its wires, with the signals and sets of the pins."""
     from harnesses.models import Harness, HarnessEnd, Wire
     now = rows(setup)
@@ -94,9 +94,9 @@ def connect(setup, ends, name, pairs, parts=(None, None)):
             raise ValidationError('That connector is not in this setup.')
     harness = Harness.objects.create(setup=setup, name=name.strip()[:200] or 'Harness')
     made = []
-    for i, ((_, connector), part) in enumerate(zip(ends, parts)):
+    for i, ((_, connector), definition) in enumerate(zip(ends, definitions)):
         end = HarnessEnd(harness=harness, designator=f'P{i + 1}', position=i)
-        end.used = part
+        end.used = definition
         end.save()
         made.append(end)
     pins = [{p.number: p for p in c.pins.all()} for _, c in ends]
@@ -123,7 +123,7 @@ def sockets(setup, now=None):
     now = now if now is not None else rows(setup)
     placed = [(k, r) for k, r in now.items() if r['kind'] == 'device' and r['device_id']]
     connectors = {}
-    for c in Connector.objects.filter(device_id__in={r['device_id'] for _, r in placed}).select_related('device', 'part', 'branch'):
+    for c in Connector.objects.filter(device_id__in={r['device_id'] for _, r in placed}).select_related('device', 'definition', 'branch'):
         connectors.setdefault(c.device_id, []).append(c)
     out = []
     for key, row in placed:
@@ -147,7 +147,7 @@ def plug(setup, harness, wanted=None):
                 out[str(end_id)] = [key, c.pk]
         return out
     taken = {spot(v) for r in now.values() if r['kind'] == 'harness' for v in r['ends'].values()}
-    for end in harness.ends.select_related('part', 'branch'):
+    for end in harness.ends.select_related('definition', 'branch'):
         mine = family_of(end)
         fits = [(key, c) for _, _, key, c in choices if mine and family_of(c) == mine and (key, c.pk) not in taken]
         if len(fits) == 1:
@@ -200,7 +200,7 @@ def problems(setup, now=None):
 
 def needs(setup):
     """What building ``setup`` once takes: (devices [(device, count)], harnesses [(harness, count)],
-    parts [(part, needed, on hand, on order)])."""
+    item definitions [(item definition, needed, on hand, on order)])."""
     from devices.models import Device
     from harnesses.models import Harness
     from orders.service import on_order
@@ -210,17 +210,17 @@ def needs(setup):
             device_count[row['device_id']] = device_count.get(row['device_id'], 0) + 1
         elif row['kind'] == 'harness' and row['harness_id']:
             harness_count[row['harness_id']] = harness_count.get(row['harness_id'], 0) + 1
-    devices = [(d, device_count[d.pk]) for d in Device.objects.filter(pk__in=device_count).select_related('part', 'family')]
+    devices = [(d, device_count[d.pk]) for d in Device.objects.filter(pk__in=device_count).select_related('definition', 'family')]
     harnesses = [(h, harness_count[h.pk]) for h in Harness.objects.filter(pk__in=harness_count)]
-    parts = {}
+    definitions = {}
     for device, n in devices:
         if device.used is not None:
-            parts[device.used] = parts.get(device.used, Decimal(0)) + n
+            definitions[device.used] = definitions.get(device.used, Decimal(0)) + n
     for harness, n in harnesses:
-        for part, quantity in harness.parts_list():
-            parts[part] = parts.get(part, Decimal(0)) + quantity * n
-    return devices, harnesses, [(part, quantity, part.on_hand, on_order(part))
-                                for part, quantity in sorted(parts.items(), key=lambda pq: pq[0].number)]
+        for definition, quantity in harness.parts_list():
+            definitions[definition] = definitions.get(definition, Decimal(0)) + quantity * n
+    return devices, harnesses, [(definition, quantity, definition.on_hand, on_order(definition))
+                                for definition, quantity in sorted(definitions.items(), key=lambda pq: pq[0].number)]
 
 
 # -- Asking for a harness between two devices ----------------------------------------------------------------------

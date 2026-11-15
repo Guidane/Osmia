@@ -8,19 +8,19 @@
   <a class="btn" href="?new=branch{% if group %}&amp;group={{ group.pk }}{% endif %}">＋ Branch</a>
   <a class="btn primary" href="?new=family{% if group %}&amp;group={{ group.pk }}{% endif %}">＋ New family</a></div>
 
-<div class="parts-browser family-browser" data-param="family">
+<div class="browser family-browser" data-param="family">
   {% include "web/_tree_nav.html" with label="Branches" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters">
       {% if group %}<input type="hidden" name="group" value="{{ group.pk }}">{% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Name…" aria-label="Search connector families">
       <button class="btn">Find</button>
     </form>
     <div class="card flush">
-      <table class="list parts-list">
-        <tr><th>Family</th>{% if not group %}<th>Branch</th>{% endif %}<th class="num">Contacts</th><th>Genders</th><th class="num">Parts</th></tr>
-        {% for f in families %}<tr data-part="{{ f.pk }}" data-brief-url="{% url 'inventory:family_brief' f.pk %}" class="{% if picked.pk == f.pk %}on{% endif %}" tabindex="0">
+      <table class="list browser-list">
+        <tr><th>Family</th>{% if not group %}<th>Branch</th>{% endif %}<th class="num">Contacts</th><th>Genders</th><th class="num">Item definitions</th></tr>
+        {% for f in families %}<tr data-row="{{ f.pk }}" data-brief-url="{% url 'inventory:family_brief' f.pk %}" class="{% if picked.pk == f.pk %}on{% endif %}" tabindex="0">
           <td><a href="{{ f.get_absolute_url }}">{{ f.name }}</a></td>
           {% if not group %}<td class="small">{{ f.group.name|default:"" }}</td>{% endif %}
           <td class="num">{{ f.face.contacts|length|default:"" }}</td>
@@ -31,8 +31,8 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
-    {% if brief %}{% include "inventory/_family_brief.html" with family=brief.family face=brief.face branches=brief.branches parts=brief.parts %}
+  <aside class="card browser-detail" data-detail>
+    {% if brief %}{% include "inventory/_family_brief.html" with family=brief.family face=brief.face branches=brief.branches definitions=brief.definitions %}
     {% else %}<p class="muted small pad">Pick a family to see it here.</p>{% endif %}
   </aside>
 </div>

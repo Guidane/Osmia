@@ -19,7 +19,7 @@ from .models import SET_TYPES, Connector, Device, DeviceVersion, Pin, pin_order
 
 @login_required
 def device_list(request):
-    """The devices, like the parts: where they are from on the left (made in-house, bought), the devices in the middle,
+    """The devices, like the item definitions: where they are from on the left (made in-house, bought), the devices in the middle,
     the details of the one picked on the right."""
     q = request.GET.get('q', '').strip()
     found = Device.objects.annotate(n_connectors=Count('connectors', distinct=True), n_units=Count('assets', distinct=True))
@@ -43,12 +43,12 @@ def device_list(request):
                                                  'brief': briefs.of('device', picked) if picked else None})
 
 
-PIN_HEAD = ['Device', 'Connector', 'Connector name', 'Connector part', 'Pin', 'Signal', 'Set', 'Set type', 'Description']
+PIN_HEAD = ['Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin', 'Signal', 'Set', 'Set type', 'Description']
 
 
 def _pin_rows(devices):
     for device in devices:
-        for connector in device.connectors.select_related('part', 'family').prefetch_related('pins'):
+        for connector in device.connectors.select_related('definition', 'family').prefetch_related('pins'):
             for pin in connector.ordered_pins():
                 yield (device.number, connector.designator, connector.name, connector.used_name,
                        pin.number, pin.signal, pin.wire_set, pin.set_type if pin.wire_set else '', pin.description)
@@ -105,10 +105,10 @@ def device(request, pk):
     the connector picked (?connector=) or its assets (?show=assets); on the right the device itself (picture, details,
     versions, notes, files), the connector (its face, what is plugged into it) or the row picked."""
     from web import browse
-    item = get_object_or_404(Device.objects.select_related('part', 'family'), pk=pk)
+    item = get_object_or_404(Device.objects.select_related('definition', 'family'), pk=pk)
     if request.GET.get('export'):
         return excel.download(item.number, [('Pins', PIN_HEAD, _pin_rows([item]))])
-    connectors = list(item.connectors.select_related('part', 'family', 'branch').prefetch_related('pins'))
+    connectors = list(item.connectors.select_related('definition', 'family', 'branch').prefetch_related('pins'))
     plugged = _plugged(connectors)
     pins = {c.pk: c.ordered_pins() for c in connectors}
     picked = next((c for c in connectors if str(c.pk) == request.GET.get('connector')), None)
@@ -140,7 +140,7 @@ def device(request, pk):
 def connector_brief(request, pk, connector):
     """A connector beside the device's list of connectors (fetched when one is picked): its face, its details, what is
     plugged into it."""
-    c = get_object_or_404(Connector.objects.select_related('device', 'part', 'family', 'branch'), pk=connector, device_id=pk)
+    c = get_object_or_404(Connector.objects.select_related('device', 'definition', 'family', 'branch'), pk=connector, device_id=pk)
     pins = c.ordered_pins()
     return render(request, 'devices/_connector.html', {'connector': c, 'pins': pins, 'ends': _plugged([c]).get(c.pk, []),
                                                        'face': _face(c, pins)})
@@ -185,14 +185,14 @@ def connectors_copy(request, pk):
         with transaction.atomic():
             for source in Connector.objects.filter(pk__in=request.POST.getlist('connector')).exclude(device=item).prefetch_related('pins'):
                 made = Connector.objects.create(device=item, designator=free_designator(item, source.designator), name=source.name,
-                                                part=source.part, family=source.family, branch=source.branch, position=item.connectors.count())
+                                                definition=source.definition, family=source.family, branch=source.branch, position=item.connectors.count())
                 Pin.objects.bulk_create(Pin(connector=made, number=p.number, signal=p.signal, wire_set=p.wire_set, set_type=p.set_type,
                                             description=p.description) for p in source.pins.all())
                 copied.append(made.designator if made.designator == source.designator else f'{source.designator} (as {made.designator})')
         messages.success(request, f'Copied: {", ".join(copied)}.' if copied else 'Nothing was picked.')
         return redirect(item)
     others = Device.objects.exclude(pk=item.pk).filter(connectors__isnull=False).distinct().prefetch_related(
-        'connectors__pins', 'connectors__part', 'connectors__family', 'connectors__branch')
+        'connectors__pins', 'connectors__definition', 'connectors__family', 'connectors__branch')
     return render(request, 'devices/copy.html', {'device': item, 'others': others})
 
 

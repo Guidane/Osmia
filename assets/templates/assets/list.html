@@ -8,14 +8,14 @@
   <a class="btn" href="{% url 'inventory:categories' %}?kind=assets">Categories</a>
   <a class="btn" href="{% url 'assets:fields' %}">Fields</a>
   <a class="btn primary" href="{% url 'assets:new' %}{% if category %}?category={{ category.pk }}{% endif %}">＋ New asset</a></div>
-<div data-param="asset" class="parts-browser">
-  <nav class="card parts-tree" aria-label="Categories">
+<div data-param="asset" class="browser">
+  <nav class="card browser-tree" aria-label="Categories">
     <a href="?{% if q %}q={{ q|urlencode }}{% endif %}"{% if not category %} class="on"{% endif %}><span>All assets</span><span class="muted small">{{ every }}</span></a>
     {% for c, depth, n in categories %}<a href="?category={{ c.pk }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" style="--depth: {{ depth }}"
       class="{% if category.pk == c.pk %}on{% elif c.pk in open %}open{% endif %}"><span>{{ c.name }}</span><span class="muted small">{{ n }}</span></a>{% endfor %}
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters">
       {% if category %}<input type="hidden" name="category" value="{{ category.pk }}">{% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Asset tag, asset number, name, model, serial…" aria-label="Search assets">
@@ -26,9 +26,9 @@
       {% include "inventory/_attribute_filters.html" %}
     </form>
     <div class="card flush">
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th><input type="checkbox" data-pick-all aria-label="Tick them all"></th><th></th><th>Asset tag</th><th>Name</th>{% if not category %}<th>Category</th>{% endif %}{% for a in attributes %}<th>{{ a.name }}</th>{% endfor %}<th>Location</th><th>Status</th><th>Calibration due</th></tr>
-        {% for a, values in rows %}<tr data-part="{{ a.pk }}" data-brief-url="{% url 'assets:brief' a.pk %}" class="{% if picked.pk == a.pk %}on{% endif %}" tabindex="0">
+        {% for a, values in rows %}<tr data-row="{{ a.pk }}" data-brief-url="{% url 'assets:brief' a.pk %}" class="{% if picked.pk == a.pk %}on{% endif %}" tabindex="0">
           <td><input type="checkbox" name="pick" value="{{ a.pk }}" aria-label="{{ a.number }}"></td>
           <td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a>{% if a.asset_number %} <span class="muted small">{{ a.asset_number }}</span>{% endif %}</td><td>{{ a.name }} <span class="muted small">{{ a.manufacturer }} {{ a.model }}</span></td>
           {% if not category %}<td class="small">{% if a.category %}<a href="{{ a.category.get_absolute_url }}">{{ a.category.name }}</a>{% endif %}</td>{% endif %}
@@ -40,7 +40,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "assets/_brief.html" with asset=brief.asset attributes=brief.attributes events=brief.events %}
     {% else %}<p class="muted small pad">Pick an asset to see it here.</p>{% endif %}
   </aside>

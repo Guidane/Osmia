@@ -4,17 +4,17 @@
 {% block content %}
 <div class="page-head"><h1>Orders</h1><span class="spacer"></span><a class="btn" href="?show={{ shown }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}&amp;export=1">⬇ Excel</a><a class="btn" href="{% url 'budgets:list' %}">Budgets</a><a class="btn" href="{% url 'inventory:vendors' %}">Vendors</a><a class="btn primary" href="{% url 'orders:new' %}">＋ New order</a></div>
 
-<div class="parts-browser" data-param="order">
+<div class="browser" data-param="order">
   {% include "web/_tree_nav.html" with label="Orders" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters"><input type="hidden" name="show" value="{{ shown }}">
-      <input type="search" name="q" value="{{ q }}" placeholder="Order, vendor or part…" aria-label="Search orders">
+      <input type="search" name="q" value="{{ q }}" placeholder="Order, vendor or item definition…" aria-label="Search orders">
       <button class="btn">Find</button></form>
     <div class="card flush">
-      <table class="list parts-list">
-        <tr><th>Order</th><th>Vendor</th><th>Parts</th><th>Ordered</th><th>Expected</th><th>Status</th></tr>
-        {% for o in orders %}<tr data-part="{{ o.pk }}" data-brief-url="{% url 'web:brief' 'order' o.pk %}" class="{% if picked.pk == o.pk %}on{% endif %}" tabindex="0">
+      <table class="list browser-list">
+        <tr><th>Order</th><th>Vendor</th><th>Item definitions</th><th>Ordered</th><th>Expected</th><th>Status</th></tr>
+        {% for o in orders %}<tr data-row="{{ o.pk }}" data-brief-url="{% url 'web:brief' 'order' o.pk %}" class="{% if picked.pk == o.pk %}on{% endif %}" tabindex="0">
           <td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a></td><td>{{ o.vendor|link|default:"—" }}</td>
           <td class="small">{% for l in o.lines.all|slice:":3" %}<a href="{{ l.item.get_absolute_url }}">{{ l.item.number }}</a> × {{ l.quantity|qty }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if o.lines.all|length > 3 %}, …{% endif %}{% if o.kind == 'request' %}<div class="muted" title="{{ o.request }}">Asked for: {{ o.request|truncatechars:80 }}</div>{% endif %}</td>
           <td class="small nowrap">{{ o.ordered_on|default:"" }}</td><td class="small nowrap">{{ o.expected_on|default:"" }}</td>
@@ -24,7 +24,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick an order to see it here.</p>{% endif %}
   </aside>
 </div>

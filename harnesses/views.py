@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 from devices.models import SET_TYPES as PIN_SET_TYPES, Connector
 from inventory import stock
 from inventory.faces import drawn, face_of
-from inventory.models import Location, Part, PartGroup, choices_of_parts, part_or_family
+from inventory.models import Location, ItemDefinition, DefinitionGroup, choices_of_definitions, definition_or_family
 from setups.models import Setup
 from assets.service import next_tag
 from web import excel, rows, versions
@@ -39,7 +39,7 @@ class HarnessForm(forms.ModelForm):
 
 @login_required
 def harness_list(request):
-    """The harnesses, like the parts: the projects and their setups as a tree on the left, the harnesses of the
+    """The harnesses, like the item definitions: the projects and their setups as a tree on the left, the harnesses of the
     one picked in the middle (found by number or name, by status), the details of the harness picked on the right."""
     from django.db.models import Count, Q
 
@@ -75,8 +75,8 @@ def harness_list(request):
 def _brief(harness):
     """What the details beside the harness list show of ``harness``."""
     wires = harness.ordered_wires()
-    return {'harness': harness, 'ends': harness.ends.select_related('part', 'family', 'branch'),
-            'wires': wires, 'parts': harness.parts_list(), 'problems': [text for _, text in harness.problems()]}
+    return {'harness': harness, 'ends': harness.ends.select_related('definition', 'family', 'branch'),
+            'wires': wires, 'definitions': harness.parts_list(), 'problems': [text for _, text in harness.problems()]}
 
 
 @login_required
@@ -94,12 +94,12 @@ def harness_form(request, pk=None):
 
 def _sheets(harness):
     wires = harness.ordered_wires()
-    return [('Pinout', ['From', 'Pin', 'To', 'Pin', 'Signal', 'Set', 'Set type', 'Colour', 'Gauge', 'Length (mm)', 'Wire part'],
+    return [('Pinout', ['From', 'Pin', 'To', 'Pin', 'Signal', 'Set', 'Set type', 'Colour', 'Gauge', 'Length (mm)', 'Wire item definition'],
              [(w.from_end.designator, w.from_pin, w.to_end.designator, w.to_pin, w.signal, w.wire_set, w.set_type, w.colour,
                w.gauge, w.length, w.used_name) for w in wires]),
-            ('Connectors', ['Connector', 'Part'],
-             [(e.designator, e.used_name) for e in harness.ends.select_related('part', 'family')]),
-            ('Parts list', ['Part', 'Description', 'Quantity', 'Unit'],
+            ('Connectors', ['Connector', 'Item definition'],
+             [(e.designator, e.used_name) for e in harness.ends.select_related('definition', 'family')]),
+            ('Parts list', ['Item definition', 'Description', 'Quantity', 'Unit'],
              [(p.number, p.description, q, p.unit) for p, q in harness.parts_list()])]
 
 
@@ -118,27 +118,27 @@ def harness(request, pk):
     found = item.problems()
     from inventory import picker
     return render(request, 'harnesses/harness.html', {'drawing': _drawing(item, wires), 'family_picker': picker.dialog(),
-        'harness': item, 'ends': item.ends.select_related('part', 'family', 'branch'), 'groups': groups, 'wire_count': len(wires),
-        'items': item.items.select_related('part'), 'parts': item.parts_list(),
+        'harness': item, 'ends': item.ends.select_related('definition', 'family', 'branch'), 'groups': groups, 'wire_count': len(wires),
+        'items': item.items.select_related('definition'), 'definitions': item.parts_list(),
         'problems': [text for _, text in found], 'bad_wires': {thing.pk for thing, _ in found if isinstance(thing, Wire)},
         'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item),
         'units': item.assets.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number)})
 
 
 def _picked_as(found):
-    """What the family popup shows as picked for an end: its family or gender (a part: the gender or family it is in)."""
+    """What the family popup shows as picked for an end: its family or gender (an item definition: the gender or family it is in)."""
     if found is None:
         return ''
-    if isinstance(found, Part):
+    if isinstance(found, ItemDefinition):
         return (found.branch or found.family or found).number
     return found.number
 
 
 def _drawing(harness, wires):
-    """What the pinout drawing draws: each end (the pins its wires use, in the layout of its part or family) and the
+    """What the pinout drawing draws: each end (the pins its wires use, in the layout of its item definition or family) and the
     wires between their contact numbers. (What it plugs into is its setup's to say.)"""
     from devices.models import pin_order
-    ends = harness.ends.select_related('part__family', 'family', 'branch__family')
+    ends = harness.ends.select_related('definition__family', 'family', 'branch__family')
     out = []
     for end in ends:
         pins = {}
@@ -164,7 +164,7 @@ def pinout_draw(request, pk):
     post, action = request.POST, request.POST.get('action')
     if action in ('end_add', 'end_set', 'end_delete'):   # a connector added on a side, its family changed, taken away
         from inventory.picker import with_gender
-        found = part_or_family(with_gender(post.get('used'))) if post.get('used') else None
+        found = definition_or_family(with_gender(post.get('used'))) if post.get('used') else None
         if action != 'end_delete' and post.get('used') and found is None:
             return JsonResponse({'error': f'There is no family "{post.get("used")}".'}, status=400)
         if action == 'end_add':
@@ -263,14 +263,14 @@ def pinout_draw(request, pk):
 
 # -- Editing as tables -------------------------------------------------------------------------------
 
-def _part(number, row):
-    """The part (or family) a row names."""
+def _definition(number, row):
+    """The item definition (or family) a row names."""
     if not number:
         return None
-    part = part_or_family(number)
-    if part is None:
-        raise ValidationError(f'Row {row}: there is no part or family "{number}".')
-    return part
+    definition = definition_or_family(number)
+    if definition is None:
+        raise ValidationError(f'Row {row}: there is no item definition or family "{number}".')
+    return definition
 
 
 def _number(text, row, what):
@@ -305,14 +305,14 @@ def _edit(request, harness, title, columns, records, values, apply):
         return redirect(harness)
     return render(request, 'harnesses/edit.html', {
         'harness': harness, 'title': title, 'columns': columns, 'rows': rows.rows(records, values, blank=5),
-        'part_numbers': choices_of_parts()})
+        'definition_numbers': choices_of_definitions()})
 
 
 @login_required
 def ends(request, pk):
     item = get_object_or_404(Harness, pk=pk)
-    columns = [rows.Column('designator', 'Connector', width='80px'), rows.Column('part', 'Connector part or family', datalist='parts', width='220px')]
-    records = list(item.ends.select_related('part', 'family'))
+    columns = [rows.Column('designator', 'Connector', width='80px'), rows.Column('definition', 'Connector item definition or family', datalist='definitions', width='220px')]
+    records = list(item.ends.select_related('definition', 'family'))
 
     def apply(row, end, cells):
         if not cells['designator']:
@@ -321,10 +321,10 @@ def ends(request, pk):
         if clash.exists():
             raise ValidationError(f'Row {row}: there is already a connector {cells["designator"]}.')
         end = end or HarnessEnd(harness=item, position=item.ends.count())
-        end.designator, end.used = cells['designator'][:30], _part(cells['part'], row)
+        end.designator, end.used = cells['designator'][:30], _definition(cells['definition'], row)
         end.save()
     return _edit(request, item, 'The connectors', columns, records,
-                 lambda e: {'designator': e.designator, 'part': e.used_name}, apply)
+                 lambda e: {'designator': e.designator, 'definition': e.used_name}, apply)
 
 
 @login_required
@@ -340,7 +340,7 @@ def pinout(request, pk):
                rows.Column('signal', 'Signal', width='120px'), rows.Column('wire_set', 'Set', width='60px'),
                rows.Column('set_type', 'Set type', 'select', [(t, t) for t in SET_TYPES]),
                rows.Column('colour', 'Colour', 'select', [(c, c) for c in COLOURS]), rows.Column('gauge', 'Gauge', width='80px'),
-               rows.Column('length', 'Length (mm)', 'number', width='80px'), rows.Column('part', 'Wire part or family', datalist='parts', width='160px')]
+               rows.Column('length', 'Length (mm)', 'number', width='80px'), rows.Column('definition', 'Wire item definition or family', datalist='definitions', width='160px')]
     ends_by_id = {e.pk: e for e in end_list}
     records = item.ordered_wires()
 
@@ -354,30 +354,30 @@ def pinout(request, pk):
         wire.from_end, wire.from_pin, wire.to_end, wire.to_pin = a, cells['from_pin'][:20], b, cells['to_pin'][:20]
         wire.signal, wire.wire_set, wire.gauge, wire.set_type = signal[:100], wire_set[:20], cells['gauge'][:20], set_type
         wire.colour = cells['colour'] if cells['colour'] in COLOURS else ''
-        wire.length, wire.used = _number(cells['length'], row, 'length'), _part(cells['part'], row)
+        wire.length, wire.used = _number(cells['length'], row, 'length'), _definition(cells['definition'], row)
         wire.save()
     return _edit(request, item, 'The pinout', columns, records, lambda w: {
         'from_end': w.from_end_id, 'from_pin': w.from_pin, 'to_end': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
         'wire_set': w.wire_set, 'set_type': w.set_type, 'colour': w.colour, 'gauge': w.gauge,
-        'length': f'{w.length.normalize():f}' if w.length is not None else '', 'part': w.used_name}, apply)
+        'length': f'{w.length.normalize():f}' if w.length is not None else '', 'definition': w.used_name}, apply)
 
 
 @login_required
 def items(request, pk):
     item = get_object_or_404(Harness, pk=pk)
-    columns = [rows.Column('part', 'Part or family', datalist='parts', width='180px'), rows.Column('quantity', 'Quantity', 'number', width='90px'),
+    columns = [rows.Column('definition', 'Item definition or family', datalist='definitions', width='180px'), rows.Column('quantity', 'Quantity', 'number', width='90px'),
                rows.Column('note', 'Note', width='240px')]
 
     def apply(row, line, cells):
         quantity = _number(cells['quantity'], row, 'quantity')
-        part = _part(cells['part'], row)
-        if part is None or not quantity:
-            raise ValidationError(f'Row {row}: give the part and how many.')
+        definition = _definition(cells['definition'], row)
+        if definition is None or not quantity:
+            raise ValidationError(f'Row {row}: give the item definition and how many.')
         line = line or HarnessItem(harness=item)
-        line.used, line.quantity, line.note = part, quantity, cells['note'][:200]
+        line.used, line.quantity, line.note = definition, quantity, cells['note'][:200]
         line.save()
-    return _edit(request, item, 'The other items', columns, list(item.items.select_related('part', 'family')),
-                 lambda i: {'part': i.used_name, 'quantity': f'{i.quantity.normalize():f}', 'note': i.note}, apply)
+    return _edit(request, item, 'The other items', columns, list(item.items.select_related('definition', 'family')),
+                 lambda i: {'definition': i.used_name, 'quantity': f'{i.quantity.normalize():f}', 'note': i.note}, apply)
 
 
 # -- Versions ------------------------------------------------------------------------------------------
@@ -398,7 +398,7 @@ def save_version(request, pk):
 def version(request, pk, number):
     item = get_object_or_404(Harness, pk=pk)
     saved = get_object_or_404(HarnessVersion, harness=item, number=number)
-    return render(request, 'harnesses/version.html', {'harness': item, 'version': saved, 'data': saved.data, 'parts': parts_of(saved.data)})
+    return render(request, 'harnesses/version.html', {'harness': item, 'version': saved, 'data': saved.data, 'definitions': parts_of(saved.data)})
 
 
 @login_required
@@ -415,7 +415,7 @@ def restore(request, pk, number):
 @transaction.atomic
 def build(harness, number, version, user, take_from=None):
     """A harness built: an asset (asset tag ``number``) of the version it is built to (else as it is now), being built,
-    with a checklist of its wires; its parts taken out of ``take_from`` when given."""
+    with a checklist of its wires; its item definitions taken out of ``take_from`` when given."""
     from assets.models import Asset, AssetCheck
     from assets.service import event
     number = (number or '').strip()
@@ -433,9 +433,9 @@ def build(harness, number, version, user, take_from=None):
         asset=asset, position=i, wire=f'{w["from"]}:{w["from_pin"]} → {w["to"]}:{w["to_pin"]}', between=f'{w["from"]} → {w["to"]}',
         signal=w.get('signal', ''), colour=w.get('colour', ''), wire_set=w.get('set', '')) for i, w in enumerate(data['wires']))
     if take_from is not None:
-        for part, quantity in parts_of(data):
-            take = stock.use_any if isinstance(part, PartGroup) else stock.use
-            take(part, quantity, take_from, user, note=f'built into {asset.number}')
+        for definition, quantity in parts_of(data):
+            take = stock.use_any if isinstance(definition, DefinitionGroup) else stock.use
+            take(definition, quantity, take_from, user, note=f'built into {asset.number}')
     event(asset, 'built', user, f'{harness.number}' + (f' v{version.number}' if version else ''))
     return asset
 

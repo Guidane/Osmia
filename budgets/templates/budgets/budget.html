@@ -10,8 +10,8 @@
   <a class="btn" href="{% url 'budgets:new' %}?parent={{ budget.pk }}">＋ Under it</a>
   <a class="btn" href="{% url 'budgets:edit' budget.pk %}">Change</a></div>
 
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ budget }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ budget }}">
     {% if budget.parent %}<a href="{{ budget.parent.get_absolute_url }}"><span>💰 {{ budget.parent }}</span><span class="muted small"></span></a>{% endif %}
     <a href="#orders" data-section="orders" class="tree-head" style="--depth: {% if budget.parent %}1{% else %}0{% endif %}"><span>{{ budget }} · orders</span><span class="muted small">{{ orders|length }}</span></a>
     {% if children %}<a href="#under" data-section="under" style="--depth: {% if budget.parent %}2{% else %}1{% endif %}"><span>Under it</span><span class="muted small">{{ children|length }}</span></a>
@@ -19,7 +19,7 @@
     <a href="#costs" data-section="costs" style="--depth: {% if budget.parent %}2{% else %}1{% endif %}"><span>Other costs</span><span class="muted small">{{ costs|length }}</span></a>
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <div data-panel="orders">
   <section class="card flush">
     <div class="card-head"><h3>Orders</h3><a class="btn small" href="{% url 'orders:new' %}?budget={{ budget.pk }}">＋ New order</a></div>
@@ -53,7 +53,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ budget }}</h3>{% if not budget.active %}<span class="badge">Closed</span>{% endif %}<span class="spacer"></span><a class="btn small ghost" href="{% url 'budgets:edit' budget.pk %}">Change</a></div>
       <div class="tiles brief-tiles">

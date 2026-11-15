@@ -1,11 +1,11 @@
 """Two ways to make an order: one's own (vendor first, then the lines), or a request describing what is needed for
 someone else to order: who is asked hears of it (the administrators when nobody is picked), adds the lines and places it,
-and who asked hears it is ordered. Finding a part to add, by words and category."""
+and who asked hears it is ordered. Finding an item definition to add, by words and category."""
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from inventory.models import Part
+from inventory.models import ItemDefinition
 from inventory.tests.test_inventory import Base
 from orders import service
 from orders.models import Order
@@ -44,7 +44,7 @@ class RequestTests(Base):
         page = self.client.get(reverse('orders:order', args=[order.pk]))
         self.assertContains(page, '20 cable ties, 200 mm')
         self.assertContains(page, 'Add item')
-        self.client.post(reverse('orders:line_add', args=[order.pk]), {'part': 'DSUB-9-PLUG', 'quantity': '20'})
+        self.client.post(reverse('orders:line_add', args=[order.pk]), {'definition': 'DSUB-9-PLUG', 'quantity': '20'})
         with self.assertRaisesMessage(ValidationError, 'Say who PO-0001 is ordered from first.'):
             service.place(order, carol)
         self.client.post(reverse('orders:order', args=[order.pk]), {'request': 'something else', 'vendor': self.acme.pk})
@@ -78,11 +78,11 @@ class RequestTests(Base):
 
 
 class FindTests(Base):
-    def test_finding_parts_by_words_and_category(self):
-        Part.objects.create(number='DSUB-OLD', description='D-sub 9 plug', category=self.dsub, active=False)
+    def test_finding_definitions_by_words_and_category(self):
+        ItemDefinition.objects.create(number='DSUB-OLD', description='D-sub 9 plug', category=self.dsub, active=False)
         found = self.client.get(reverse('inventory:find'), {'q': 'd-sub plug'}).json()
-        self.assertEqual([p['number'] for p in found['parts']], ['DSUB-9-PLUG'])   # not the one no longer used
-        self.assertEqual(found['parts'][0]['have'], '0')
+        self.assertEqual([p['number'] for p in found['definitions']], ['DSUB-9-PLUG'])   # not the one no longer used
+        self.assertEqual(found['definitions'][0]['have'], '0')
         found = self.client.get(reverse('inventory:find'), {'category': self.connectors.pk}).json()
-        self.assertEqual([p['number'] for p in found['parts']], ['DSUB-9-PLUG'])   # those under it too
-        self.assertEqual(len(self.client.get(reverse('inventory:find')).json()['parts']), 2)
+        self.assertEqual([p['number'] for p in found['definitions']], ['DSUB-9-PLUG'])   # those under it too
+        self.assertEqual(len(self.client.get(reverse('inventory:find')).json()['definitions']), 2)

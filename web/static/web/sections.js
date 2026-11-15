@@ -1,4 +1,4 @@
-/* A thing's page as a tree, a table and details (.parts-browser[data-sections]): the tree's links (a[data-section])
+/* A thing's page as a tree, a table and details (.browser[data-sections]): the tree's links (a[data-section])
    show the middle panel of that name ([data-panel]), kept in the address (#name), else the first. The right pane
    ([data-detail]) shows the thing itself; a row of a panel with its details (tr[data-brief-url]) picked by a click,
    Enter or the arrow keys shows those instead, until another section (or the thing, at the top of the tree) is
@@ -6,7 +6,7 @@
    when details were put there; a resize when a panel shows (a drawing in it fits itself). */
 (function () {
   'use strict';
-  var root = document.querySelector('.parts-browser[data-sections]');
+  var root = document.querySelector('.browser[data-sections]');
   if (!root) return;
   var links = Array.prototype.slice.call(root.querySelectorAll('a[data-section]'));
   var panels = Array.prototype.slice.call(root.querySelectorAll('[data-panel]'));

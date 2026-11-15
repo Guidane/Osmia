@@ -6,13 +6,13 @@
 <div class="page-head"><h1>{{ vendor.name }}</h1>{% if not vendor.active %}<span class="badge">Inactive</span>{% endif %}<span class="spacer"></span>
   <a class="btn" href="{% url 'orders:new' %}?vendor={{ vendor.pk }}">＋ New order</a>
   <a class="btn" href="{% url 'inventory:vendor_edit' vendor.pk %}">Change</a></div>
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ vendor.name }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ vendor.name }}">
     <a href="#orders" data-section="orders" class="tree-head"><span>{{ vendor.name }} · orders</span><span class="muted small">{{ orders|length }}</span></a>
-    <a href="#parts" data-section="parts" style="--depth: 1"><span>Parts ordered from it</span><span class="muted small">{{ parts|length }}</span></a>
+    <a href="#definitions" data-section="definitions" style="--depth: 1"><span>Item definitions ordered from it</span><span class="muted small">{{ definitions|length }}</span></a>
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <div data-panel="orders">
   <section class="card flush">
     <div class="card-head"><h3>Orders</h3></div>
@@ -21,16 +21,16 @@
       {% empty %}<tr><td class="empty small">No orders yet.</td></tr>{% endfor %}</table>
   </section>
     </div>
-    <div data-panel="parts" hidden>
+    <div data-panel="definitions" hidden>
 <section class="card flush">
-  <div class="card-head"><h3>Parts ordered from it</h3></div>
-  <table class="list">{% for p in parts %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a></td><td>{{ p.description }}</td><td class="small">{{ p.vendor_number }}</td></tr>
+  <div class="card-head"><h3>Item definitions ordered from it</h3></div>
+  <table class="list">{% for p in definitions %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a></td><td>{{ p.description }}</td><td class="small">{{ p.vendor_number }}</td></tr>
     {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table>
 </section>
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ vendor.name }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'inventory:vendor_edit' vendor.pk %}">Change</a></div>
     <dl class="details">

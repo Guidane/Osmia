@@ -3,4 +3,4 @@ from django.apps import AppConfig
 
 class InventoryConfig(AppConfig):
     name = 'inventory'
-    verbose_name = 'Parts and stock'
+    verbose_name = 'Item definitions and stock'

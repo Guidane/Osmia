@@ -1,7 +1,7 @@
-"""Labels (stickers) for parts and assets, printed on A4 sheets of labels: one or many at a time, in the sheet size and
-with what each label shows chosen on the page (and kept as the default for parts or assets).
+"""Labels (stickers) for item definitions and assets, printed on A4 sheets of labels: one or many at a time, in the sheet size and
+with what each label shows chosen on the page (and kept as the default for item definitions or assets).
 
-/labels/part/?ids=3,8,12 (or /labels/asset/…): the sheets, ready to print."""
+/labels/definition/?ids=3,8,12 (or /labels/asset/…): the sheets, ready to print."""
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
@@ -19,7 +19,7 @@ SIZES = {
     '105x74': ('105 × 74 mm, 8 a sheet', 105.0, 74.0, 2, 4, 0, 0, 0, 0),
 }
 SHOWN = {   # what a label can show, with what it shows by default
-    'part': [('number', 'Part number', True), ('description', 'Description', True), ('picture', 'Picture', False),
+    'definition': [('number', 'Item number', True), ('description', 'Description', True), ('picture', 'Picture', False),
              ('category', 'Category', False), ('location', 'Location', False)],
     'asset': [('number', 'Asset tag', True), ('name', 'Name', True), ('picture', 'Picture', False), ('asset_number', 'Asset number', False), ('serial', 'Serial number', False),
               ('category', 'Category', False), ('location', 'Location', False)],
@@ -27,9 +27,9 @@ SHOWN = {   # what a label can show, with what it shows by default
 
 
 def _things(kind, ids):
-    if kind == 'part':
-        from inventory.models import Part
-        model = Part
+    if kind == 'definition':
+        from inventory.models import ItemDefinition
+        model = ItemDefinition
     else:
         from assets.models import Asset
         model = Asset
@@ -56,7 +56,7 @@ def _label(kind, thing, layout, attributes):
     lines = []
     if 'number' in show:
         lines.append(('number', thing.number))
-    text = thing.description if kind == 'part' else thing.name
+    text = thing.description if kind == 'definition' else thing.name
     if ('description' in show or 'name' in show) and text:
         lines.append(('text', text))
     if 'asset_number' in show and getattr(thing, 'asset_number', ''):

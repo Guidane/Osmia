@@ -1,7 +1,7 @@
 """Demo data, to switch on and off (Demo data, for administrators; ``manage.py demo [--off]``).
 
-Switched on, example data is made alongside what is there already: departments, parts and assets with their categories'
-attributes (an auto ID too), parts in locations, budgets, an order on its way and a late one, devices with their
+Switched on, example data is made alongside what is there already: departments, item definitions and assets with their categories'
+attributes (an auto ID too), item definitions in locations, budgets, an order on its way and a late one, devices with their
 connectors and pins (a bought power supply among them) and the assets that are them, and a project with four setups
 and their harnesses. Every row it made is remembered (DemoRecord); switched off, those rows go, and nothing else."""
 from datetime import date, timedelta
@@ -17,16 +17,16 @@ from budgets.models import Budget, Cost
 from devices.models import Connector, Device, Pin
 from harnesses.models import Harness, HarnessEnd, HarnessItem, Wire
 from inventory import stock
-from inventory.models import Attribute, Branch, Category, Family, Location, Part, PartLink, PartValue, Vendor, part_or_family
+from inventory.models import Attribute, Branch, Category, Family, Location, ItemDefinition, DefinitionLink, DefinitionValue, Vendor, definition_or_family
 from orders import service
 from orders.models import Order
 from setups import contents
 from setups.models import Setup
-from assets.models import Asset, PartAsset
+from assets.models import Asset, DefinitionAsset
 from inventory.attributes import number_up
 from web import versions
 
-PARTS = [  # number, description, category, unit, vendor, price, minimum, on hand
+DEFINITIONS = [  # number, description, category, unit, vendor, price, minimum, on hand
     ('DSUB-9-PLUG', 'D-sub 9 plug housing, crimp', 'D-sub', 'pcs', 'Acme Connectors', '2.40', 10, 6),
     ('DSUB-9-PLUG-B', 'D-sub 9 plug housing, crimp (other make)', 'D-sub', 'pcs', 'Acme Connectors', '2.95', 0, 4),
     ('DSUB-9-RECEPT', 'D-sub 9 receptacle, panel mount', 'D-sub', 'pcs', 'Acme Connectors', '3.10', 5, 8),
@@ -39,12 +39,20 @@ PARTS = [  # number, description, category, unit, vendor, price, minimum, on han
     ('WIRE-24-TP', 'Twisted pair 24 AWG, shielded', 'Wire', 'm', 'Cable World', '0.85', 20, 25),
     ('TIE-100', 'Cable tie 100 x 2.5 mm', 'Accessories', 'pcs', 'Cable World', '0.02', 200, 500),
 ]
+BOUGHT = [   # what is bought that is not a thing: number, description, kind, (category, under it), unit, vendor, price
+    ('CAL-DMM', 'Yearly calibration of a multimeter', 'service', ('Services', 'Calibration'), 'pcs', 'Metrolab Services', '85.00'),
+    ('SOW-RIG-2', 'Statement of work: wiring of the second burn-in rack', 'work', ('Services', 'Engineering work'), 'pcs',
+     'Metrolab Services', '4800.00'),
+    ('ECAD-SEAT-1Y', 'ECAD licence, one seat for a year', 'licence', ('Software', 'Licences'), 'year', 'Circuitry Software', '1200.00'),
+    ('CLOUD-TEST-M', 'Cloud storage for test data, per month', 'subscription', ('Software', 'Subscriptions'), 'month',
+     'Circuitry Software', '40.00'),
+]
 ATTRIBUTES = {   # category: [(name, kind, unit, choices)]
     'Connectors': [('Positions', 'integer', '', ''), ('Contact type', 'choice', '', 'pin\nsocket')],
     'D-sub': [('Mounting', 'choice', '', 'cable\npanel'), ('Shielded', 'yesno', '', '')],
     'Wire': [('Gauge', 'integer', 'AWG', ''), ('Colour', 'text', '', ''), ('Max. temperature', 'decimal', '°C', '')],
 }
-VALUES = {   # part: {attribute: value}
+VALUES = {   # item definition: {attribute: value}
     'DSUB-9-PLUG': {'Positions': '9', 'Contact type': 'pin', 'Mounting': 'cable', 'Shielded': 'No'},
     'DSUB-9-RECEPT': {'Positions': '9', 'Contact type': 'socket', 'Mounting': 'panel', 'Shielded': 'Yes'},
     'DSUB-25-PLUG': {'Positions': '25', 'Contact type': 'pin', 'Mounting': 'cable', 'Shielded': 'Yes'},
@@ -57,7 +65,7 @@ VALUES = {   # part: {attribute: value}
 }
 SETS = {'+24 V': ('PWR', 'Twisted'), '0 V': ('PWR', 'Twisted'), 'CAN H': ('CAN', 'Shielded twisted'),
         'CAN L': ('CAN', 'Shielded twisted')}   # signal: the set its pins are in
-PINS = {   # device: [(connector, name, part, [(pin, signal)])]
+PINS = {   # device: [(connector, name, item definition, [(pin, signal)])]
     'CTRL-100': [('J1', 'Bus', 'DSUB-9-RECEPT', [('1', '+24 V'), ('2', '0 V'), ('3', 'Enable'), ('6', 'CAN H'), ('7', 'CAN L'), ('9', 'Shield')]),
                  ('J2', 'Sensor', 'M12-5-F', [('1', '+24 V'), ('2', 'Signal'), ('3', '0 V')])],
     'LOAD-200': [('J1', 'Bus in', 'D-sub 9 / socket', [('1', '+24 V'), ('3', '0 V'), ('5', 'Enable'), ('2', 'CAN H'), ('7', 'CAN L'), ('8', 'Shield')]),
@@ -92,15 +100,22 @@ def _make(user):
         for position, (name, kind, unit, choices) in enumerate(items):
             attributes[name] = Attribute.objects.create(category=categories.get(category) or connectors, name=name, kind=kind,
                                                         unit=unit, choices=choices, position=position)
-    parts = {}
-    for i, (number, description, category, unit, vendor, price, minimum, have) in enumerate(PARTS):
-        parts[number] = Part.objects.create(number=number, description=description, category=categories[category], unit=unit,
+    definitions = {}
+    for i, (number, description, category, unit, vendor, price, minimum, have) in enumerate(DEFINITIONS):
+        definitions[number] = ItemDefinition.objects.create(number=number, description=description, category=categories[category], unit=unit,
                                             vendor=vendors[vendor], price=Decimal(price), minimum=minimum)
-        stock.add(parts[number], have, shelves[i % 2], user, 'demo')
+        stock.add(definitions[number], have, shelves[i % 2], user, 'demo')
         for name, raw in VALUES.get(number, {}).items():
             value, figure = attributes[name].clean_value(raw)
-            PartValue.objects.create(part=parts[number], attribute=attributes[name], value=value, number=figure)
-    Part.objects.filter(pk=parts['DSUB-9-PLUG'].pk).update(notes='Use the gold plated contacts with it.\nKeep two spare in the lab.')
+            DefinitionValue.objects.create(definition=definitions[number], attribute=attributes[name], value=value, number=figure)
+    for number, description, kind, (top, below), unit, vendor, price in BOUGHT:
+        top, _ = Category.objects.get_or_create(kind=Category.Kind.DEFINITIONS, parent=None, name=top)
+        category, _ = Category.objects.get_or_create(kind=Category.Kind.DEFINITIONS, parent=top, name=below)
+        if vendor not in vendors:
+            vendors[vendor] = Vendor.objects.create(name=vendor, email=f'sales@{vendor.split()[0].lower()}.example')
+        definitions[number] = ItemDefinition.objects.create(number=number, description=description, kind=kind, category=category,
+                                                            unit=unit, vendor=vendors[vendor], price=Decimal(price))
+    ItemDefinition.objects.filter(pk=definitions['DSUB-9-PLUG'].pk).update(notes='Use the gold plated contacts with it.\nKeep two spare in the lab.')
     vendors['Cable World'].notes = 'Free delivery above 200. Ask for Jan.'
     vendors['Cable World'].save()
     from inventory.faces import start
@@ -111,12 +126,12 @@ def _make(user):
     pin, socket = Branch.objects.create(family=dsub9, name='pin', contacts='pin'), Branch.objects.create(family=dsub9, name='socket', contacts='socket')
     m12 = Family.objects.create(name='M12 5-pin', face=start('circle', 5), group=m12s)
     Branch.objects.create(family=m12, name='pin', contacts='pin')
-    Part.objects.filter(number='M12-5-F').update(family=m12, branch=Branch.objects.create(family=m12, name='socket', contacts='socket'))
+    ItemDefinition.objects.filter(number='M12-5-F').update(family=m12, branch=Branch.objects.create(family=m12, name='socket', contacts='socket'))
     dsub25 = Family.objects.create(name='D-sub 25', face=start('staggered', 25), group=dsubs)
-    Part.objects.filter(number='DSUB-25-PLUG').update(family=dsub25, branch=Branch.objects.create(family=dsub25, name='pin', contacts='pin'))
-    Part.objects.filter(number='DSUB-25-RECEPT').update(family=dsub25, branch=Branch.objects.create(family=dsub25, name='socket', contacts='socket'))
-    Part.objects.filter(number__in=['DSUB-9-PLUG', 'DSUB-9-PLUG-B']).update(family=dsub9, branch=pin)
-    Part.objects.filter(number='DSUB-9-RECEPT').update(family=dsub9, branch=socket)
+    ItemDefinition.objects.filter(number='DSUB-25-PLUG').update(family=dsub25, branch=Branch.objects.create(family=dsub25, name='pin', contacts='pin'))
+    ItemDefinition.objects.filter(number='DSUB-25-RECEPT').update(family=dsub25, branch=Branch.objects.create(family=dsub25, name='socket', contacts='socket'))
+    ItemDefinition.objects.filter(number__in=['DSUB-9-PLUG', 'DSUB-9-PLUG-B']).update(family=dsub9, branch=pin)
+    ItemDefinition.objects.filter(number='DSUB-9-RECEPT').update(family=dsub9, branch=socket)
     workshop = Category.objects.create(name='Workshop', kind='assets')
     crimpers = Category.objects.create(name='Crimp tools', parent=workshop, kind='assets')
     lab = Category.objects.create(name='Lab equipment', parent=workshop, kind='assets')
@@ -132,17 +147,17 @@ def _make(user):
                                     reverse_name='Takes contacts')
     crimped = Attribute.objects.create(category=categories['Contacts'], name='Crimped with', kind='link', links_to='asset',
                                        reverse_name='Crimps')
-    PartLink.objects.create(part=parts['DSUB-CONTACT-M'], attribute=fits, target=parts['DSUB-9-PLUG'])
-    PartAsset.objects.create(part=parts['DSUB-CONTACT-M'], attribute=crimped, asset=crimp)
+    DefinitionLink.objects.create(definition=definitions['DSUB-CONTACT-M'], attribute=fits, target=definitions['DSUB-9-PLUG'])
+    DefinitionAsset.objects.create(definition=definitions['DSUB-CONTACT-M'], attribute=crimped, asset=crimp)
     year = Budget.objects.create(number='FY26', name='2026', amount=50000, owner=user)
     eng_budget = Budget.objects.create(number='FY26-ENG', name='Engineering', parent=year, amount=20000, owner=user, department=engineering)
     Budget.objects.create(number='FY26-OPS', name='Operations', parent=year, amount=15000, owner=user)
     Cost.objects.create(budget=eng_budget, spent_on=date.today(), description='EMC test lab, one day', amount=1800, created_by=user)
-    late = service.reorder(parts['M12-5-F'], user).order
+    late = service.reorder(definitions['M12-5-F'], user).order
     late.budget, late.notes = eng_budget, 'Acme says it ships next week.'
     late.save()
     service.place(late, user, date.today() - timedelta(days=3))
-    coming = service.reorder(parts['WIRE-22-BLK'], user).order
+    coming = service.reorder(definitions['WIRE-22-BLK'], user).order
     coming.budget = eng_budget
     coming.save()
     service.place(coming, user, date.today() + timedelta(days=4))
@@ -154,7 +169,7 @@ def _make(user):
     service.ask(asked)
     mine = Order.objects.create(kind=Order.Kind.REQUEST, budget=eng_budget, created_by=user, vendor=vendors['Cable World'],
                                 request='A bag of small cable ties (100 mm) for the load board harnesses.')
-    mine.lines.create(part=parts['TIE-100'], quantity=100, price=parts['TIE-100'].price)
+    mine.lines.create(definition=definitions['TIE-100'], quantity=100, price=definitions['TIE-100'].price)
     service.place(mine, user, date.today() + timedelta(days=6))
 
     devices = {}
@@ -166,9 +181,9 @@ def _make(user):
                                  ('MOT-40', 'Motor driver', '#be123c'),
                                  ('CAM-50', 'Camera', '#0369a1')):
         devices[number] = Device.objects.create(number=number, name=name, colour=colour, manufacturer='In house')
-        for position, (designator, title, part, pins) in enumerate(PINS[number]):
+        for position, (designator, title, definition, pins) in enumerate(PINS[number]):
             c = Connector(device=devices[number], designator=designator, name=title, position=position)
-            c.used = part_or_family(part)   # a part, or a family's branch
+            c.used = definition_or_family(definition)   # an item definition, or a family's branch
             c.save()
             Pin.objects.bulk_create(Pin(connector=c, number=p, signal=s, wire_set=SETS.get(s, ('', ''))[0],
                                         set_type=SETS.get(s, ('', 'Straight'))[1]) for p, s in pins)
@@ -189,10 +204,10 @@ def _make(user):
     bus = _harness(setup, 'Controller to load board', [('P1', 'DSUB-9-PLUG', devices['CTRL-100'], 'J1'), ('P2', 'DSUB-9-PLUG', devices['LOAD-200'], 'J1')],
                        [('1', '1', 'red', 'WIRE-22-RED', 'PWR', 'Twisted'), ('2', '3', 'black', 'WIRE-22-BLK', 'PWR', 'Twisted'),
                         ('3', '5', 'blue', '', '', 'Straight'), ('6', '2', 'white', 'WIRE-24-TP', 'CAN', 'Shielded twisted'),
-                        ('7', '7', 'green', 'WIRE-24-TP', 'CAN', 'Shielded twisted'), ('9', '8', 'grey', '', 'CAN', 'Shield')], parts, user)
+                        ('7', '7', 'green', 'WIRE-24-TP', 'CAN', 'Shielded twisted'), ('9', '8', 'grey', '', 'CAN', 'Shield')], definitions, user)
     link = _harness(setup, 'Load board link', [('P1', pin.number, devices['LOAD-200'], 'J2'), ('P2', pin.number, devices['LOAD-200'], 'J1')],
                         [('1', '1', 'red', 'WIRE-22-RED', '', 'Straight'), ('3', '3', 'black', 'WIRE-22-BLK', '', 'Straight'),
-                         ('2', '2', 'white', 'WIRE-24-TP', 'P1', 'Shielded twisted'), ('7', '7', 'green', 'WIRE-24-TP', 'P1', 'Shielded twisted')], parts, user)
+                         ('2', '2', 'white', 'WIRE-24-TP', 'P1', 'Shielded twisted'), ('7', '7', 'green', 'WIRE-24-TP', 'P1', 'Shielded twisted')], definitions, user)
     # the rack hub's two D-sub 25s to five devices' D-sub 9s, each with power and shielded data: every kind of set, a
     # shielded twist of three, and splices (the motor driver's power taken off the sensor's)
     hub = devices['HUB-500']
@@ -214,7 +229,7 @@ def _make(user):
         ('P2:4', 'P7:1', 'red', 'WIRE-22-RED', 'PWR5', 'Twisted'), ('P2:17', 'P7:6', 'black', 'WIRE-22-BLK', 'PWR5', 'Twisted'),
         ('P2:5', 'P7:2', 'white', '', 'DATA5', 'Shielded twisted'), ('P2:18', 'P7:7', 'brown', '', 'DATA5', 'Shielded twisted'),
         ('P2:6', 'P7:3', 'green', '', 'DATA5', 'Shielded twisted'),                                                        # a twist of three
-        ('P2:7', 'P7:5', 'grey', '', 'DATA5', 'Shield')], parts, user)
+        ('P2:7', 'P7:5', 'grey', '', 'DATA5', 'Shield')], definitions, user)
     Harness.objects.filter(pk=bus.pk).update(notes='Keep it under 50 cm: the rack is tight behind the controller.')
     ctrl = contents.place(setup, kind='device', device_id=devices['CTRL-100'].pk, label='Controller', x=40, y=60)
     first = contents.place(setup, kind='device', device_id=devices['LOAD-200'].pk, label='Load board 1', x=420, y=40)
@@ -235,7 +250,7 @@ def _make(user):
                    ends={str(e.pk): [at[loom.plugs[e.pk].device.number], loom.plugs[e.pk].pk] for e in loom.ends.all()})
     contents.ask_harness(two, ctrl, second, 'The sensor cable from the controller to load board 2, about 2 m, shielded.', user, sam)
     number_up(asset_id, list(Asset.objects.filter(category__in=workshop.below()).order_by('pk')))
-    _work(user, engineering, [setup, two, rig, rack], devices, psu, parts, [late, coming, asked, mine])
+    _work(user, engineering, [setup, two, rig, rack], devices, psu, definitions, [late, coming, asked, mine])
 
 
 def _picture(shape, colour, holes=0):
@@ -308,7 +323,7 @@ def _page(title, body, user, owner=None, parent=None, position=0):
     return page
 
 
-def _work(user, engineering, setups, devices, psu, parts, orders):
+def _work(user, engineering, setups, devices, psu, definitions, orders):
     """Projects with what is in them, documentation pages, and pictures and files of things."""
     from work.models import Project as Work
     tools = list(Asset.objects.filter(kind='tool'))
@@ -336,9 +351,9 @@ def _work(user, engineering, setups, devices, psu, parts, orders):
                                          ('DSUB-25-RECEPT', 'dsub', '#94a3b8', 25), ('M12-5-F', 'round', '#cbd5e1', 0),
                                          ('WIRE-22-RED', 'wire', '#ef4444', 0), ('WIRE-22-BLK', 'wire', '#1f2937', 0),
                                          ('WIRE-24-TP', 'wire', '#22c55e', 0)):
-        _attach(parts[number], f'{number}.png', _picture(shape, colour, holes), user, preview=True)
-    _attach(parts['DSUB-9-PLUG'], 'DSUB-9 datasheet.pdf', PDF, user)
-    _attach(parts['DSUB-25-PLUG'], 'DSUB-25 datasheet.pdf', PDF, user)
+        _attach(definitions[number], f'{number}.png', _picture(shape, colour, holes), user, preview=True)
+    _attach(definitions['DSUB-9-PLUG'], 'DSUB-9 datasheet.pdf', PDF, user)
+    _attach(definitions['DSUB-25-PLUG'], 'DSUB-25 datasheet.pdf', PDF, user)
     for number, device in devices.items():
         _attach(device, f'{number}.png', _picture('rack' if number == 'HUB-500' else 'box', device.colour), user, preview=True)
     _attach(psu, 'PSU-24.png', _picture('box', '#4b5563'), user, preview=True)
@@ -349,40 +364,40 @@ def _work(user, engineering, setups, devices, psu, parts, orders):
     _attach(orders[0], 'Quote from Acme.pdf', PDF, user)
 
     # documentation
-    start = _page('Getting started', '<p>Osmia keeps the lab\'s <b>parts</b>, <b>orders</b>, <b>devices</b>, <b>setups</b> '
+    start = _page('Getting started', '<p>Osmia keeps the lab\'s <b>item definitions</b>, <b>orders</b>, <b>devices</b>, <b>setups</b> '
                   'and <b>assets</b> together, grouped by <b>project</b>.</p><h2>Where to look</h2><ul><li>Projects: what the work is for</li>'
-                  '<li>Parts and orders: what is in stock and what is coming</li><li>Setups: how the devices are wired</li></ul>', user)
+                  '<li>Item definitions and orders: what is in stock and what is coming</li><li>Setups: how the devices are wired</li></ul>', user)
     _page('Crimping D-sub contacts', '<h2>Tools</h2><p>Use the <a href="/assets/">D-sub crimp tool</a> (T-001) for 20-24 AWG.</p>'
           '<h2>Steps</h2><ol><li>Strip 3 mm.</li><li>Crimp the contact in the 22 AWG nest.</li><li>Pull test: it must hold 20 N.</li></ol>',
           user, parent=start)
     overview = _page('Overview', '<p>The rack holds the <b>controller</b>, two <b>load boards</b> and the <b>rack hub</b>, which feeds '
-                     'five devices over D-sub 25 to D-sub 9 harnesses.</p><table><thead><tr><th>Part</th><th>What</th></tr></thead>'
+                     'five devices over D-sub 25 to D-sub 9 harnesses.</p><table><thead><tr><th>Item definition</th><th>What</th></tr></thead>'
                      '<tbody><tr><td>CTRL-100</td><td>Rack controller</td></tr><tr><td>HUB-500</td><td>Rack hub</td></tr></tbody></table>',
                      user, owner=burn)
     _page('Test procedure', '<ol><li>Power the rack with the lab supply (24 V, 5 A).</li><li>Check every load board answers on CAN.</li>'
           '<li>Run the burn-in for 48 hours.</li></ol>', user, parent=overview)
-    _page('Assembly', '<p>Gold plated contacts only. Tighten the jack screws to 0.3 Nm.</p>', user, owner=parts['DSUB-9-PLUG'])
+    _page('Assembly', '<p>Gold plated contacts only. Tighten the jack screws to 0.3 Nm.</p>', user, owner=definitions['DSUB-9-PLUG'])
     _page('Wiring notes', '<p>Each D-sub 9 gets two power wires and one shielded data set. The motor driver\'s power is spliced '
           'from the sensor\'s.</p>', user, owner=devices['HUB-500'])
 
-def _harness(setup, name, ends, wires, parts, user):
+def _harness(setup, name, ends, wires, definitions, user):
     h = Harness.objects.create(setup=setup, name=name, status='released')
     made, h.plugs = [], {}   # (where each end plugs in is the setup's: kept here for placing it there)
-    for position, (designator, part, device, connector) in enumerate(ends):   # a part, or a family
+    for position, (designator, definition, device, connector) in enumerate(ends):   # an item definition, or a family
         end = HarnessEnd(harness=h, designator=designator, position=position)
-        end.used = part_or_family(part) if part else None
+        end.used = definition_or_family(definition) if definition else None
         end.save()
         made.append(end)
         h.plugs[end.pk] = device.connectors.get(designator=connector)
     named = {e.designator: e for e in made}
-    for a, b, colour, part, wire_set, set_type in wires:   # from the first end to the second, or 'P2:7' to 'P7:1'
+    for a, b, colour, definition, wire_set, set_type in wires:   # from the first end to the second, or 'P2:7' to 'P7:1'
         start, a = (named[a.split(':')[0]], a.split(':')[1]) if ':' in a else (made[0], a)
         to, b = (named[b.split(':')[0]], b.split(':')[1]) if ':' in b else (made[1], b)
         signal = h.plugs[start.pk].pins.get(number=a).signal
         Wire.objects.create(harness=h, from_end=start, from_pin=a, to_end=to, to_pin=b, signal=signal, colour=colour,
-                            gauge='22 AWG', length=Decimal(450), part=parts[part] if part else None, wire_set=wire_set, set_type=set_type)
-    HarnessItem.objects.create(harness=h, part=parts['DSUB-CONTACT-M'], quantity=2 * len(wires))
-    HarnessItem.objects.create(harness=h, part=parts['TIE-100'], quantity=4)
+                            gauge='22 AWG', length=Decimal(450), definition=definitions[definition] if definition else None, wire_set=wire_set, set_type=set_type)
+    HarnessItem.objects.create(harness=h, definition=definitions['DSUB-CONTACT-M'], quantity=2 * len(wires))
+    HarnessItem.objects.create(harness=h, definition=definitions['TIE-100'], quantity=4)
     versions.save(h, user, 'first')
     return h
 
@@ -412,7 +427,7 @@ def switch_on(user):
             _make(user)
     except IntegrityError:
         raise ValidationError('The demo data can\'t go in: something real already has one of its names or numbers '
-                              '(e.g. a part DSUB-9-PLUG or a vendor Acme Connectors).')
+                              '(e.g. an item definition DSUB-9-PLUG or a vendor Acme Connectors).')
     made = []
     for model, last in before.items():
         made += [DemoRecord(model=model._meta.label, object_id=pk)
@@ -423,7 +438,7 @@ def switch_on(user):
 
 @transaction.atomic
 def switch_off():
-    """Take away every row the demo made. What real data uses now (a real order line of a demo part; a demo part real
+    """Take away every row the demo made. What real data uses now (a real order line of a demo item definition; a demo item definition real
     stock movements went in or out of, with its stock) stays: returns those, as text."""
     from django.apps import apps
     from django.db.models import ProtectedError, RestrictedError
@@ -433,10 +448,10 @@ def switch_off():
     left = {}
     for record in DemoRecord.objects.all():
         left.setdefault(record.model, set()).add(record.object_id)
-    moved = set(Movement.objects.exclude(pk__in=left.get('inventory.Movement', ())).values_list('part_id', flat=True))
-    stays = {('inventory.Part', pk) for pk in moved} | {
-        ('inventory.Stock', pk) for pk in apps.get_model('inventory.Stock').objects.filter(part_id__in=moved).values_list('pk', flat=True)}
-    for _ in range(20):   # deleting a row can free another (an order line, then its part)
+    moved = set(Movement.objects.exclude(pk__in=left.get('inventory.Movement', ())).values_list('definition_id', flat=True))
+    stays = {('inventory.ItemDefinition', pk) for pk in moved} | {
+        ('inventory.Stock', pk) for pk in apps.get_model('inventory.Stock').objects.filter(definition_id__in=moved).values_list('pk', flat=True)}
+    for _ in range(20):   # deleting a row can free another (an order line, then its item definition)
         progress = False
         for label, ids in list(left.items()):
             model = apps.get_model(label)

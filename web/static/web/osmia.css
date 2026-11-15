@@ -193,12 +193,12 @@ a.tile:hover { border-color: var(--brand); text-decoration: none; }
 .tab-panel[hidden] { display: none; }
 .brief-face { display: flex; justify-content: center; padding: 6px 0; }
 .brief-face svg { max-width: 100%; max-height: 220px; }
-.parts-tree a.muted > span:first-child { color: var(--muted); }
-.parts-tree a > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
-.parts-tree .thumb-sm { width: 22px; height: 22px; flex: none; }
-.parts-detail > .card { margin: 12px 0 0; }
-.parts-detail .connector-face { padding: 8px 12px; overflow: auto; }
-.parts-detail .notes-card { box-shadow: none; }
+.browser-tree a.muted > span:first-child { color: var(--muted); }
+.browser-tree a > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.browser-tree .thumb-sm { width: 22px; height: 22px; flex: none; }
+.browser-detail > .card { margin: 12px 0 0; }
+.browser-detail .connector-face { padding: 8px 12px; overflow: auto; }
+.browser-detail .notes-card { box-shadow: none; }
 tr[data-pin].lit, tr[data-pin].on { background: var(--brand-soft); }
 .inside-row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; clear: both; }
 .with-thumb { display: inline-flex; align-items: center; gap: 6px; }
@@ -495,19 +495,19 @@ form.inline { display: inline; }
 .tree-cell .tree-elbow { color: var(--faint); margin-right: 4px; }
 tr.muted > td > a { color: var(--muted); }
 .badge.via { text-decoration: none; font-weight: normal; }
-.parts-browser { display: grid; grid-template-columns: 230px minmax(0, 1fr) 360px; gap: 10px; align-items: start; }
-.parts-tree { padding: 6px 0; position: sticky; top: 8px; max-height: calc(100vh - 70px); overflow: auto; }
-.parts-tree a { display: flex; justify-content: space-between; gap: 8px; padding: 5px 12px 5px calc(12px + var(--depth, 0) * 1.1em);
+.browser { display: grid; grid-template-columns: 230px minmax(0, 1fr) 360px; gap: 10px; align-items: start; }
+.browser-tree { padding: 6px 0; position: sticky; top: 8px; max-height: calc(100vh - 70px); overflow: auto; }
+.browser-tree a { display: flex; justify-content: space-between; gap: 8px; padding: 5px 12px 5px calc(12px + var(--depth, 0) * 1.1em);
   color: var(--text); text-decoration: none; border-left: 3px solid transparent; }
-.parts-tree a:hover { background-color: var(--hover); }
-.parts-tree a.open { font-weight: 600; }
-.parts-tree a.on { background-color: var(--brand-soft); font-weight: 600; }
-.parts-middle .filters { margin-top: 0; }
-.parts-list tr[data-part] { cursor: pointer; }
-.parts-list tr[data-part]:hover { background: var(--hover); }
-.parts-list tr[data-part].on { background: var(--select); }
-.parts-list tr[data-part]:focus { outline: 2px solid var(--brand); outline-offset: -2px; }
-.parts-detail { position: sticky; top: 8px; max-height: calc(100vh - 70px); overflow: auto; }
+.browser-tree a:hover { background-color: var(--hover); }
+.browser-tree a.open { font-weight: 600; }
+.browser-tree a.on { background-color: var(--brand-soft); font-weight: 600; }
+.browser-middle .filters { margin-top: 0; }
+.browser-list tr[data-row] { cursor: pointer; }
+.browser-list tr[data-row]:hover { background: var(--hover); }
+.browser-list tr[data-row].on { background: var(--select); }
+.browser-list tr[data-row]:focus { outline: 2px solid var(--brand); outline-offset: -2px; }
+.browser-detail { position: sticky; top: 8px; max-height: calc(100vh - 70px); overflow: auto; }
 .brief-head { display: flex; align-items: center; gap: 6px; }
 .brief-head h3 { margin: 0; }
 .brief-what { margin: 4px 0 8px; }
@@ -519,46 +519,46 @@ tr.muted > td > a { color: var(--muted); }
 .brief h4 { margin: 12px 0 4px; }
 .harness-browser { grid-template-columns: 250px minmax(0, 1fr) 440px; }
 .brief-problems { margin: 4px 0; padding-left: 18px; color: var(--warn, #b45309); }
-@media (max-width: 1100px) { .parts-browser { grid-template-columns: 200px minmax(0, 1fr); } .parts-detail { grid-column: 1 / -1; position: static; } }
-@media (max-width: 700px) { .parts-browser { grid-template-columns: 1fr; } .parts-tree { position: static; max-height: 240px; } }
+@media (max-width: 1100px) { .browser { grid-template-columns: 200px minmax(0, 1fr); } .browser-detail { grid-column: 1 / -1; position: static; } }
+@media (max-width: 700px) { .browser { grid-template-columns: 1fr; } .browser-tree { position: static; max-height: 240px; } }
 
 
 /* A thing's page as a tree (it, then what it holds), the panel picked, and its details or the row picked
    (web/static/web/sections.js) */
-.parts-browser[data-sections] .parts-middle > [data-panel] > .card + .card,
-.parts-browser[data-sections] .parts-middle > [data-panel] > .columns + .card,
-.parts-browser[data-sections] .parts-middle > [data-panel] > .card + .columns { margin-top: 10px; }
-.parts-browser[data-sections] .parts-middle > [data-panel] > .card:first-child { margin-top: 0; }
-.parts-browser[data-sections] .parts-middle .columns > .card { margin: 0; }
-.parts-browser[data-sections] tr[data-brief-url] { cursor: pointer; }
-.parts-browser[data-sections] tr[data-brief-url]:hover { background: var(--hover); }
-.parts-browser[data-sections] tr[data-brief-url].on { background: var(--select); }
-.parts-browser[data-sections] tr[data-brief-url]:focus { outline: 2px solid var(--brand); outline-offset: -2px; }
-.parts-browser.wide { grid-template-columns: 230px minmax(0, 1fr); }
-.parts-browser.wide > [data-detail] { display: none; }
-.parts-tree .tree-head { font-weight: 600; }
-.parts-tree .tree-sep { border-top: 1px solid var(--border); margin: 6px 0; }
-.parts-detail .notes-card, .parts-detail .files-card, .parts-detail .docs-card { margin: 12px 0 0; box-shadow: none; }
-.parts-detail > .details { margin-top: 8px; }
-@media (max-width: 1100px) { .parts-browser.wide { grid-template-columns: 200px minmax(0, 1fr); } }
-.parts-detail [data-home] > .card, .parts-detail [data-home] > section.card { margin: 12px 0 0; }
+.browser[data-sections] .browser-middle > [data-panel] > .card + .card,
+.browser[data-sections] .browser-middle > [data-panel] > .columns + .card,
+.browser[data-sections] .browser-middle > [data-panel] > .card + .columns { margin-top: 10px; }
+.browser[data-sections] .browser-middle > [data-panel] > .card:first-child { margin-top: 0; }
+.browser[data-sections] .browser-middle .columns > .card { margin: 0; }
+.browser[data-sections] tr[data-brief-url] { cursor: pointer; }
+.browser[data-sections] tr[data-brief-url]:hover { background: var(--hover); }
+.browser[data-sections] tr[data-brief-url].on { background: var(--select); }
+.browser[data-sections] tr[data-brief-url]:focus { outline: 2px solid var(--brand); outline-offset: -2px; }
+.browser.wide { grid-template-columns: 230px minmax(0, 1fr); }
+.browser.wide > [data-detail] { display: none; }
+.browser-tree .tree-head { font-weight: 600; }
+.browser-tree .tree-sep { border-top: 1px solid var(--border); margin: 6px 0; }
+.browser-detail .notes-card, .browser-detail .files-card, .browser-detail .docs-card { margin: 12px 0 0; box-shadow: none; }
+.browser-detail > .details { margin-top: 8px; }
+@media (max-width: 1100px) { .browser.wide { grid-template-columns: 200px minmax(0, 1fr); } }
+.browser-detail [data-home] > .card, .browser-detail [data-home] > section.card { margin: 12px 0 0; }
 
-/* The trees on the left (.parts-tree) as nested boxes, like tabs with sub-tabs: each node a box ruled off from the one
+/* The trees on the left (.browser-tree) as nested boxes, like tabs with sub-tabs: each node a box ruled off from the one
    above; each level in a column further right, the columns to its left left empty, ruled down their side. */
-.parts-tree { --gutter: 22px; padding: 0; overflow-x: hidden; }
-.parts-tree a { position: relative; isolation: isolate; border-left: 0; padding: 9px 12px 9px calc(var(--depth, 0) * var(--gutter) + 12px);
+.browser-tree { --gutter: 22px; padding: 0; overflow-x: hidden; }
+.browser-tree a { position: relative; isolation: isolate; border-left: 0; padding: 9px 12px 9px calc(var(--depth, 0) * var(--gutter) + 12px);
   background: repeating-linear-gradient(90deg, transparent 0 calc(var(--gutter) - 1px), var(--border) calc(var(--gutter) - 1px) var(--gutter))
               left top / calc(var(--depth, 0) * var(--gutter)) 100% no-repeat; }
-.parts-tree a::before { content: ''; position: absolute; z-index: -1; top: 0; bottom: 0; right: 0; left: calc(var(--depth, 0) * var(--gutter));
+.browser-tree a::before { content: ''; position: absolute; z-index: -1; top: 0; bottom: 0; right: 0; left: calc(var(--depth, 0) * var(--gutter));
   border-top: 1px solid var(--border); }
-.parts-tree > a:first-child::before { border-top: 0; }
-.parts-tree a:hover { background-color: transparent; }
-.parts-tree a:hover::before { background: var(--hover); }
-.parts-tree a.on { background-color: transparent; }
-.parts-tree a.on::before { background: var(--brand-soft); box-shadow: inset 3px 0 0 var(--brand); }
-.parts-tree .tree-sep { margin: 0; border-top: 3px solid var(--border); }
-.parts-tree .tree-sep + a::before { border-top: 0; }
-.parts-tree a[hidden] { display: none; }
+.browser-tree > a:first-child::before { border-top: 0; }
+.browser-tree a:hover { background-color: transparent; }
+.browser-tree a:hover::before { background: var(--hover); }
+.browser-tree a.on { background-color: transparent; }
+.browser-tree a.on::before { background: var(--brand-soft); box-shadow: inset 3px 0 0 var(--brand); }
+.browser-tree .tree-sep { margin: 0; border-top: 3px solid var(--border); }
+.browser-tree .tree-sep + a::before { border-top: 0; }
+.browser-tree a[hidden] { display: none; }
 .tree-twist { display: inline-block; width: 16px; flex: none; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; text-align: center; }
 .tree-twist:empty { cursor: default; }
 .tree-twist:hover, .tree-twist:focus-visible { color: var(--brand); }

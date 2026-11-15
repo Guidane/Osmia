@@ -1,5 +1,5 @@
 """Harnesses: their connectors (what they plug into is the setup's to say), the pinout edited as a table,
-what is wrong with it, its parts list, versions, and building one: a serial number, a checklist, parts out of stock."""
+what is wrong with it, its parts list, versions, and building one: a serial number, a checklist, item definitions out of stock."""
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -25,8 +25,8 @@ class HarnessBase(DeviceBase):
             Pin.objects.create(connector=cls.board_j1, number=number, signal=signal)
         cls.setup = Setup.objects.create(name='Burn-in rack')
         cls.harness = Harness.objects.create(setup=cls.setup, name='Bus loom')
-        cls.p1 = HarnessEnd.objects.create(harness=cls.harness, designator='P1', part=cls.plug)
-        cls.p2 = HarnessEnd.objects.create(harness=cls.harness, designator='P2', part=cls.plug, position=1)
+        cls.p1 = HarnessEnd.objects.create(harness=cls.harness, designator='P1', definition=cls.plug)
+        cls.p2 = HarnessEnd.objects.create(harness=cls.harness, designator='P2', definition=cls.plug, position=1)
 
     def connect(self, a, b, signal='', **more):
         return Wire.objects.create(harness=self.harness, from_end=self.p1, from_pin=a, to_end=self.p2, to_pin=b, signal=signal, **more)
@@ -38,7 +38,7 @@ class PinoutTests(HarnessBase):
         self.j1.pins.filter(number='6').update(wire_set='CAN', set_type='Twisted')
         response = self.client.post(reverse('harnesses:pinout', args=[self.harness.pk]), {
             'r0_seen': 1, 'r0_from_end': p1, 'r0_from_pin': '1', 'r0_to_end': p2, 'r0_to_pin': '1', 'r0_length': '450',
-            'r0_part': 'wire-22-red', 'r0_colour': 'red',
+            'r0_definition': 'wire-22-red', 'r0_colour': 'red',
             'r1_seen': 1, 'r1_from_end': p1, 'r1_from_pin': '6', 'r1_to_end': p2, 'r1_to_pin': '7',           # crossed over
             'r2_seen': 1, 'r2_from_end': p1, 'r2_from_pin': '9', 'r2_to_end': p2, 'r2_to_pin': '3', 'r2_signal': 'GND',
             'r3_seen': 1})
@@ -50,8 +50,8 @@ class PinoutTests(HarnessBase):
         self.assertIn((self.wire, Decimal('0.45')), self.harness.parts_list())   # metres of wire
         self.assertIn((self.plug, Decimal(2)), self.harness.parts_list())                 # its two ends
         response = self.client.post(reverse('harnesses:pinout', args=[self.harness.pk]), {
-            'r0_seen': 1, 'r0_from_end': p1, 'r0_from_pin': '2', 'r0_to_end': p2, 'r0_to_pin': '3', 'r0_part': 'NOPE'}, follow=True)
-        self.assertContains(response, 'Row 1: there is no part or family &quot;NOPE&quot;.')
+            'r0_seen': 1, 'r0_from_end': p1, 'r0_from_pin': '2', 'r0_to_end': p2, 'r0_to_pin': '3', 'r0_definition': 'NOPE'}, follow=True)
+        self.assertContains(response, 'Row 1: there is no item definition or family &quot;NOPE&quot;.')
         self.assertEqual(self.harness.wires.count(), 3)                         # nothing of it was kept
 
     def test_the_harness_list_as_a_tree_and_a_harness_picked(self):
@@ -74,7 +74,7 @@ class PinoutTests(HarnessBase):
         page = self.client.get(reverse('harnesses:harness', args=[self.harness.pk]))
         self.assertContains(page, f'?setup={self.harness.setup_id}&amp;harness={self.harness.pk}">← Harnesses')   # back: the list
         self.assertContains(page, 'Used in setup')
-        for tab in ('pinout', 'wires', 'connectors', 'items', 'parts', 'versions', 'built'):   # the page as a tree, a panel each
+        for tab in ('pinout', 'wires', 'connectors', 'items', 'definitions', 'versions', 'built'):   # the page as a tree, a panel each
             self.assertContains(page, f'data-panel="{tab}"')
         self.assertContains(page, 'data-notes')
         p1, p2 = page.context['drawing']['ends']
@@ -84,12 +84,12 @@ class PinoutTests(HarnessBase):
         self.plug.family = dsub
         self.plug.save()
         p1, p2 = self.client.get(reverse('harnesses:harness', args=[self.harness.pk])).context['drawing']['ends']
-        self.assertEqual((p1['face']['shape'], len(p1['face']['contacts'])), ('dsub', 9))   # its part's family
+        self.assertEqual((p1['face']['shape'], len(p1['face']['contacts'])), ('dsub', 9))   # its item definition's family
         self.plug.branch = Branch.objects.create(family=dsub, name='socket', contacts='socket')
         self.plug.save()
         p1 = self.client.get(reverse('harnesses:harness', args=[self.harness.pk])).context['drawing']['ends'][0]
         self.assertEqual(p1['face']['contacts'][0][1], dsub.face['w'] - dsub.face['contacts'][0][1])   # a socket: mirrored
-        self.board_j1.part = None
+        self.board_j1.definition = None
         self.board_j1.save()
         self.p2.used = None
         self.p2.save()
@@ -189,8 +189,8 @@ class PinoutTests(HarnessBase):
 
 
 class BuildTests(HarnessBase):
-    def test_built_with_a_checklist_and_its_parts_from_stock(self):
-        self.connect('1', '1', length=Decimal(500), part=self.wire)
+    def test_built_with_a_checklist_and_its_definitions_from_stock(self):
+        self.connect('1', '1', length=Decimal(500), definition=self.wire)
         self.connect('2', '3')
         v1 = versions.save(self.harness, self.ada)
         stock.add(self.plug, 5, self.shelf, self.ada)

@@ -8,15 +8,15 @@
   <span class="spacer"></span><a class="btn" href="{% url 'web:labels' 'asset' %}?ids={{ asset.pk }}">🏷 Label</a><a class="btn" href="{% url 'assets:edit' asset.pk %}">Change</a></div>
 {% if asset.calibration_overdue %}<div class="flash error">Calibration was due on {{ asset.calibration_due }}.</div>{% endif %}
 
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ asset.number }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ asset.number }}">
     <a href="#now" data-section="now" class="tree-head"><span>{{ asset.number }}</span><span class="muted small"></span></a>
     {% if checks %}<a href="#checklist" data-section="checklist" style="--depth: 1"><span>Checklist</span><span class="muted small">{{ verified }} / {{ checks|length }}</span></a>{% endif %}
     <a href="#links" data-section="links" style="--depth: 1"><span>What links to it</span><span class="muted small"></span></a>
     <a href="#history" data-section="history" style="--depth: 1"><span>History</span><span class="muted small">{{ events|length }}</span></a>
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
   <div data-panel="now">
   <section class="card">
     <h3>What happened</h3>
@@ -85,7 +85,7 @@
 
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ asset.number }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'assets:edit' asset.pk %}">Change</a></div>
       <p class="brief-what">{{ asset.name }}</p>

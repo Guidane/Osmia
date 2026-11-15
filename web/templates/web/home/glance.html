@@ -2,7 +2,7 @@
 <section class="card flush glance wide">
   <div class="card-head"><h3>At a glance</h3>{% include "web/home/_x.html" %}</div>
   <table class="list">
-    {% include "web/_glance.html" with n=to_order|length one="part to order" many="parts to order" url="#to-order" level="warn" %}
+    {% include "web/_glance.html" with n=to_order|length one="item definition to order" many="item definitions to order" url="#to-order" level="warn" %}
     {% include "web/_glance.html" with n=waiting|length one="order still to come" many="orders still to come" url=orders_url %}
     {% include "web/_glance.html" with n=late one="order late" many="orders late" url=orders_url level="bad" %}
     {% include "web/_glance.html" with n=requests one="request to order" many="requests to order" url=orders_url|add:"?show=requests" level="warn" %}

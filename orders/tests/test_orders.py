@@ -1,4 +1,4 @@
-"""Orders: reordering a part (onto the vendor's draft), placing, receiving into stock (partly, then all; the maker
+"""Orders: reordering an item definition (onto the vendor's draft), placing, receiving into stock (partly, then all; the maker
 hears), what is late, what needs ordering, and cancelling."""
 from datetime import date, timedelta
 from decimal import Decimal
@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.urls import reverse
 
 from inventory import stock
-from inventory.models import Movement, Part
+from inventory.models import Movement, ItemDefinition
 from inventory.tests.test_inventory import Base
 from orders import service
 from orders.models import Order
@@ -16,7 +16,7 @@ from web.models import Notification
 
 class OrderTests(Base):
     def test_reorder_place_and_receive_in_two_parts(self):
-        response = self.client.post(reverse('inventory:part_reorder', args=[self.plug.pk]))
+        response = self.client.post(reverse('inventory:definition_reorder', args=[self.plug.pk]))
         order = Order.objects.get()
         self.assertRedirects(response, reverse('orders:order', args=[order.pk]))
         self.assertEqual((order.number, order.vendor, order.status), ('PO-0001', self.acme, 'draft'))
@@ -54,7 +54,7 @@ class OrderTests(Base):
     def test_what_is_late_and_what_needs_ordering(self):
         self.assertEqual([p for p, _, _ in service.needs_ordering()], [self.plug])
         order = Order.objects.create(vendor=self.acme, created_by=self.ada)
-        order.lines.create(part=self.plug, quantity=10)
+        order.lines.create(definition=self.plug, quantity=10)
         self.assertEqual([p for p, _, _ in service.needs_ordering()], [self.plug])   # a draft isn't coming
         service.place(order, self.ada, date.today() - timedelta(days=1))
         self.assertEqual(service.needs_ordering(), [])                               # on its way
@@ -68,22 +68,22 @@ class OrderTests(Base):
         order = Order.objects.create(vendor=self.acme, created_by=self.ada)
         with self.assertRaisesMessage(ValidationError, 'has nothing on it yet'):
             service.place(order, self.ada)
-        self.client.post(reverse('orders:line_add', args=[order.pk]), {'part': 'wire-22-red', 'quantity': '50'})
+        self.client.post(reverse('orders:line_add', args=[order.pk]), {'definition': 'wire-22-red', 'quantity': '50'})
         line = order.lines.get()
-        self.assertEqual((line.part, line.quantity), (self.wire, 50))
+        self.assertEqual((line.definition, line.quantity), (self.wire, 50))
         self.client.post(reverse('orders:line_change', args=[order.pk, line.pk]), {'quantity': '60', 'price': '0.12'})
         line.refresh_from_db()
         self.assertEqual((line.quantity, line.price), (60, Decimal('0.12')))
         service.place(order, self.ada)
-        self.assertEqual(Part.objects.get(pk=self.wire.pk).price, Decimal('0.12'))  # the last price
-        self.client.post(reverse('orders:line_add', args=[order.pk]), {'part': 'DSUB-9-PLUG', 'quantity': '1'})
+        self.assertEqual(ItemDefinition.objects.get(pk=self.wire.pk).price, Decimal('0.12'))  # the last price
+        self.client.post(reverse('orders:line_add', args=[order.pk]), {'definition': 'DSUB-9-PLUG', 'quantity': '1'})
         self.assertEqual(order.lines.count(), 1)                                     # placed: lines fixed
         with self.assertRaisesMessage(ValidationError, 'Fill in what arrived.'):
             service.receive(order, [], self.ada)
 
     def test_cancelling(self):
         order = Order.objects.create(vendor=self.acme, created_by=self.ada)
-        line = order.lines.create(part=self.plug, quantity=10)
+        line = order.lines.create(definition=self.plug, quantity=10)
         service.place(order, self.ada)
         service.receive(order, [(line, 1, self.shelf)], self.ada)
         with self.assertRaisesMessage(ValidationError, 'can\'t be cancelled any more'):
@@ -92,11 +92,11 @@ class OrderTests(Base):
         service.cancel(other, self.ada)
         self.assertEqual(Order.objects.get(pk=other.pk).status, 'cancelled')
 
-    def test_a_part_without_a_vendor_can_t_be_reordered(self):
+    def test_a_definition_without_a_vendor_can_t_be_reordered(self):
         with self.assertRaisesMessage(ValidationError, 'WIRE-22-RED has no vendor'):
             service.reorder(self.wire, self.ada)
         stock.add(self.wire, 5, self.shelf, self.ada)
-        self.assertNotContains(self.client.get(reverse('inventory:part', args=[self.wire.pk])), 'Reorder</button>')
+        self.assertNotContains(self.client.get(reverse('inventory:definition', args=[self.wire.pk])), 'Reorder</button>')
 
 
 class AssetOrderTests(Base):
@@ -113,7 +113,7 @@ class AssetOrderTests(Base):
         self.assertEqual((line.asset, line.quantity, line.price), (tool, 1, Decimal('250')))
         with self.assertRaisesMessage(ValidationError, 'is on an order already'):
             service.order_asset(tool, self.ada)
-        service.reorder(self.plug, self.ada)                                   # a part on the same draft
+        service.reorder(self.plug, self.ada)                                   # an item definition on the same draft
         self.assertEqual(order.lines.count(), 2)
         service.place(order, self.ada)
         self.assertEqual(service.on_order(self.plug), 10)
@@ -129,7 +129,7 @@ class AssetOrderTests(Base):
         from assets.models import Asset
         meter = Asset.objects.create(number='M-002', name='Meter', kind='measuring', status='ordered', vendor=self.acme)
         order = Order.objects.create(vendor=self.acme, created_by=self.ada)
-        self.client.post(reverse('orders:line_add', args=[order.pk]), {'part': 'm-002'})
+        self.client.post(reverse('orders:line_add', args=[order.pk]), {'definition': 'm-002'})
         self.assertEqual(order.lines.get().asset, meter)
-        response = self.client.post(reverse('orders:line_add', args=[order.pk]), {'part': 'M-002'}, follow=True)
+        response = self.client.post(reverse('orders:line_add', args=[order.pk]), {'definition': 'M-002'}, follow=True)
         self.assertContains(response, 'not an asset waiting to be ordered')

@@ -6,7 +6,7 @@ from django.urls import reverse
 from accounts.models import Department, User
 from budgets.models import Budget
 from harnesses.models import Harness
-from inventory.models import Category, Location, Part
+from inventory.models import Category, Location, ItemDefinition
 from setups.models import Setup
 from assets.models import Asset
 
@@ -25,8 +25,8 @@ class EditFormTests(TestCase):
         shelf = Location.objects.create(name='Shelf', parent=store)
         self.selected(reverse('inventory:location_edit', args=[shelf.pk]), store.pk)
         wire = Category.objects.create(name='Wire')
-        part = Part.objects.create(number='W-1', category=wire)
-        self.selected(reverse('inventory:part_edit', args=[part.pk]), wire.pk)
+        definition = ItemDefinition.objects.create(number='W-1', category=wire)
+        self.selected(reverse('inventory:definition_edit', args=[definition.pk]), wire.pk)
         engineering = Department.objects.create(name='Engineering')
         test = Department.objects.create(name='Test', parent=engineering)
         self.selected(reverse('accounts:department_edit', args=[test.pk]), engineering.pk)

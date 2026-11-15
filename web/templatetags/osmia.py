@@ -118,7 +118,7 @@ def markup(text):
 
 @register.filter
 def kind(obj):
-    """What ``obj`` is called in addresses (``web.things``): part, asset, harness, …"""
+    """What ``obj`` is called in addresses (``web.things``): item definition, asset, harness, …"""
     from web.things import kind_of
     return kind_of(obj)
 
@@ -134,7 +134,7 @@ def json_text(value):
 
 @register.filter
 def brief_url(obj):
-    """Where the details of ``obj`` beside a list are (a part, a family, an asset, a harness, or a kind of
+    """Where the details of ``obj`` beside a list are (an item definition, a family, an asset, a harness, or a kind of
     ``web.briefs``), or '' when it has none."""
     from django.urls import reverse
 
@@ -145,7 +145,7 @@ def brief_url(obj):
     label = obj._meta.label
     if label == 'inventory.Branch':
         return reverse('inventory:family_brief', args=[obj.family_id])
-    own = {'inventory.Part': 'inventory:part_brief', 'inventory.Family': 'inventory:family_brief',
+    own = {'inventory.ItemDefinition': 'inventory:definition_brief', 'inventory.Family': 'inventory:family_brief',
            'assets.Asset': 'assets:brief', 'harnesses.Harness': 'harnesses:brief'}
     if label in own:
         return reverse(own[label], args=[obj.pk])
@@ -156,7 +156,7 @@ def brief_url(obj):
 
 @register.filter
 def link(obj):
-    """``obj`` as a link to its page (a record of Osmia: a location, vendor, part, setup, …); just its name when it has
+    """``obj`` as a link to its page (a record of Osmia: a location, vendor, item definition, setup, …); just its name when it has
     no page of its own (a person), nothing when there is none."""
     from django.utils.html import format_html
     if obj is None or obj == '':

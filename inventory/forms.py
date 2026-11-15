@@ -3,36 +3,36 @@ from django.utils.html import format_html, format_html_join
 
 from web.forms import TreeForm, tree_choices
 
-from .models import Attribute, Branch, Category, Family, FamilyBranch, Location, Part, Vendor, choices_of_parts, part_or_family
+from .models import Attribute, Branch, Category, Family, FamilyBranch, Location, ItemDefinition, Vendor, choices_of_definitions, definition_or_family
 
 
-class PartOrFamilyInput(forms.TextInput):
-    """A box for a part number or a family name, suggesting both."""
+class DefinitionOrFamilyInput(forms.TextInput):
+    """A box for a item number or a family name, suggesting both."""
     def render(self, name, value, attrs=None, renderer=None):
         listed = f'{(attrs or {}).get("id") or name}-list'
         box = super().render(name, value, {**(attrs or {}), 'list': listed, 'autocomplete': 'off'}, renderer)
         return box + format_html('<datalist id="{}">{}</datalist>', listed,
-                                 format_html_join('', '<option value="{}">{}</option>', choices_of_parts()))
+                                 format_html_join('', '<option value="{}">{}</option>', choices_of_definitions()))
 
 
-class PartOrFamilyField(forms.CharField):
-    """A part, or a family of them, by its number or name."""
-    widget = PartOrFamilyInput
+class DefinitionOrFamilyField(forms.CharField):
+    """An item definition, or a family of them, by its number or name."""
+    widget = DefinitionOrFamilyInput
 
     def prepare_value(self, value):
         return getattr(value, 'number', value)
 
     def to_python(self, value):
         text = super().to_python(value)
-        found = part_or_family(text)
+        found = definition_or_family(text)
         if text and found is None:
-            raise forms.ValidationError(f'There is no part or family "{text}".')
+            raise forms.ValidationError(f'There is no item definition or family "{text}".')
         return found
 
 
-class PartOrFamilyForm(forms.ModelForm):
-    """A form of something that names a part or a family (``used``)."""
-    used = PartOrFamilyField(required=False, label='Part or family')
+class DefinitionOrFamilyForm(forms.ModelForm):
+    """A form of something that names an item definition or a family (``used``)."""
+    used = DefinitionOrFamilyField(required=False, label='Item definition or family')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -50,10 +50,10 @@ def attribute_field(attribute, required, initial):
     if attribute.kind == Attribute.Kind.AUTO:   # given, not filled in
         common['required'] = False
         return forms.CharField(disabled=True, **common)
-    if attribute.kind == Attribute.Kind.LINK and not attribute.to_assets:   # any part: by part number
-        return forms.CharField(widget=forms.TextInput(attrs={'list': 'part-numbers', 'autocomplete': 'off',
-                                                             'placeholder': 'Part numbers, separated by commas'}), **common)
-    if attribute.is_link:   # a category's parts, or assets: picked from a list
+    if attribute.kind == Attribute.Kind.LINK and not attribute.to_assets:   # any item definition: by item number
+        return forms.CharField(widget=forms.TextInput(attrs={'list': 'definition-numbers', 'autocomplete': 'off',
+                                                             'placeholder': 'Item numbers, separated by commas'}), **common)
+    if attribute.is_link:   # a category's item definitions, or assets: picked from a list
         choices = [(c.pk, str(c) if attribute.to_assets else f'{c.number} {c.description}'.strip()) for c in attribute.candidates()]
         return forms.MultipleChoiceField(choices=choices, widget=forms.SelectMultiple(attrs={'size': min(max(len(choices), 2), 6)}), **common)
     if attribute.kind == Attribute.Kind.CHOICE:
@@ -68,7 +68,7 @@ def attribute_field(attribute, required, initial):
 
 
 class AttributesForm(TreeForm):
-    """A form for a part or an asset: the attributes of its category, and of those above it, are filled in on it too."""
+    """A form for an item definition or an asset: the attributes of its category, and of those above it, are filled in on it too."""
 
     def __init__(self, *args, **kwargs):
         from .attributes import store_for
@@ -113,13 +113,13 @@ class AttributesForm(TreeForm):
         return data
 
     def _linked(self, attribute, raw):
-        """The parts or assets a link attribute names: picked from its list, or part numbers separated by commas."""
+        """The item definitions or assets a link attribute names: picked from its list, or item numbers separated by commas."""
         if attribute.kind == Attribute.Kind.LINK and not attribute.to_assets:
             numbers = [n.strip() for n in str(raw or '').split(',') if n.strip()]
-            found = {n: Part.objects.filter(number__iexact=n).first() for n in numbers}
-            missing = [n for n, part in found.items() if part is None]
+            found = {n: ItemDefinition.objects.filter(number__iexact=n).first() for n in numbers}
+            missing = [n for n, definition in found.items() if definition is None]
             if missing:
-                raise forms.ValidationError(f'There is no part {", ".join(missing)}.')
+                raise forms.ValidationError(f'There is no item definition {", ".join(missing)}.')
             return list(found.values())
         return list(attribute.candidates().filter(pk__in=raw or []))
 
@@ -129,13 +129,13 @@ class AttributesForm(TreeForm):
         return obj
 
 
-class PartForm(AttributesForm):
-    """A part, and the attributes of its category (and of those above it)."""
-    tree_fields = {'category': (Category, {'kind': Category.Kind.PARTS})}
+class DefinitionForm(AttributesForm):
+    """An item definition, and the attributes of its category (and of those above it)."""
+    tree_fields = {'category': (Category, {'kind': Category.Kind.DEFINITIONS})}
 
     class Meta:
-        model = Part
-        fields = ['number', 'description', 'category', 'kin', 'manufacturer', 'mpn', 'unit', 'datasheet',
+        model = ItemDefinition
+        fields = ['kind', 'number', 'description', 'category', 'kin', 'manufacturer', 'mpn', 'unit', 'datasheet',
                   'vendor', 'vendor_number', 'price', 'minimum', 'reorder_quantity', 'notes', 'active']
         widgets = {'notes': forms.Textarea(attrs={'rows': 3})}
 
@@ -144,13 +144,25 @@ class PartForm(AttributesForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['vendor'].queryset = Vendor.objects.filter(active=True) | Vendor.objects.filter(pk=self.instance.vendor_id)
+        self.fields['kind'].required = False   # not sent: as it was
         branches = {}
         for b in Branch.objects.select_related('family'):
             branches.setdefault(b.family_id, []).append((f'b{b.pk}', b.number))
         self.fields['kin'].choices = [('', '—')] + [(f.name, [(f'f{f.pk}', f'{f.name} (any)')] + branches.get(f.pk, []))
                                                     for f in Family.objects.all()]
-        part = self.instance
-        self.initial['kin'] = f'b{part.branch_id}' if part.branch_id else f'f{part.family_id}' if part.family_id else ''
+        definition = self.instance
+        self.initial['kin'] = f'b{definition.branch_id}' if definition.branch_id else f'f{definition.family_id}' if definition.family_id else ''
+
+    def clean_kind(self):
+        return self.cleaned_data['kind'] or self.instance.kind or ItemDefinition.Kind.PHYSICAL
+
+    def clean(self):
+        """Only a physical item definition is kept in stock: anything else has no family, minimum or reorder quantity."""
+        data = super().clean()
+        if data.get('kind') and data['kind'] != ItemDefinition.Kind.PHYSICAL:
+            data['minimum'] = data['reorder_quantity'] = 0
+            self.instance.family = self.instance.branch = None
+        return data
 
     def clean_kin(self):
         """The family, and the branch of it when one is picked."""
@@ -163,7 +175,7 @@ class PartForm(AttributesForm):
 
 class AttributeForm(forms.ModelForm):
     """An attribute of a category. Its name can't be one the categories above or under it use; changing its type or
-    choices is refused while what parts and assets filled in wouldn't fit."""
+    choices is refused while what item definitions and assets filled in wouldn't fit."""
     class Meta:
         model = Attribute
         fields = ['name', 'kind', 'unit', 'choices', 'prefix', 'digits', 'target', 'links_to', 'reverse_name', 'required', 'help']
@@ -172,16 +184,16 @@ class AttributeForm(forms.ModelForm):
     def __init__(self, *args, category, **kwargs):   # (category None: an asset field)
         super().__init__(*args, **kwargs)
         self.category = category
-        self.fields['target'].choices = tree_choices(Category, kind=Category.Kind.PARTS)
+        self.fields['target'].choices = tree_choices(Category, kind=Category.Kind.DEFINITIONS)
         self.fields['digits'].required = False
-        if category is None:   # what interacts with parts of a category is a part's
+        if category is None:   # what interacts with item definitions of a category is an item definition's
             self.fields['kind'].choices = [c for c in self.fields['kind'].choices if c[0] != Attribute.Kind.INTERACTS]
             for name in ('target', 'reverse_name'):
                 del self.fields[name]
 
     def _values(self):
-        """What parts and assets filled in for it."""
-        return list(self.instance.values.select_related('part')) + list(self.instance.asset_values.select_related('asset'))
+        """What item definitions and assets filled in for it."""
+        return list(self.instance.values.select_related('definition')) + list(self.instance.asset_values.select_related('asset'))
 
     def clean_digits(self):
         return self.cleaned_data.get('digits') or 5
@@ -206,7 +218,7 @@ class AttributeForm(forms.ModelForm):
         if trial.kind == Attribute.Kind.CHOICE and not trial.choice_list():
             self.add_error('choices', 'List the choices, one per line.')
         elif trial.kind == Attribute.Kind.INTERACTS and not data.get('target'):
-            self.add_error('target', 'Pick the category whose parts it interacts with.')
+            self.add_error('target', 'Pick the category whose item definitions it interacts with.')
         elif trial.kind == Attribute.Kind.LINK and not data.get('links_to'):
             self.add_error('links_to', 'Say what it links to.')
         elif was_link and (trial.kind != self.instance.kind or trial.links_to != self.instance.links_to
@@ -222,7 +234,7 @@ class AttributeForm(forms.ModelForm):
                 try:
                     trial.clean_value(v.value)
                 except forms.ValidationError:
-                    misfits.append(f'{getattr(v, "part", None) or v.asset}: "{v.value}"')
+                    misfits.append(f'{getattr(v, "definition", None) or v.asset}: "{v.value}"')
             if misfits:
                 raise forms.ValidationError(f'{len(misfits)} would not fit any more: '
                                             + ', '.join(misfits[:3]) + (', …' if len(misfits) > 3 else '') + '. Change those first.')
@@ -249,7 +261,7 @@ class AttributeForm(forms.ModelForm):
                 number_up(attribute, list(Asset.objects.order_by('pk')))
                 return attribute
             below = self.category.below()
-            number_up(attribute, list(Part.objects.filter(category_id__in=below).order_by('pk'))
+            number_up(attribute, list(ItemDefinition.objects.filter(category_id__in=below).order_by('pk'))
                       + list(Asset.objects.filter(category_id__in=below).order_by('pk')))
             return attribute
         for v in self._values():   # kept as the (new) type keeps them, e.g. "10.0" → "10"
@@ -278,7 +290,7 @@ class LocationForm(TreeForm):
 
 
 class FamilyForm(TreeForm):
-    """A family of parts: its name and the branch it sits in (its connector face is made in the connector editor)."""
+    """A family of item definitions: its name and the branch it sits in (its connector face is made in the connector editor)."""
     tree_fields = {'group': FamilyBranch}
 
     class Meta:
@@ -287,8 +299,8 @@ class FamilyForm(TreeForm):
 
     def clean_name(self):
         name = self.cleaned_data['name'].strip()
-        if Part.objects.filter(number__iexact=name).exists():
-            raise forms.ValidationError('That is a part number: give the family a name of its own.')
+        if ItemDefinition.objects.filter(number__iexact=name).exists():
+            raise forms.ValidationError('That is a item number: give the family a name of its own.')
         return name
 
 
@@ -313,7 +325,7 @@ class FamilyBranchForm(TreeForm):
 
 
 class BranchForm(forms.ModelForm):
-    """A gender of a family (a branch of it): its name, and which side of the connector its parts are drawn as."""
+    """A gender of a family (a branch of it): its name, and which side of the connector its item definitions are drawn as."""
     class Meta:
         model = Branch
         fields = ['name', 'contacts']
@@ -332,7 +344,7 @@ class BranchForm(forms.ModelForm):
 
 
 class CategoryForm(TreeForm):
-    """A category of parts or of assets (``kind``), under one of the same kind."""
+    """A category of item definitions or of assets (``kind``), under one of the same kind."""
     class Meta:
         model = Category
         fields = ['name', 'parent']

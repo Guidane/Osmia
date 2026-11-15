@@ -7,8 +7,8 @@
   {% if user.is_superuser %}<a class="btn" href="{% url 'accounts:department_new' %}?parent={{ department.pk }}">＋ Under it</a>
   <a class="btn" href="{% url 'accounts:department_edit' department.pk %}">Change</a>
   <form method="post" action="{% url 'accounts:department_delete' department.pk %}" class="inline" data-confirm="Delete {{ department.name }}? Its people will be in no department.">{% csrf_token %}<button class="btn ghost">Delete</button></form>{% endif %}</div>
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ department.name }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ department.name }}">
     {% for d in department.chain %}{% if d != department %}<a href="{{ d.get_absolute_url }}" style="--depth: {{ forloop.counter0 }}"><span>{{ d.name }}</span><span class="muted small"></span></a>{% endif %}{% endfor %}
     <a href="#people" data-section="people" class="tree-head" style="--depth: {{ department.chain|length|add:-1 }}"><span>{{ department.name }} · people</span><span class="muted small">{{ people|length }}</span></a>
     <a href="#budgets" data-section="budgets" style="--depth: {{ department.chain|length }}"><span>Budgets</span><span class="muted small">{{ budgets|length }}</span></a>
@@ -16,7 +16,7 @@
     {% for c in children %}<a href="{{ c.get_absolute_url }}" style="--depth: {{ department.chain|length }}"><span>{{ c.name }}</span><span class="muted small"></span></a>{% endfor %}
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <div data-panel="people">
 <section class="card flush">
   <div class="card-head"><h3>People <span class="muted small">{{ people|length }}</span></h3></div>
@@ -44,7 +44,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ department.name }}</h3></div>
       {% if department.description %}<p class="brief-what">{{ department.description|linebreaksbr }}</p>{% endif %}

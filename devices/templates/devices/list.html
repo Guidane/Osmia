@@ -6,19 +6,19 @@
   <a class="btn" href="?export=1{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if origin %}&amp;origin={{ origin }}{% endif %}">⬇ Excel</a>
   <a class="btn primary" href="{% url 'devices:new' %}">＋ New device</a></div>
 
-<div class="parts-browser" data-param="device">
+<div class="browser" data-param="device">
   {% include "web/_tree_nav.html" with label="Devices" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters">
       {% if origin %}<input type="hidden" name="origin" value="{{ origin }}">{% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Number, name, manufacturer…" aria-label="Search devices">
       <button class="btn">Find</button>
     </form>
     <div class="card flush">
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th></th><th>Device</th><th>Name</th><th>Manufacturer</th><th class="num">Connectors</th><th class="num">Assets</th><th>Version</th><th></th></tr>
-        {% for d in devices %}<tr data-part="{{ d.pk }}" data-brief-url="{% url 'web:brief' 'device' d.pk %}" class="{% if picked.pk == d.pk %}on{% endif %}" tabindex="0">
+        {% for d in devices %}<tr data-row="{{ d.pk }}" data-brief-url="{% url 'web:brief' 'device' d.pk %}" class="{% if picked.pk == d.pk %}on{% endif %}" tabindex="0">
           <td class="thumb-cell">{% thumb d %}</td><td><span class="dot" style="background:{{ d.colour }}"></span><a href="{{ d.get_absolute_url }}">{{ d.number }}</a></td><td>{{ d.name }}{% if d.origin == 'external' %} <span class="badge">Bought</span>{% endif %}</td>
           <td class="small">{{ d.manufacturer }}{% if d.model %} · {{ d.model }}{% endif %}</td>
           <td class="num">{{ d.n_connectors }}</td><td class="num">{{ d.n_units }}</td>
@@ -29,7 +29,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick a device to see it here.</p>{% endif %}
   </aside>
 </div>

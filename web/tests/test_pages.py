@@ -77,7 +77,7 @@ class BrowserTests(TestCase):
         ada = get_user_model().objects.create_superuser('ada', 'ada@example.com', 'pw')
         self.client.force_login(ada)
         demo.switch_on(ada)
-        pages = [('inventory:parts', 'part', 'inventory.Part', None), ('assets:list', 'asset', 'assets.Asset', None),
+        pages = [('inventory:definitions', 'definition', 'inventory.ItemDefinition', None), ('assets:list', 'asset', 'assets.Asset', None),
                  ('harnesses:list', 'harness', 'harnesses.Harness', None), ('inventory:families', 'family', 'inventory.Family', None),
                  ('devices:list', 'device', 'devices.Device', 'device'), ('orders:list', 'order', 'orders.Order', 'order'),
                  ('inventory:vendors', 'vendor', 'inventory.Vendor', 'vendor'), ('setups:list', 'setup', 'setups.Setup', 'setup'),
@@ -88,7 +88,7 @@ class BrowserTests(TestCase):
                 thing = apps.get_model(model).objects.first()
                 page = self.client.get(reverse(name), {param: thing.pk})
                 self.assertEqual(page.status_code, 200)
-                self.assertContains(page, 'parts-browser')
+                self.assertContains(page, 'browser')
                 self.assertContains(page, 'data-brief="%d"' % thing.pk)                     # its details, already open
                 if kind:
                     for other in apps.get_model(model).objects.all()[:5]:

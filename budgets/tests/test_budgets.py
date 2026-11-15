@@ -22,7 +22,7 @@ class BudgetTests(Base):
 
     def order(self, budget, quantity, price='2.50'):
         order = Order.objects.create(vendor=self.acme, budget=budget, created_by=self.ada)
-        line = order.lines.create(part=self.plug, quantity=quantity, price=Decimal(price))
+        line = order.lines.create(definition=self.plug, quantity=quantity, price=Decimal(price))
         return order, line
 
     def test_drafts_are_planned_placed_orders_are_spent_and_it_rolls_up(self):

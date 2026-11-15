@@ -4,17 +4,17 @@
 {% block content %}
 <div class="page-head"><h1>Setups</h1><span class="spacer"></span><a class="btn" href="{% url 'harnesses:list' %}">Harnesses</a><a class="btn primary" href="{% url 'setups:new' %}{% if work %}?in_project={{ work.pk }}{% endif %}">＋ New setup</a></div>
 
-<div class="parts-browser" data-param="setup">
+<div class="browser" data-param="setup">
   {% include "web/_tree_nav.html" with label="Projects" %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
     <form method="get" class="filters">{% if work %}<input type="hidden" name="work" value="{{ work.pk }}">{% elif loose %}<input type="hidden" name="none" value="1">{% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Code, name…" aria-label="Search setups">
       <button class="btn">Find</button></form>
     <div class="card flush">
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th>Setup</th>{% if not work %}<th>Project</th>{% endif %}<th class="num">Devices</th><th class="num">Harnesses</th><th>Owner</th></tr>
-        {% for p in setups %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'setup' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
+        {% for p in setups %}<tr data-row="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'setup' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
           <td><a href="{{ p.get_absolute_url }}">{{ p }}</a></td>
           {% if not work %}<td class="small">{{ p.in_project|link|default:"" }}</td>{% endif %}
           <td class="num">{{ p.n_devices }}</td><td class="num">{{ p.n_harnesses }}</td><td class="small">{{ p.owner|default:"" }}</td>
@@ -23,7 +23,7 @@
     </div>
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     {% if brief %}{% include "web/_brief.html" %}{% else %}<p class="muted small pad">Pick a setup to see it here.</p>{% endif %}
   </aside>
 </div>

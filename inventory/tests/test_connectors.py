@@ -5,7 +5,7 @@ import json
 from django.urls import reverse
 
 from inventory.faces import drawn, face_of, start
-from inventory.models import Branch, Family, Part
+from inventory.models import Branch, Family, ItemDefinition
 from inventory.tests.test_inventory import Base
 
 
@@ -111,13 +111,13 @@ class ConnectorTests(Base):
     def test_what_is_drawn_comes_from_the_family(self):
         family = Family.objects.create(name='D-sub 9', face=start('staggered', 9))
         socket = Branch.objects.create(family=family, name='socket', contacts='socket')
-        plug = Part.objects.create(number='P-9', family=family)
-        recept = Part.objects.create(number='R-9', family=family, branch=socket)
+        plug = ItemDefinition.objects.create(number='P-9', family=family)
+        recept = ItemDefinition.objects.create(number='R-9', family=family, branch=socket)
         self.assertEqual(face_of(plug), family.face)
         first = family.face['contacts'][0]
         self.assertEqual(face_of(recept)['contacts'][0], ['1', family.face['w'] - first[1], first[2]])   # mirrored
         self.assertEqual(face_of(socket), face_of(recept))
-        self.assertIsNone(face_of(Part.objects.create(number='LOOSE')))
+        self.assertIsNone(face_of(ItemDefinition.objects.create(number='LOOSE')))
         extra = drawn(plug, ['1', '2', 'S'])                                                 # a pin not on the face: below it
         self.assertEqual(extra['contacts'][-1][0], 'S')
         self.assertEqual(extra['below'], family.face['h'])

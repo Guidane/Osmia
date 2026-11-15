@@ -1,19 +1,19 @@
-/* A list beside its tree, with the details of the row picked on the right (.parts-browser): a row (tr[data-part], its
+/* A list beside its tree, with the details of the row picked on the right (.browser): a row (tr[data-row], its
    details at data-brief-url) picked by a click, Enter or the arrow keys shows them in [data-detail], and is kept in
-   the address (?<data-param of the browser, else "part">=<its data-part>). A "brief" event on the document tells
+   the address (?<data-param of the browser, else "row">=<its data-row>). A "brief" event on the document tells
    when details were put there (to draw what they hold). Ticking rows: [data-pick-all] ticks them all; a
    [data-labels] button opens the labels of those ticked (none ticked: of all listed). */
 (function () {
   'use strict';
-  var root = document.querySelector('.parts-browser');
+  var root = document.querySelector('.browser');
   if (!root) return;
-  var detail = root.querySelector('[data-detail]'), rows = Array.prototype.slice.call(root.querySelectorAll('tr[data-part]'));
-  var param = root.dataset.param || 'part', asked = 0;
+  var detail = root.querySelector('[data-detail]'), rows = Array.prototype.slice.call(root.querySelectorAll('tr[data-row]'));
+  var param = root.dataset.param || 'row', asked = 0;
   function told() { document.dispatchEvent(new CustomEvent('brief', { detail: detail })); }
   function pick(row) {
     rows.forEach(function (r) { r.classList.toggle('on', r === row); });
     var url = new URL(location.href);
-    url.searchParams.set(param, row.dataset.part);
+    url.searchParams.set(param, row.dataset.row);
     history.replaceState(null, '', url);
     var mine = ++asked;
     fetch(row.dataset.briefUrl, { headers: { 'X-Requested-With': 'fetch' } }).then(function (r) { return r.text(); }).then(function (html) {

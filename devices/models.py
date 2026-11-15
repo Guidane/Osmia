@@ -5,7 +5,7 @@ from django.db import models
 from django.db.models.functions import Lower
 from django.urls import reverse
 
-from inventory.models import Part, PartOrFamily, part_or_family
+from inventory.models import ItemDefinition, DefinitionOrFamily, definition_or_family
 from web.models import Version
 
 SET_TYPES = ['Straight', 'Twisted', 'Shielded twisted', 'Shielded']   # how the wires of a set go together
@@ -18,7 +18,7 @@ def pin_order(number):
     return [(0, int(p), '') if p.isdigit() else (1, 0, p.lower()) for p in re.split(r'(\d+)', number or '') if p]
 
 
-class Device(PartOrFamily):
+class Device(DefinitionOrFamily):
     class Origin(models.TextChoices):
         IN_HOUSE = 'in_house', 'Made in-house'
         EXTERNAL = 'external', 'Bought (external)'
@@ -29,7 +29,7 @@ class Device(PartOrFamily):
     origin = models.CharField(max_length=10, choices=Origin, default=Origin.IN_HOUSE)
     manufacturer = models.CharField(max_length=200, blank=True)
     model = models.CharField(max_length=200, blank=True)
-    part = models.ForeignKey(Part, null=True, blank=True, on_delete=models.SET_NULL, related_name='devices')
+    definition = models.ForeignKey(ItemDefinition, null=True, blank=True, on_delete=models.SET_NULL, related_name='devices')
     colour = models.CharField(max_length=7, default=COLOURS[0])
     notes = models.TextField(blank=True)
     version = models.PositiveIntegerField(default=0, editable=False)   # the last version saved
@@ -50,8 +50,8 @@ class Device(PartOrFamily):
     def snapshot(self):
         return {'number': self.number, 'name': self.name, 'origin': self.origin, 'colour': self.colour,
                 'description': self.description, 'manufacturer': self.manufacturer,
-                'model': self.model, 'part': self.used_name, 'notes': self.notes,
-                'connectors': [c.snapshot() for c in self.connectors.prefetch_related('pins').select_related('part', 'family')]}
+                'model': self.model, 'definition': self.used_name, 'notes': self.notes,
+                'connectors': [c.snapshot() for c in self.connectors.prefetch_related('pins').select_related('definition', 'family')]}
 
     def restore(self, data):
         """As it was in ``data``: its fields, and its connectors and pins matched by designator and number (what
@@ -60,7 +60,7 @@ class Device(PartOrFamily):
             setattr(self, key, data.get(key, ''))
         for key in ('origin', 'colour'):   # not kept by older versions: then as it is
             setattr(self, key, data.get(key, getattr(self, key)))
-        self.used = part_or_family(data.get('part'))
+        self.used = definition_or_family(data.get('definition'))
         self.save()
         wanted = {c['designator']: c for c in data.get('connectors', [])}
         for connector in self.connectors.all():
@@ -69,7 +69,7 @@ class Device(PartOrFamily):
         for position, (designator, c) in enumerate(wanted.items()):
             connector, _ = Connector.objects.update_or_create(device=self, designator=designator, defaults={
                 'name': c.get('name', ''), 'position': position})
-            connector.used = part_or_family(c.get('part'))
+            connector.used = definition_or_family(c.get('definition'))
             connector.save()
             pins = {p['number']: p for p in c.get('pins', [])}
             connector.pins.exclude(number__in=pins).delete()
@@ -79,11 +79,11 @@ class Device(PartOrFamily):
                                                        'set_type': p.get('set_type', 'Straight'), 'description': p.get('description', '')})
 
 
-class Connector(PartOrFamily):
+class Connector(DefinitionOrFamily):
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='connectors')
     designator = models.CharField(max_length=30)
     name = models.CharField(max_length=200, blank=True)
-    part = models.ForeignKey(Part, null=True, blank=True, on_delete=models.SET_NULL, related_name='device_connectors')
+    definition = models.ForeignKey(ItemDefinition, null=True, blank=True, on_delete=models.SET_NULL, related_name='device_connectors')
     position = models.PositiveIntegerField(default=0)
     side = models.CharField(max_length=6, blank=True, choices=[(s, s) for s in ('top', 'right', 'bottom', 'left')])
     along = models.FloatField(default=0.5)   # where on that side, 0 to 1 (side empty: placed by itself)
@@ -96,7 +96,7 @@ class Connector(PartOrFamily):
         return f'{self.device.number} {self.designator}'
 
     def snapshot(self):
-        return {'designator': self.designator, 'name': self.name, 'part': self.used_name,
+        return {'designator': self.designator, 'name': self.name, 'definition': self.used_name,
                 'pins': [{'number': p.number, 'signal': p.signal, 'set': p.wire_set, 'set_type': p.set_type, 'description': p.description}
                          for p in self.ordered_pins()]}
 

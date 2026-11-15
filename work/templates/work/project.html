@@ -7,8 +7,8 @@
   <span class="badge{% if project.status == 'active' %} ok{% endif %}">{{ project.get_status_display }}</span>
   <span class="spacer"></span><a class="btn" href="{% url 'work:edit' project.pk %}">Change</a></div>
 
-<div class="parts-browser" data-sections>
-  <nav class="card parts-tree" aria-label="{{ project }}">
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ project }}">
     <a href="#subs" data-section="subs" class="tree-head"><span>{{ project.code|default:project.name }}</span><span class="muted small">{{ children|length }}</span></a>
     {% for c in children %}<a href="{{ c.get_absolute_url }}" style="--depth: 1"><span>📁 {{ c }}</span><span class="muted small"></span></a>{% endfor %}
     <div class="tree-sep"></div>
@@ -20,7 +20,7 @@
     <a href="#tools" data-section="tools"><span>Tools</span><span class="muted small">{{ tools|length|add:n_sub.tools }}</span></a>
   </nav>
 
-  <div class="parts-middle">
+  <div class="browser-middle">
 <div data-panel="subs">
 <section class="card flush">
     <div class="card-head"><h3>Sub-projects <span class="muted small">{{ children|length }}</span></h3><a class="btn small" href="{% url 'work:new' %}?parent={{ project.pk }}">＋ Sub-project</a></div>
@@ -101,7 +101,7 @@
 
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
     <div class="brief">
       <div class="brief-head"><h3>{{ project }}</h3><span class="badge{% if project.status == 'active' %} ok{% endif %}">{{ project.get_status_display }}</span>
         <span class="spacer"></span><a class="btn small ghost" href="{% url 'work:edit' project.pk %}">Change</a></div>

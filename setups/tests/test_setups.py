@@ -104,17 +104,17 @@ class PageTests(SetupBase):
                          [(self.setup.name, 2, 1), ('Field test', 2, 1)])
 
     def test_what_it_needs_and_ordering_what_is_missing(self):
-        Wire.objects.create(harness=self.harness, from_end=self.p1, from_pin='1', to_end=self.p2, to_pin='1', length=Decimal(400), part=self.wire)
-        HarnessItem.objects.create(harness=self.harness, part=self.plug, quantity=1)
+        Wire.objects.create(harness=self.harness, from_end=self.p1, from_pin='1', to_end=self.p2, to_pin='1', length=Decimal(400), definition=self.wire)
+        HarnessItem.objects.create(harness=self.harness, definition=self.plug, quantity=1)
         stock.add(self.plug, 1, self.shelf, self.ada)
-        devices, harnesses, parts = contents.needs(self.setup)
+        devices, harnesses, definitions = contents.needs(self.setup)
         self.assertEqual([(d.number, n) for d, n in devices], [('CTRL-1', 1), ('LOAD-1', 1)])
-        needed = {p.number: (q, have) for p, q, have, _ in parts}
+        needed = {p.number: (q, have) for p, q, have, _ in definitions}
         self.assertEqual(needed['DSUB-9-PLUG'], (3, 1))                         # two ends and one extra
         self.assertEqual(needed['WIRE-22-RED'][0], Decimal('0.4'))
         self.client.post(reverse('setups:needs', args=[self.setup.pk]) + '?count=2')
         line = Order.objects.get().lines.get()
-        self.assertEqual((line.part, line.quantity), (self.plug, 5))           # 6 needed, 1 on hand
+        self.assertEqual((line.definition, line.quantity), (self.plug, 5))           # 6 needed, 1 on hand
         response = self.client.get(reverse('setups:needs', args=[self.setup.pk]), {'export': 1})
         self.assertEqual(response.status_code, 200)
 

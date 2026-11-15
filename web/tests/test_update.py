@@ -14,7 +14,7 @@ from django.db import connection
 from django.test import TransactionTestCase, override_settings
 from django.urls import reverse
 
-from inventory.models import Part
+from inventory.models import ItemDefinition
 from web import update
 
 
@@ -73,14 +73,14 @@ class UpdateTests(TransactionTestCase):
         self.assertEqual(backups, ['before', 'code'])                             # the data and the code from before
 
     def test_when_it_fails_it_is_as_it_was(self):
-        Part.objects.create(number='OURS-1')
+        ItemDefinition.objects.create(number='OURS-1')
         with mock.patch.object(update, '_run', return_value=(False, 'migration 0004 broke')):
             with self.assertRaisesMessage(ValidationError, 'Osmia is as it was'):
                 update.update(release(), base=self.base)
         self.assertEqual((self.base / 'manage.py').read_text(), 'print("old")')
         self.assertTrue((self.base / 'oldapp').exists())
         self.assertFalse((self.base / 'newapp').exists())
-        self.assertTrue(Part.objects.filter(number='OURS-1').exists())
+        self.assertTrue(ItemDefinition.objects.filter(number='OURS-1').exists())
 
     def test_older_or_foreign_code_is_refused(self):
         with self.assertRaisesMessage(ValidationError, 'older than the data'):

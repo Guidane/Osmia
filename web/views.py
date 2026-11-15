@@ -62,7 +62,7 @@ def home_reports_of(user):
 
 @login_required
 def home(request):
-    """What needs attention, in reports each person picks for themselves (Edit: a ✕ on each, ＋ Add report): parts to
+    """What needs attention, in reports each person picks for themselves (Edit: a ✕ on each, ＋ Add report): item definitions to
     order, orders still to come (late ones first), budgets overspent, what arrived lately, …"""
     from setups.models import HarnessRequest
     from datetime import date

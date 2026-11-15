@@ -30,7 +30,7 @@
       <a href="{% url 'work:list' %}">Projects</a>
       <a href="{% url 'web:docs' %}">Documentation</a>
       <div class="label">Stock</div>
-      <a href="{% url 'inventory:parts' %}">Parts</a>
+      <a href="{% url 'inventory:definitions' %}">Item definitions</a>
       <a href="{% url 'orders:list' %}">Orders</a>
       <a href="{% url 'inventory:locations' %}">Locations</a>
       <div class="label">Design</div>
@@ -42,7 +42,7 @@
     </nav>
   </details>
   <a class="brand" href="{% url 'web:home' %}">Osmia</a>
-  <form class="topsearch" method="get" action="{% url 'inventory:parts' %}"><input type="search" name="q" placeholder="Find a part…" aria-label="Find a part" value="{{ request.GET.q|default:'' }}"></form>
+  <form class="topsearch" method="get" action="{% url 'inventory:definitions' %}"><input type="search" name="q" placeholder="Find an item definition…" aria-label="Find an item definition" value="{{ request.GET.q|default:'' }}"></form>
   <div class="spacer"></div>
   <a class="icon-link" href="{% url 'web:notifications' %}" title="Notifications">🔔{% if unread_notifications %}<span class="count">{{ unread_notifications }}</span>{% endif %}</a>
   <details class="menu">

@@ -1,4 +1,4 @@
-"""The things files and documentation pages can belong to, each named in addresses by its kind (/files/part/12/), and
+"""The things files and documentation pages can belong to, each named in addresses by its kind (/files/definition/12/), and
 what each has: its files, its preview picture, its pages."""
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404
 
 KINDS = {   # kind: (model, what one is called)
     'project': ('work.Project', 'Project'), 'setup': ('setups.Setup', 'Setup'), 'harness': ('harnesses.Harness', 'Harness'),
-    'device': ('devices.Device', 'Device'), 'part': ('inventory.Part', 'Part'), 'family': ('inventory.Family', 'Family'),
+    'device': ('devices.Device', 'Device'), 'definition': ('inventory.ItemDefinition', 'Item definition'), 'family': ('inventory.Family', 'Family'),
     'order': ('orders.Order', 'Order'), 'vendor': ('inventory.Vendor', 'Vendor'), 'budget': ('budgets.Budget', 'Budget'),
     'asset': ('assets.Asset', 'Asset'), 'location': ('inventory.Location', 'Location'), 'page': ('web.Page', 'Page'),
 }

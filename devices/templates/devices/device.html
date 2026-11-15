@@ -11,10 +11,10 @@
   <a class="btn" href="{% url 'devices:edit' device.pk %}">Change</a>
 </div>
 
-<div class="parts-browser" data-param="{% if show == 'assets' %}asset{% else %}c{% endif %}">
+<div class="browser" data-param="{% if show == 'assets' %}asset{% else %}c{% endif %}">
   {% include "web/_tree_nav.html" with label=device.number %}
 
-  <div class="parts-middle">
+  <div class="browser-middle">
   {% if show == 'connector' %}
     <section class="card flush">
       <div class="card-head"><h3>{{ picked.designator }} <span class="muted small">{{ picked.name }}</span></h3>
@@ -31,9 +31,9 @@
     </section>
   {% elif show == 'assets' %}
     <section class="card flush">
-      <table class="list parts-list">
+      <table class="list browser-list">
         <tr><th></th><th>Asset tag</th><th>Serial number</th><th>Version</th><th>Status</th><th>Location</th></tr>
-        {% for u in units %}<tr data-part="{{ u.pk }}" data-brief-url="{% url 'assets:brief' u.pk %}" class="{% if row.pk == u.pk %}on{% endif %}" tabindex="0">
+        {% for u in units %}<tr data-row="{{ u.pk }}" data-brief-url="{% url 'assets:brief' u.pk %}" class="{% if row.pk == u.pk %}on{% endif %}" tabindex="0">
           <td class="thumb-cell">{% thumb u %}</td><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td class="small">{{ u.serial }}</td><td>{% if u.version %}v{{ u.version }}{% else %}—{% endif %}</td>
           <td><span class="badge{% if u.status == 'in_use' or u.status == 'available' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>
           <td class="small">{{ u.location|link|default:"" }}</td></tr>
@@ -43,9 +43,9 @@
   {% else %}
     <section class="card flush">
       <div class="card-head"><h3>Connectors</h3><span class="spacer"></span><a class="btn small" href="{% url 'devices:connectors_copy' device.pk %}">Copy connectors</a><a class="btn small" href="{% url 'devices:connector_new' device.pk %}">＋ Connector</a></div>
-      <table class="list parts-list">
-        <tr><th>Connector</th><th>Name</th><th>Part or family</th><th class="num">Pins</th><th>Plugged in</th></tr>
-        {% for c, pins, ends in connectors %}<tr data-part="{{ c.pk }}" data-brief-url="{% url 'devices:connector_brief' device.pk c.pk %}" class="{% if row.pk == c.pk %}on{% endif %}" tabindex="0">
+      <table class="list browser-list">
+        <tr><th>Connector</th><th>Name</th><th>Item definition or family</th><th class="num">Pins</th><th>Plugged in</th></tr>
+        {% for c, pins, ends in connectors %}<tr data-row="{{ c.pk }}" data-brief-url="{% url 'devices:connector_brief' device.pk c.pk %}" class="{% if row.pk == c.pk %}on{% endif %}" tabindex="0">
           <td><a href="?connector={{ c.pk }}"><b>{{ c.designator }}</b></a></td><td>{{ c.name }}</td><td class="small">{{ c.used_name|default:"" }}</td>
           <td class="num">{{ pins|length }}</td>
           <td class="small">{% for e in ends %}<a href="{{ e.harness.get_absolute_url }}">{{ e.harness.number }}</a> {{ e.designator }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>
@@ -55,7 +55,7 @@
   {% endif %}
   </div>
 
-  <aside class="card parts-detail" data-detail>
+  <aside class="card browser-detail" data-detail>
   {% if show == 'connector' %}{% include "devices/_connector.html" with connector=picked %}
   {% elif row_brief %}{% include "devices/_connector.html" with connector=row_brief.connector pins=row_brief.pins ends=row_brief.ends face=row_brief.face %}
   {% elif asset_brief %}{% include "assets/_brief.html" with asset=asset_brief.asset attributes=asset_brief.attributes events=asset_brief.events %}
@@ -68,7 +68,7 @@
       <dl class="details">
         {% if device.description %}<dt>Description</dt><dd>{{ device.description|linebreaksbr }}</dd>{% endif %}
         <dt>Manufacturer</dt><dd>{{ device.manufacturer|default:"—" }}{% if device.model %} · {{ device.model }}{% endif %}</dd>
-        <dt>As a part</dt><dd>{% if device.used %}<a href="{{ device.used.get_absolute_url }}">{{ device.used }}</a>{% else %}—{% endif %}</dd>
+        <dt>As an item definition</dt><dd>{% if device.used %}<a href="{{ device.used.get_absolute_url }}">{{ device.used }}</a>{% else %}—{% endif %}</dd>
       </dl>
       <h4>Versions</h4>
       <p class="small muted">{% if not versions %}Not saved as a version yet.{% elif changed %}Changed since v{{ device.version }}.{% else %}As saved in v{{ device.version }}.{% endif %}</p>

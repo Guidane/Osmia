@@ -13,7 +13,7 @@ class DeviceBase(Base):
     def setUpTestData(cls):
         super().setUpTestData()
         cls.controller = Device.objects.create(number='CTRL-1', name='Controller')
-        cls.j1 = Connector.objects.create(device=cls.controller, designator='J1', name='Bus', part=cls.plug)
+        cls.j1 = Connector.objects.create(device=cls.controller, designator='J1', name='Bus', definition=cls.plug)
         for number, signal in (('1', '+24 V'), ('2', '0 V'), ('6', 'CAN H'), ('7', 'CAN L')):
             Pin.objects.create(connector=cls.j1, number=number, signal=signal)
 
@@ -82,7 +82,7 @@ class DeviceTests(DeviceBase):
         self.assertContains(page, '4 pins')
         self.client.post(reverse('devices:connectors_copy', args=[other.pk]), {'connector': [self.j1.pk]})
         copied = other.connectors.get(designator='J2')                          # J1 was taken
-        self.assertEqual((copied.name, copied.part), ('Bus', self.plug))
+        self.assertEqual((copied.name, copied.definition), ('Bus', self.plug))
         self.assertEqual(sorted((p.number, p.signal, p.wire_set) for p in copied.pins.all()),
                          [('1', '+24 V', ''), ('2', '0 V', ''), ('6', 'CAN H', 'CAN'), ('7', 'CAN L', '')])
         self.assertEqual(self.j1.pins.count(), 4)                                 # the original stays
@@ -157,5 +157,5 @@ class DeviceTests(DeviceBase):
         response = self.client.get(reverse('devices:list'), {'export': 1})
         book = load_workbook(BytesIO(response.content))
         rows = list(book['Pins'].values)
-        self.assertEqual(rows[0][:5], ('Device', 'Connector', 'Connector name', 'Connector part', 'Pin'))
+        self.assertEqual(rows[0][:5], ('Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin'))
         self.assertIn(('CTRL-1', 'J1', 'Bus', 'DSUB-9-PLUG', '6', 'CAN H', None, None, None), rows)

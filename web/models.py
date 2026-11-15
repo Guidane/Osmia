@@ -97,7 +97,7 @@ IMAGES = ('png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp')
 
 
 class Attachment(models.Model):
-    """A file or picture with something (a part, an order, a project, a documentation page, …): a photo, a datasheet,
+    """A file or picture with something (an item definition, an order, a project, a documentation page, …): a photo, a datasheet,
     a drawing. One of its pictures can be its preview, shown on its page and in lists."""
     content_type = models.ForeignKey('contenttypes.ContentType', on_delete=models.CASCADE)
     object_id = models.PositiveBigIntegerField()
@@ -122,7 +122,7 @@ class Attachment(models.Model):
 
 class Page(models.Model):
     """A documentation page: a title and its text (the editor's HTML, cleaned: see ``web.markup``), under another page
-    or on its own; it belongs to something (a project, a part, a device, …) or to the general documentation."""
+    or on its own; it belongs to something (a project, an item definition, a device, …) or to the general documentation."""
     title = models.CharField(max_length=200)
     body = models.TextField(blank=True)
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='children')
@@ -184,8 +184,8 @@ class PageVersion(models.Model):
 
 
 class LabelLayout(models.Model):
-    """What labels of parts or assets show by default, and on which sheet (see ``web.labels``)."""
-    kind = models.CharField(max_length=10, unique=True)   # "part" or "asset"
+    """What labels of item definitions or assets show by default, and on which sheet (see ``web.labels``)."""
+    kind = models.CharField(max_length=10, unique=True)   # "definition" or "asset"
     data = models.JSONField(default=dict)
 
     def __str__(self):
@@ -194,5 +194,5 @@ class LabelLayout(models.Model):
 
 class DemoRecord(models.Model):
     """A row the demo data made (see ``web.demo``): taken away when the demo data is switched off."""
-    model = models.CharField(max_length=100)   # "inventory.Part"
+    model = models.CharField(max_length=100)   # "inventory.ItemDefinition"
     object_id = models.PositiveBigIntegerField()

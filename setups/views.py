@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 from accounts.models import Department
 from devices.models import Connector, Device
 from harnesses.models import Harness
-from inventory.models import choices_of_parts, part_or_family
+from inventory.models import choices_of_definitions, definition_or_family
 from orders import service as orders
 from web import excel
 from web.shortcuts import edit_page, errors
@@ -40,7 +40,7 @@ class SetupForm(TreeForm):
 
 @login_required
 def setup_list(request):
-    """The setups, like the parts: the projects (and their sub-projects) as a tree on the left, the setups
+    """The setups, like the item definitions: the projects (and their sub-projects) as a tree on the left, the setups
     of the one picked in the middle, the details of the setup picked on the right."""
     from django.db.models import Count, Q
 
@@ -78,7 +78,7 @@ def setup_form(request, pk=None):
 def _diagram(setup, rows, found):
     """What the diagram draws: the devices (with their connectors) and the harnesses between them."""
     device_ids = {r['device_id'] for r in rows.values() if r['kind'] == 'device'}
-    devices = {d.pk: d for d in Device.objects.filter(pk__in=device_ids).prefetch_related('connectors__pins', 'connectors__part',
+    devices = {d.pk: d for d in Device.objects.filter(pk__in=device_ids).prefetch_related('connectors__pins', 'connectors__definition',
                                                                                         'connectors__family')}
     harnesses = {h.pk: h for h in Harness.objects.filter(pk__in={r['harness_id'] for r in rows.values() if r['harness_id']})
                  .prefetch_related('ends')}
@@ -90,7 +90,7 @@ def _diagram(setup, rows, found):
             d = devices[row['device_id']]
             out['devices'].append({'key': key, 'label': row['label'] or d.number, 'number': d.number, 'name': d.name, 'colour': d.colour,
                                    'url': d.get_absolute_url(), 'x': row['x'], 'y': row['y'],
-                                   'connectors': [{'id': c.pk, 'designator': c.designator, 'name': c.name, 'part': c.used_name,
+                                   'connectors': [{'id': c.pk, 'designator': c.designator, 'name': c.name, 'definition': c.used_name,
                                                    'side': c.side, 'along': c.along,
                                                    'pins_url': reverse('devices:pins', args=[d.pk, c.pk]),
                                                    'pins': [[p.number, p.signal, p.wire_set, p.set_type if p.wire_set else '', p.description]
@@ -130,7 +130,7 @@ def setup(request, pk):
         'placed_devices': [(key, r, device_names.get(r['device_id'])) for key, r in placed_devices],
         'harness_rows': harness_rows, 'sockets': [(value, label) for value, label, _, _ in contents.sockets(item, rows)],
         'devices': Device.objects.all(), 'harnesses': _harness_choices(item),
-        'part_choices': choices_of_parts(), 'people': get_user_model().objects.filter(is_active=True),
+        'definition_choices': choices_of_definitions(), 'people': get_user_model().objects.filter(is_active=True),
         'requests': [(r, contents.label_of(rows, r.a), contents.label_of(rows, r.b)) for r in
                      item.harness_requests.select_related('created_by', 'ask', 'harness')[:20]]})
 
@@ -183,13 +183,13 @@ def change(request, pk):
             contents.place(item, key, device_id=get_object_or_404(Device, pk=post.get('device')).pk)
         elif action == 'connect':
             ends = [(post.get(side), get_object_or_404(Connector, pk=post.get(f'{side}_connector') or 0)) for side in 'ab']
-            parts = []
+            definitions = []
             for side in 'ab':
-                text = post.get(f'{side}_part', '').strip()
-                parts.append(part_or_family(text))
-                if text and parts[-1] is None:
-                    raise ValidationError(f'There is no part or family "{text}".')
-            harness = contents.connect(item, ends, post.get('name', ''), [json.loads(w) for w in post.getlist('wire')], parts)
+                text = post.get(f'{side}_definition', '').strip()
+                definitions.append(definition_or_family(text))
+                if text and definitions[-1] is None:
+                    raise ValidationError(f'There is no item definition or family "{text}".')
+            harness = contents.connect(item, ends, post.get('name', ''), [json.loads(w) for w in post.getlist('wire')], definitions)
             messages.success(request, f'{harness} is made, with {harness.wires.count()} wires.')
         elif action == 'request_harness':
             ask = get_user_model().objects.filter(pk=post.get('ask') or 0, is_active=True).first()
@@ -220,14 +220,14 @@ def change(request, pk):
 @login_required
 def needs(request, pk):
     item = get_object_or_404(Setup, pk=pk)
-    devices, harnesses, parts = contents.needs(item)
+    devices, harnesses, definitions = contents.needs(item)
     count = request.GET.get('count', '')
     count = int(count) if count.isdigit() and 0 < int(count) <= 10000 else 1   # how many of it to build
-    parts = [(p, q * count, have, coming, max(q * count - have - coming, 0)) for p, q, have, coming in parts]
+    definitions = [(p, q * count, have, coming, max(q * count - have - coming, 0)) for p, q, have, coming in definitions]
     if request.method == 'POST':   # order what is missing
         ordered = []
-        for part, _, _, _, missing in parts:
-            buy = getattr(part, 'chosen', part)   # a family: the part of it ordered
+        for definition, _, _, _, missing in definitions:
+            buy = getattr(definition, 'chosen', definition)   # a family: the part of it ordered
             if missing and buy and buy.vendor_id:
                 orders.reorder(buy, request.user, missing)
                 ordered.append(buy.number)
@@ -235,9 +235,9 @@ def needs(request, pk):
         return redirect(f'{request.path}?count={count}')
     if request.GET.get('export'):
         return excel.download(str(item), [
-            ('Parts', ['Part', 'Description', 'Needed', 'Unit', 'On hand', 'On order', 'Missing'],
-             [(p.number, p.description, q, p.unit, have, coming, missing) for p, q, have, coming, missing in parts]),
+            ('Item definitions', ['Item definition', 'Description', 'Needed', 'Unit', 'On hand', 'On order', 'Missing'],
+             [(p.number, p.description, q, p.unit, have, coming, missing) for p, q, have, coming, missing in definitions]),
             ('Devices', ['Device', 'Name', 'How many'], [(d.number, d.name, n * count) for d, n in devices]),
             ('Harnesses', ['Harness', 'Name', 'How many'], [(h.number, h.name, n * count) for h, n in harnesses])])
     return render(request, 'setups/needs.html', {'setup': item, 'devices': devices, 'harnesses': harnesses,
-                                                 'parts': parts, 'count': count})
+                                                 'definitions': definitions, 'count': count})
