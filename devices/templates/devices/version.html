@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load osmia %}
 {% block title %}{{ device.number }} v{{ version.number }} · Osmia{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ device.get_absolute_url }}">← {{ device }}</a></p>
@@ -12,13 +12,13 @@
     {% if data.origin %}<dt>Origin</dt><dd>{% if data.origin == 'external' %}Bought (external){% else %}Made in-house{% endif %}</dd>{% endif %}
     {% if data.description %}<dt>Description</dt><dd>{{ data.description|linebreaksbr }}</dd>{% endif %}
     <dt>Manufacturer</dt><dd>{{ data.manufacturer|default:"—" }}{% if data.model %} · {{ data.model }}{% endif %}</dd>
-    <dt>As a part</dt><dd>{{ data.part|default:"—" }}</dd>
+    <dt>As a part</dt><dd>{{ data.part|link|default:"—" }}</dd>
     {% if data.notes %}<dt>Notes</dt><dd>{{ data.notes|linebreaksbr }}</dd>{% endif %}
   </dl>
 </section>
 <h2>Connectors</h2>
 <div class="connectors">{% for c in data.connectors %}
-  <section class="card flush"><div class="card-head"><h3>{{ c.designator }} <span class="muted small">{{ c.name }}</span></h3><span class="small">{{ c.part }}</span></div>
+  <section class="card flush"><div class="card-head"><h3>{{ c.designator }} <span class="muted small">{{ c.name }}</span></h3><span class="small">{{ c.part|link }}</span></div>
     <table class="list compact"><tr><th>Pin</th><th>Signal</th><th>Set</th><th>Description</th></tr>
       {% for p in c.pins %}<tr><td>{{ p.number }}</td><td>{{ p.signal }}</td><td class="small">{% if p.set %}{{ p.set }} · {{ p.set_type|lower }}{% endif %}</td><td class="small muted">{{ p.description }}</td></tr>{% endfor %}</table></section>
 {% empty %}<p class="muted">No connectors.</p>{% endfor %}</div>

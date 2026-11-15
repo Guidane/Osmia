@@ -152,3 +152,16 @@ def brief_url(obj):
     kind = next((k for k, (model, _) in KINDS.items() if model == label), None)
     kind = {'accounts.User': 'user', 'inventory.Category': 'category', 'accounts.Department': 'department'}.get(label, kind)
     return reverse('web:brief', args=[kind, obj.pk]) if kind in BRIEFS else ''
+
+
+@register.filter
+def link(obj):
+    """``obj`` as a link to its page (a record of Osmia: a location, vendor, part, setup, …); just its name when it has
+    no page of its own (a person), nothing when there is none."""
+    from django.utils.html import format_html
+    if obj is None or obj == '':
+        return ''
+    url = getattr(obj, 'get_absolute_url', None)
+    if url is None or getattr(obj, '_meta', None) is None or obj._meta.label == 'accounts.User':
+        return str(obj)
+    return format_html('<a href="{}">{}</a>', url(), obj)

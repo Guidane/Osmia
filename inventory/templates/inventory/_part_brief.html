@@ -9,7 +9,7 @@
     <div class="tile"><b>{{ on_order|qty }}</b> on order</div>
   </div>
   <dl class="details">
-    <dt>Category</dt><dd>{{ part.category|default:"—" }}</dd>
+    <dt>Category</dt><dd>{{ part.category|link|default:"—" }}</dd>
     {% include "inventory/_attribute_values.html" %}
     <dt>Family</dt><dd>{% if part.family %}<a href="{{ part.family.get_absolute_url }}">{% if part.branch %}{{ part.branch }}{% else %}{{ part.family }}{% endif %}</a>{% else %}—{% endif %}</dd>
     <dt>Manufacturer</dt><dd>{{ part.manufacturer|default:"—" }}{% if part.mpn %} · {{ part.mpn }}{% endif %}</dd>
@@ -20,7 +20,7 @@
   </dl>
   <h4>Locations</h4>
   <table class="list compact">
-    {% for s in stock %}<tr><td>{{ s.location }}</td><td class="num">{{ s.quantity|qty }} {{ part.unit }}</td></tr>
+    {% for s in stock %}<tr><td>{{ s.location|link }}</td><td class="num">{{ s.quantity|qty }} {{ part.unit }}</td></tr>
     {% empty %}<tr><td class="empty small">None in stock.</td></tr>{% endfor %}
   </table>
 </div>

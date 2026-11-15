@@ -23,7 +23,7 @@
     <div data-panel="orders">
   <section class="card flush">
     <div class="card-head"><h3>Orders</h3><a class="btn small" href="{% url 'orders:new' %}?budget={{ budget.pk }}">＋ New order</a></div>
-    <table class="list">{% for o in orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="muted small">{{ o.vendor|default:"" }}</span></td>
+    <table class="list">{% for o in orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="muted small">{{ o.vendor|link|default:"" }}</span></td>
       <td><span class="badge{% if o.status == 'received' %} ok{% elif o.overdue or o.status == 'cancelled' %} failed{% endif %}">{% if o.overdue %}Late{% else %}{{ o.get_status_display }}{% endif %}</span></td>
       <td class="num">{{ o.total|money }}</td></tr>
       {% empty %}<tr><td class="empty small">No orders charged to it.</td></tr>{% endfor %}</table>

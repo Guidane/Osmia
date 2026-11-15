@@ -17,7 +17,7 @@
         <tr><th>Name</th><th>Job</th><th>Department</th><th>Email</th></tr>
         {% for p in people %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'user' p.pk %}" tabindex="0">
           <td>{{ p }}{% if p == p.department.manager %} <span class="badge ok">Manager</span>{% endif %}</td><td class="small">{{ p.job_title }}</td>
-          <td class="small">{{ p.department.name }}</td><td class="small">{% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% endif %}</td></tr>
+          <td class="small">{% if p.department %}<a href="{{ p.department.get_absolute_url }}">{{ p.department.name }}</a>{% endif %}</td><td class="small">{% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% endif %}</td></tr>
         {% empty %}<tr><td colspan="4" class="empty small">Nobody yet.</td></tr>{% endfor %}
       </table>
       {% else %}

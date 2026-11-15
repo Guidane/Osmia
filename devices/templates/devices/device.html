@@ -36,7 +36,7 @@
         {% for u in units %}<tr data-part="{{ u.pk }}" data-brief-url="{% url 'assets:brief' u.pk %}" class="{% if row.pk == u.pk %}on{% endif %}" tabindex="0">
           <td class="thumb-cell">{% thumb u %}</td><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td class="small">{{ u.serial }}</td><td>{% if u.version %}v{{ u.version }}{% else %}—{% endif %}</td>
           <td><span class="badge{% if u.status == 'in_use' or u.status == 'available' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>
-          <td class="small">{{ u.location|default:"" }}</td></tr>
+          <td class="small">{{ u.location|link|default:"" }}</td></tr>
         {% empty %}<tr><td colspan="6" class="empty small">None yet.</td></tr>{% endfor %}
       </table>
     </section>
@@ -48,7 +48,7 @@
         {% for c, pins, ends in connectors %}<tr data-part="{{ c.pk }}" data-brief-url="{% url 'devices:connector_brief' device.pk c.pk %}" class="{% if row.pk == c.pk %}on{% endif %}" tabindex="0">
           <td><a href="?connector={{ c.pk }}"><b>{{ c.designator }}</b></a></td><td>{{ c.name }}</td><td class="small">{{ c.used_name|default:"" }}</td>
           <td class="num">{{ pins|length }}</td>
-          <td class="small">{% for e in ends %}{{ e.harness.number }} {{ e.designator }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>
+          <td class="small">{% for e in ends %}<a href="{{ e.harness.get_absolute_url }}">{{ e.harness.number }}</a> {{ e.designator }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>
         {% empty %}<tr><td colspan="5" class="empty small">No connectors yet.</td></tr>{% endfor %}
       </table>
     </section>

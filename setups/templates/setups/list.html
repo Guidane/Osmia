@@ -16,7 +16,7 @@
         <tr><th>Setup</th>{% if not work %}<th>Project</th>{% endif %}<th class="num">Devices</th><th class="num">Harnesses</th><th>Owner</th></tr>
         {% for p in setups %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'web:brief' 'setup' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
           <td><a href="{{ p.get_absolute_url }}">{{ p }}</a></td>
-          {% if not work %}<td class="small">{{ p.in_project|default:"" }}</td>{% endif %}
+          {% if not work %}<td class="small">{{ p.in_project|link|default:"" }}</td>{% endif %}
           <td class="num">{{ p.n_devices }}</td><td class="num">{{ p.n_harnesses }}</td><td class="small">{{ p.owner|default:"" }}</td>
         </tr>{% empty %}<tr><td colspan="5" class="empty small">{% if q or work or loose %}No setups match.{% else %}No setups yet.{% endif %}</td></tr>{% endfor %}
       </table>

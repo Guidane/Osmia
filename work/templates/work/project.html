@@ -54,11 +54,11 @@
 <div data-panel="orders" hidden>
 <section class="card flush">
     <div class="card-head"><h3>Orders <span class="muted small">{{ orders|length|add:n_sub.orders }}</span></h3><a class="btn small" href="{% url 'orders:new' %}?in_project={{ project.pk }}">＋ New</a></div>
-    <table class="list">{% for o in orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="small">{{ o.vendor|default:"" }}</span></td>
+    <table class="list">{% for o in orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="small">{{ o.vendor|link|default:"" }}</span></td>
       <td><span class="badge{% if o.status == 'received' %} ok{% elif o.status == 'cancelled' %} failed{% endif %}">{{ o.get_status_display }}</span></td>
       <td class="small muted nowrap">{{ o.created_at|date:"j M Y" }}</td>
       <td class="num">{% include "work/_out.html" with what="order" id=o.pk name=o.number %}</td></tr>{% endfor %}
-      {% for o in sub_orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="small">{{ o.vendor|default:"" }}</span> {% include "work/_via.html" with via=o.via %}</td>
+      {% for o in sub_orders %}<tr data-brief-url="{{ o|brief_url }}"><td><a href="{{ o.get_absolute_url }}">{{ o.number }}</a> <span class="small">{{ o.vendor|link|default:"" }}</span> {% include "work/_via.html" with via=o.via %}</td>
       <td><span class="badge{% if o.status == 'received' %} ok{% elif o.status == 'cancelled' %} failed{% endif %}">{{ o.get_status_display }}</span></td>
       <td class="small muted nowrap">{{ o.created_at|date:"j M Y" }}</td><td></td></tr>{% endfor %}</table>
     {% include "work/_add.html" with what="order" choices=free_orders label="An order" %}
@@ -79,10 +79,10 @@
 <section class="card flush">
     <div class="card-head"><h3>Assets <span class="muted small">{{ assets|length|add:n_sub.assets }}</span></h3></div>
     <table class="list">{% for a in assets %}<tr data-brief-url="{{ a|brief_url }}"><td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="small">{{ a.name }}</span></td>
-      <td class="small muted">{{ a.location|default:"" }}</td>
+      <td class="small muted">{{ a.location|link|default:"" }}</td>
       <td class="num">{% include "work/_out.html" with what="asset" id=a.pk name=a.number %}</td></tr>{% endfor %}
       {% for a in sub_assets %}<tr data-brief-url="{{ a|brief_url }}"><td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="small">{{ a.name }}</span> {% include "work/_via.html" with via=a.via %}</td>
-      <td class="small muted">{{ a.location|default:"" }}</td><td></td></tr>{% endfor %}</table>
+      <td class="small muted">{{ a.location|link|default:"" }}</td><td></td></tr>{% endfor %}</table>
     {% include "work/_add.html" with what="asset" choices=other_assets label="An asset" %}
   </section>
 </div>
@@ -91,10 +91,10 @@
 <section class="card flush">
     <div class="card-head"><h3>Tools <span class="muted small">{{ tools|length|add:n_sub.tools }}</span></h3></div>
     <table class="list">{% for a in tools %}<tr data-brief-url="{{ a|brief_url }}"><td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="small">{{ a.name }}</span></td>
-      <td class="small muted">{{ a.location|default:"" }}</td>
+      <td class="small muted">{{ a.location|link|default:"" }}</td>
       <td class="num">{% include "work/_out.html" with what="asset" id=a.pk name=a.number %}</td></tr>{% endfor %}
       {% for a in sub_tools %}<tr data-brief-url="{{ a|brief_url }}"><td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="small">{{ a.name }}</span> {% include "work/_via.html" with via=a.via %}</td>
-      <td class="small muted">{{ a.location|default:"" }}</td><td></td></tr>{% endfor %}</table>
+      <td class="small muted">{{ a.location|link|default:"" }}</td><td></td></tr>{% endfor %}</table>
     {% include "work/_add.html" with what="asset" choices=other_tools label="A tool" %}
   </section>
 </div>
@@ -110,7 +110,7 @@
       <dl class="details">
         {% if project.parent %}<dt>Part of</dt><dd><a href="{{ project.parent.get_absolute_url }}">{{ project.parent }}</a></dd>{% endif %}
         <dt>Owner</dt><dd>{{ project.owner|default:"—" }}</dd>
-        <dt>Department</dt><dd>{{ project.department|default:"—" }}</dd>
+        <dt>Department</dt><dd>{{ project.department|link|default:"—" }}</dd>
       </dl>
     </div>
     {% include "web/_notes.html" with notes=project.notes owner=project %}{% side project %}

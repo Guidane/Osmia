@@ -115,3 +115,14 @@ class TreeTests(Base):
         self.assertContains(page, 'inside itself')
         page = self.client.post(reverse('inventory:categories') + f'?edit={self.connectors.pk}', {'name': 'Connectors', 'parent': self.dsub.pk})
         self.assertContains(page, 'part of itself')
+
+
+class LinkTests(Base):
+    def test_a_record_shown_is_a_link_to_it(self):
+        from web.templatetags.osmia import link
+        self.assertEqual(str(link(self.shelf)), f'<a href="{self.shelf.get_absolute_url()}">{self.shelf}</a>')
+        self.assertEqual(link(None), '')
+        self.assertEqual(str(link(self.ada)), str(self.ada))                     # a person: just the name
+        stock.add(self.plug, 4, self.shelf, self.ada)
+        page = self.client.get(self.plug.get_absolute_url())
+        self.assertContains(page, f'<a href="{self.shelf.get_absolute_url()}">')    # its location, a link

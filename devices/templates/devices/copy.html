@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load osmia %}
 {% block title %}Copy connectors to {{ device.number }} · Osmia{% endblock %}
 {% block content_class %}narrow{% endblock %}
 {% block content %}
@@ -8,7 +8,7 @@
   <ul class="copy-tree">
     {% for d in others %}<li><details{% if forloop.first %} open{% endif %}><summary><label><input type="checkbox" data-all> <b>{{ d.number }}</b> <span class="muted">{{ d.name }}</span></label></summary>
       <ul>{% for c in d.connectors.all %}<li><label><input type="checkbox" name="connector" value="{{ c.pk }}"> <b>{{ c.designator }}</b> {{ c.name }}
-        <span class="muted small">{{ c.pins.all|length }} pin{{ c.pins.all|length|pluralize }}{% if c.used %} · {{ c.used }}{% endif %}</span></label></li>{% endfor %}</ul>
+        <span class="muted small">{{ c.pins.all|length }} pin{{ c.pins.all|length|pluralize }}{% if c.used %} · {{ c.used|link }}{% endif %}</span></label></li>{% endfor %}</ul>
     </details></li>{% empty %}<li class="empty small">No other device has connectors.</li>{% endfor %}
   </ul>
   <div class="actions"><button class="btn primary">Copy them</button> <a href="{{ device.get_absolute_url }}">Cancel</a></div>

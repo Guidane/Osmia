@@ -67,10 +67,10 @@
   </form>
 </dialog>
 {{ assets_json|json_script:"waiting-assets" }}
-{% if budget_left is not None and budget_left < 0 %}<div class="flash warning">Placing it takes {{ order.budget }} over its budget by {{ budget_left|money_abs }}.</div>{% endif %}
+{% if budget_left is not None and budget_left < 0 %}<div class="flash warning">Placing it takes {{ order.budget|link }} over its budget by {{ budget_left|money_abs }}.</div>{% endif %}
 {% if lines %}<form method="post" action="{% url 'orders:place' order.pk %}" class="card place-form">{% csrf_token %}
   <label>Expected <input type="date" name="expected_on" value="{{ order.expected_on|date:'Y-m-d' }}" min="{{ today|date:'Y-m-d' }}"></label>
-  {% if order.vendor %}<button class="btn primary">✓ Placed with {{ order.vendor }}</button>{% else %}<span class="muted">No vendor yet.</span>{% endif %}
+  {% if order.vendor %}<button class="btn primary">✓ Placed with {{ order.vendor|link }}</button>{% else %}<span class="muted">No vendor yet.</span>{% endif %}
 </form>{% endif %}
 
 {% else %}

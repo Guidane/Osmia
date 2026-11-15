@@ -19,13 +19,18 @@ def _link(obj):
     return (str(obj), obj.get_absolute_url()) if obj is not None else ''
 
 
+def _of(label, obj):
+    """A detail naming a record: its name, linked to its page."""
+    return (label, str(obj or ''), obj.get_absolute_url() if obj is not None and hasattr(obj, 'get_absolute_url') else '')
+
+
 def _date(value):
     from django.utils.formats import date_format
     return date_format(value, 'j M Y') if value else ''
 
 
 def device(d):
-    connectors = [((c.designator, f'{d.get_absolute_url()}?connector={c.pk}'), c.name, c.used_name, f'{c.pins.count()} pins')
+    connectors = [((c.designator, f'{d.get_absolute_url()}?connector={c.pk}'), c.name, _link(c.used), f'{c.pins.count()} pins')
                   for c in d.connectors.select_related('part', 'family', 'branch')]
     return {'badges': [('Bought', '')] if d.origin == 'external' else [], 'what': d.name,
             'edit_url': reverse('devices:edit', args=[d.pk]), 'title': d.number,
@@ -39,9 +44,9 @@ def order(o):
     lines = [(_link(line.item) if hasattr(line.item, 'get_absolute_url') else line.item.number,
               f'{qty(line.quantity)}', f'{qty(line.received)} in', money(line.price)) for line in o.lines.select_related('part', 'asset')]
     late = o.overdue
-    return {'title': o.number, 'what': str(o.vendor or ''),
+    return {'title': o.number, 'what': '',
             'badges': [('Late' if late else o.get_status_display(), 'ok' if o.status == 'received' else 'failed' if late or o.status == 'cancelled' else '')],
-            'details': [('Asked for', o.request, ''), ('Budget', str(o.budget or ''), o.budget.get_absolute_url() if o.budget else ''),
+            'details': [_of('Vendor', o.vendor), ('Asked for', o.request, ''), ('Budget', str(o.budget or ''), o.budget.get_absolute_url() if o.budget else ''),
                         ('Project', str(o.in_project or ''), o.in_project.get_absolute_url() if o.in_project else ''),
                         ("Vendor's number", o.vendor_reference, ''), ('Ordered', _date(o.ordered_on), ''),
                         ('Expected', _date(o.expected_on), ''), ('Received', _date(o.received_on), ''), ('By', str(o.created_by or ''), '')],
@@ -51,7 +56,7 @@ def order(o):
 def setup(p):
     return {'title': str(p), 'what': p.description, 'edit_url': reverse('setups:edit', args=[p.pk]),
             'details': [('Project', str(p.in_project or ''), p.in_project.get_absolute_url() if p.in_project else ''),
-                        ('Owner', str(p.owner or ''), ''), ('Department', str(p.department or ''), '')],
+                        ('Owner', str(p.owner or ''), ''), _of('Department', p.department)],
             'tables': [_table('Devices', [(row.label or str(row.device), (str(row.device), row.device.get_absolute_url()))
                                           for row in p.placements.filter(kind='device').select_related('device')]),
                        _table('Harnesses', [((h.number, h.get_absolute_url()), h.name, h.get_status_display()) for h in p.harnesses.all()])]}
@@ -61,7 +66,7 @@ def project(p):
     return {'title': str(p), 'what': p.description, 'edit_url': reverse('work:edit', args=[p.pk]),
             'badges': [(p.get_status_display(), 'ok' if p.status == 'active' else '')],
             'details': [('Part of', str(p.parent or ''), p.parent.get_absolute_url() if p.parent else ''), ('Owner', str(p.owner or ''), ''),
-                        ('Department', str(p.department or ''), ''),
+                        _of('Department', p.department),
                         ('Devices', p.devices.count(), ''), ('Assets and tools', p.assets.count(), ''), ('Orders', p.orders.count(), '')],
             'tables': [_table('Sub-projects', [(_link(c), c.get_status_display()) for c in p.children.order_by('code', 'name')]),
                        _table('Setups', [(_link(d),) for d in p.setups.all()])]}
@@ -83,11 +88,11 @@ def budget(b):
             'badges': ([('Overspent', 'failed')] if t.over else []) + ([] if b.active else [('Closed', '')]),
             'details': [('Part of', str(b.parent or ''), b.parent.get_absolute_url() if b.parent else ''),
                         ('Setup', str(b.setup or ''), b.setup.get_absolute_url() if b.setup else ''),
-                        ('Department', str(b.department or ''), ''), ('Owner', str(b.owner or ''), ''),
+                        _of('Department', b.department), ('Owner', str(b.owner or ''), ''),
                         ('Amount', money(b.amount), ''), ('Spent', money(t.spent), ''), ('Still to come', money(t.coming), ''),
                         ('Left', money(t.remaining), ''), ('Used', f'{t.used}%', '')],
             'tables': [_table('Budgets in it', [(_link(c), money(c.amount)) for c in b.children.all()]),
-                       _table('Orders', [((o.number, o.get_absolute_url()), str(o.vendor or ''), o.get_status_display()) for o in b.orders.select_related('vendor')[:15]])]}
+                       _table('Orders', [((o.number, o.get_absolute_url()), _link(o.vendor), o.get_status_display()) for o in b.orders.select_related('vendor')[:15]])]}
 
 
 def user(u):

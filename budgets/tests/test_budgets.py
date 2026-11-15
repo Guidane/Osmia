@@ -41,7 +41,7 @@ class BudgetTests(Base):
     def test_the_owner_hears_when_it_is_overspent(self):
         order, _ = self.order(self.test, 60)                                    # 150.00 of 100
         response = self.client.get(reverse('orders:order', args=[order.pk]))
-        self.assertContains(response, 'takes FY26-TE Test equipment over its budget by 50.00')
+        self.assertContains(response, f'takes <a href="{self.test.get_absolute_url()}">FY26-TE Test equipment</a> over its budget by 50.00')   # a link
         service.place(order, self.ada)
         self.assertTrue(Notification.objects.filter(user=self.ada, message='FY26-TE Test equipment is overspent: 150.00 of 100.00.').exists())
         self.assertFalse(Notification.objects.filter(message__startswith='FY26 2026').exists())   # the year still has room

@@ -6,14 +6,14 @@
   {% preview asset %}
   <dl class="details">
     <dt>Kind</dt><dd>{{ asset.get_kind_display }}</dd>
-    <dt>Category</dt><dd>{{ asset.category|default:"—" }}</dd>
+    <dt>Category</dt><dd>{{ asset.category|link|default:"—" }}</dd>
     {% include "inventory/_attribute_values.html" %}
     <dt>Make</dt><dd>{{ asset.manufacturer|default:"—" }}{% if asset.model %} · {{ asset.model }}{% endif %}</dd>
     {% if asset.asset_number %}<dt>Asset number</dt><dd>{{ asset.asset_number }}</dd>{% endif %}
     <dt>Serial number</dt><dd>{{ asset.serial|default:"—" }}</dd>
     {% if asset.device %}<dt>Device</dt><dd><a href="{{ asset.device.get_absolute_url }}">{{ asset.device }}</a>{% if asset.version %} v{{ asset.version }}{% endif %}</dd>{% endif %}
     {% if asset.harness %}<dt>Harness</dt><dd><a href="{{ asset.harness.get_absolute_url }}">{{ asset.harness }}</a>{% if asset.version %} v{{ asset.version }}{% endif %}</dd>{% endif %}
-    <dt>Location</dt><dd>{{ asset.location|default:"—" }}</dd>
+    <dt>Location</dt><dd>{{ asset.location|link|default:"—" }}</dd>
     <dt>Looked after by</dt><dd>{{ asset.keeper|default:"—" }}</dd>
     {% if asset.holder %}<dt>Out with</dt><dd>{{ asset.holder }}</dd>{% endif %}
     <dt>Calibration</dt><dd>{% if asset.calibration_months %}due <b{% if asset.calibration_overdue %} class="error"{% endif %}>{{ asset.calibration_due }}</b>{% else %}not needed{% endif %}</dd>

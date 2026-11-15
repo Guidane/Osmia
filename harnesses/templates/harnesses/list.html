@@ -28,7 +28,7 @@
         <tr><th>Harness</th><th>Name</th>{% if not setup %}<th>Setup</th>{% endif %}<th class="num">Connectors</th><th class="num">Wires</th><th>Status</th><th>Version</th></tr>
         {% for h in harnesses %}<tr data-part="{{ h.pk }}" data-brief-url="{% url 'harnesses:brief' h.pk %}" class="{% if picked.pk == h.pk %}on{% endif %}" tabindex="0">
           <td><a href="{{ h.get_absolute_url }}">{{ h.number }}</a></td><td>{{ h.name }}</td>
-          {% if not setup %}<td class="small">{{ h.setup }}</td>{% endif %}
+          {% if not setup %}<td class="small">{{ h.setup|link }}</td>{% endif %}
           <td class="num">{{ h.n_ends }}</td><td class="num">{{ h.n_wires }}</td>
           <td><span class="badge{% if h.status == 'released' %} ok{% elif h.status == 'obsolete' %} failed{% endif %}">{{ h.get_status_display }}</span></td>
           <td class="small">{% if h.version %}v{{ h.version }}{% else %}<span class="badge">Not saved</span>{% endif %}</td>

@@ -29,7 +29,7 @@
         {% for p, values in rows %}<tr data-part="{{ p.pk }}" data-brief-url="{% url 'inventory:part_brief' p.pk %}" class="{% if picked.pk == p.pk %}on{% endif %}" tabindex="0">
           <td><input type="checkbox" name="pick" value="{{ p.pk }}" aria-label="{{ p.number }}"></td>
           <td class="thumb-cell">{% thumb p %}</td><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a>{% if not p.active %} <span class="badge">Inactive</span>{% endif %}</td><td>{{ p.description }}</td>
-          {% if not category %}<td class="small">{{ p.category.name|default:"" }}</td>{% endif %}
+          {% if not category %}<td class="small">{% if p.category %}<a href="{{ p.category.get_absolute_url }}">{{ p.category.name }}</a>{% endif %}</td>{% endif %}
           {% for v in values %}<td class="small">{{ v }}</td>{% empty %}<td class="small">{{ p.manufacturer }}</td>{% endfor %}
           <td class="num{% if p.minimum and p.have|default:0 < p.minimum %} low{% endif %}">{{ p.have|qty|default:"0" }} <span class="muted small">{{ p.unit }}</span></td>
         </tr>{% empty %}<tr><td colspan="{{ attributes|length|add:7 }}" class="empty small">{% if q or category %}No parts match.{% else %}No parts yet.{% endif %}</td></tr>{% endfor %}

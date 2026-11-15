@@ -17,7 +17,7 @@
     <table class="list">
       <tr><th>Part</th><th>Gender</th><th>Vendor</th><th class="num">On hand</th><th></th></tr>
       {% for p in parts %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.manufacturer }}</span></td>
-        <td class="small">{{ p.branch.name|default:"" }}</td><td class="small">{{ p.vendor|default:"" }}</td>
+        <td class="small">{{ p.branch.name|default:"" }}</td><td class="small">{{ p.vendor|link|default:"" }}</td>
         <td class="num">{{ p.have|default:0|qty }} {{ p.unit }}</td><td>{% if p == family.chosen %}<span class="badge ok">ordered</span>{% endif %}</td></tr>
       {% empty %}<tr><td colspan="5" class="empty small">No parts in it yet.</td></tr>{% endfor %}
     </table>
