@@ -27,7 +27,7 @@
     </form>
     <div class="card flush">
       <table class="list parts-list">
-        <tr><th><input type="checkbox" data-pick-all aria-label="Tick them all"></th><th></th><th>Asset tag</th><th>Name</th>{% if not category %}<th>Category</th>{% endif %}{% for a in attributes %}<th>{{ a.name }}</th>{% endfor %}<th>Kept at</th><th>Status</th><th>Calibration due</th></tr>
+        <tr><th><input type="checkbox" data-pick-all aria-label="Tick them all"></th><th></th><th>Asset tag</th><th>Name</th>{% if not category %}<th>Category</th>{% endif %}{% for a in attributes %}<th>{{ a.name }}</th>{% endfor %}<th>Location</th><th>Status</th><th>Calibration due</th></tr>
         {% for a, values in rows %}<tr data-part="{{ a.pk }}" data-brief-url="{% url 'assets:brief' a.pk %}" class="{% if picked.pk == a.pk %}on{% endif %}" tabindex="0">
           <td><input type="checkbox" name="pick" value="{{ a.pk }}" aria-label="{{ a.number }}"></td>
           <td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a>{% if a.asset_number %} <span class="muted small">{{ a.asset_number }}</span>{% endif %}</td><td>{{ a.name }} <span class="muted small">{{ a.manufacturer }} {{ a.model }}</span></td>

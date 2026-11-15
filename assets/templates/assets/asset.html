@@ -99,7 +99,7 @@
       {% if asset.device %}<dt>Device</dt><dd><a href="{{ asset.device.get_absolute_url }}">{{ asset.device }}</a>{% if asset.version %} v{{ asset.version }}{% endif %}</dd>{% endif %}
       {% if asset.harness %}<dt>Harness</dt><dd><a href="{{ asset.harness.get_absolute_url }}">{{ asset.harness }}</a>{% if asset.version %} v{{ asset.version }}{% endif %}</dd>{% endif %}
       {% if asset.built_on %}<dt>Built</dt><dd>{{ asset.built_on }}{% if asset.built_by %} by {{ asset.built_by }}{% endif %}</dd>{% endif %}
-      <dt>Kept at</dt><dd>{% if asset.location %}<a href="{{ asset.location.get_absolute_url }}">{{ asset.location }}</a>{% else %}—{% endif %}</dd>
+      <dt>Location</dt><dd>{% if asset.location %}<a href="{{ asset.location.get_absolute_url }}">{{ asset.location }}</a>{% else %}—{% endif %}</dd>
       <dt>Looked after by</dt><dd>{{ asset.keeper|default:"—" }}</dd>
       <dt>Bought from</dt><dd>{% if asset.vendor %}<a href="{{ asset.vendor.get_absolute_url }}">{{ asset.vendor }}</a>{% if asset.vendor_number %} · {{ asset.vendor_number }}{% endif %}{% if asset.price %} · {{ asset.price|money }}{% endif %}{% else %}—{% endif %}{% for l in order_lines %} · <a href="{{ l.order.get_absolute_url }}">{{ l.order.number }}</a>{% endfor %}</dd>
       <dt>Calibration</dt><dd>{% if asset.calibration_months %}every {{ asset.calibration_months }} month{{ asset.calibration_months|pluralize }}; last {{ asset.calibrated_on|default:"never" }}; due <b{% if asset.calibration_overdue %} class="error"{% endif %}>{{ asset.calibration_due }}</b>{% else %}not needed{% endif %}</dd>

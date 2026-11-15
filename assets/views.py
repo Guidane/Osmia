@@ -81,7 +81,7 @@ def asset_list(request):
         fields = Attribute.asset_fields()
         values = dict(kept.columns(assets, fields, AssetStore()))
         return excel.download('assets', [('Assets', ['Asset tag', 'Asset number', 'Name', 'Kind', 'Category', 'Manufacturer', 'Model', 'Serial number',
-                                                     'Kept at', 'Keeper', 'Status', 'Out with', 'Calibrated', 'Due'] + [f.name for f in fields],
+                                                     'Location', 'Keeper', 'Status', 'Out with', 'Calibrated', 'Due'] + [f.name for f in fields],
                                           [(a.number, a.asset_number, a.name, a.get_kind_display(), a.category.path if a.category else '', a.manufacturer, a.model,
                                             a.serial, a.location.path if a.location else '', str(a.keeper or ''), a.get_status_display(),
                                             str(a.holder or ''), a.calibrated_on, a.calibration_due, *values[a]) for a in assets])])

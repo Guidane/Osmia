@@ -20,9 +20,9 @@ SIZES = {
 }
 SHOWN = {   # what a label can show, with what it shows by default
     'part': [('number', 'Part number', True), ('description', 'Description', True), ('picture', 'Picture', False),
-             ('category', 'Category', False), ('location', 'Where it is kept', False)],
+             ('category', 'Category', False), ('location', 'Location', False)],
     'asset': [('number', 'Asset tag', True), ('name', 'Name', True), ('picture', 'Picture', False), ('asset_number', 'Asset number', False), ('serial', 'Serial number', False),
-              ('category', 'Category', False), ('location', 'Where it is kept', False)],
+              ('category', 'Category', False), ('location', 'Location', False)],
 }
 
 

@@ -32,7 +32,7 @@ def check_out(asset, user, to=None, note=''):
 
 @transaction.atomic
 def bring_back(asset, user, note=''):
-    """Back where it is kept, from being checked out, in use or sent away."""
+    """Back at its location, from being checked out, in use or sent away."""
     asset = _locked(asset)
     if asset.status in (Asset.Status.AVAILABLE, Asset.Status.RETIRED, Asset.Status.ORDERED, Asset.Status.BUILDING):
         raise ValidationError(f'{asset} is {asset.get_status_display().lower()}.')

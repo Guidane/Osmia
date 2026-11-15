@@ -18,7 +18,7 @@
     <dt>Minimum</dt><dd>{{ part.minimum|qty }} {{ part.unit }}</dd>
     {% if part.datasheet %}<dt>Datasheet</dt><dd><a href="{{ part.datasheet }}" target="_blank" rel="noopener noreferrer">Open ↗</a></dd>{% endif %}
   </dl>
-  <h4>Where it is</h4>
+  <h4>Locations</h4>
   <table class="list compact">
     {% for s in stock %}<tr><td>{{ s.location }}</td><td class="num">{{ s.quantity|qty }} {{ part.unit }}</td></tr>
     {% empty %}<tr><td class="empty small">None in stock.</td></tr>{% endfor %}

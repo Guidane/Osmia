@@ -12,7 +12,7 @@
 
 <div class="parts-browser" data-sections>
   <nav class="card parts-tree" aria-label="{{ part.number }}">
-    <a href="#stock" data-section="stock" class="tree-head"><span>{{ part.number }} · where it is</span><span class="muted small">{{ stock|length }}</span></a>
+    <a href="#stock" data-section="stock" class="tree-head"><span>{{ part.number }} · locations</span><span class="muted small">{{ stock|length }}</span></a>
     <a href="#orders" data-section="orders" style="--depth: 1"><span>Orders</span><span class="muted small">{{ lines|length }}</span></a>
     <a href="#history" data-section="history" style="--depth: 1"><span>History</span><span class="muted small">{{ movements|length }}</span></a>
   </nav>
@@ -20,7 +20,7 @@
   <div class="parts-middle">
     <div data-panel="stock">
   <section class="card">
-    <h3>Where it is</h3>
+    <h3>Locations</h3>
     <table class="list">
       {% for s in stock %}<tr data-brief-url="{{ s.location|brief_url }}"><td><a href="{{ s.location.get_absolute_url }}">{{ s.location }}</a></td><td class="num">{{ s.quantity|qty }} {{ part.unit }}</td></tr>
       {% empty %}<tr><td class="empty small">None in stock.</td></tr>{% endfor %}

@@ -32,7 +32,7 @@
   {% elif show == 'assets' %}
     <section class="card flush">
       <table class="list parts-list">
-        <tr><th></th><th>Asset tag</th><th>Serial number</th><th>Version</th><th>Status</th><th>Where</th></tr>
+        <tr><th></th><th>Asset tag</th><th>Serial number</th><th>Version</th><th>Status</th><th>Location</th></tr>
         {% for u in units %}<tr data-part="{{ u.pk }}" data-brief-url="{% url 'assets:brief' u.pk %}" class="{% if row.pk == u.pk %}on{% endif %}" tabindex="0">
           <td class="thumb-cell">{% thumb u %}</td><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td class="small">{{ u.serial }}</td><td>{% if u.version %}v{{ u.version }}{% else %}—{% endif %}</td>
           <td><span class="badge{% if u.status == 'in_use' or u.status == 'available' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>

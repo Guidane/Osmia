@@ -1,6 +1,6 @@
 """Assets: every thing kept one by one with an asset tag — tools, lab equipment (power supplies, scopes), measuring
 instruments, electronics, the devices and harnesses built or bought, IT. Its kind is picked from a list; its category (the
-same tree as parts') gives it attributes, shared with the parts of that category. Where it is kept, who looks after it, who has it out now,
+same tree as parts') gives it attributes, shared with the parts of that category. Its location, who looks after it, who has it out now,
 when it is due for calibration, everything that happened to it; what it was bought for (an order line) or built as (a
 device or harness design, the version, a harness's checklist). Parts link to assets they need with a "link to an
 asset" attribute (a contact's "Crimped with")."""

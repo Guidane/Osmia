@@ -131,10 +131,10 @@ def receive(order, arrived, user):
 
 
 def _asset_arrived(asset, location, user, order):
-    """An asset ordered arrived: available, kept at ``location``."""
+    """An asset ordered arrived: available, at the location ``location``."""
     from assets.models import Asset, AssetEvent
     Asset.objects.filter(pk=asset.pk).update(status=Asset.Status.AVAILABLE, location=location)
-    AssetEvent.objects.create(asset=asset, kind=AssetEvent.Kind.RECEIVED, user=user, note=f'{order.number}, kept at {location.path}')
+    AssetEvent.objects.create(asset=asset, kind=AssetEvent.Kind.RECEIVED, user=user, note=f'{order.number}, location {location.path}')
 
 
 def cancel(order, user):
