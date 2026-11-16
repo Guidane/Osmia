@@ -37,10 +37,10 @@
   <div class="card-head"><h3>What to order</h3><button type="button" class="btn small primary" data-find>＋ Add item</button></div>
   <table class="list">
     <tr><th>Item definition</th><th colspan="3">Quantity · price each</th></tr>
-    {% for line, where in lines %}<tr data-brief-url="{{ line.item|brief_url }}">
-      <td>{% if line.asset %}🔧 {% endif %}<a href="{{ line.item.get_absolute_url }}">{{ line.item.number }}</a> <span class="muted small">{{ line.text }}{% if line.vendor_number %} · {{ line.vendor_number }}{% endif %}</span></td>
+    {% for line, where, tags in lines %}<tr data-brief-url="{{ line.item|brief_url }}">
+      <td><a href="{{ line.item.get_absolute_url }}">{{ line.item.number }}</a> <span class="muted small">{{ line.text }}{% if line.vendor_number %} · {{ line.vendor_number }}{% endif %}</span></td>
       <td colspan="3"><form method="post" action="{% url 'orders:line_change' order.pk line.pk %}" class="line-form">{% csrf_token %}
-        <input type="text" name="quantity" value="{{ line.quantity|qty }}" inputmode="decimal" aria-label="Quantity of {{ line.item.number }}"{% if line.asset %} readonly{% endif %}>
+        <input type="text" name="quantity" value="{{ line.quantity|qty }}" inputmode="decimal" aria-label="Quantity of {{ line.item.number }}">
         <input type="text" name="price" value="{{ line.price|qty }}" inputmode="decimal" placeholder="—" aria-label="Price of {{ line.item.number }}">
         <button class="btn small">Save</button> <button class="btn small ghost" name="remove" value="1" title="Take it off">✕</button></form></td>
     </tr>{% empty %}<tr><td colspan="4" class="empty small">Nothing on it yet.</td></tr>{% endfor %}
@@ -53,8 +53,7 @@
     <button type="button" class="btn small ghost" data-close title="Close">✕</button></div>
   <div class="finder-body">
     <nav class="finder-tree" aria-label="Categories"><button type="button" data-category="" class="on">All item definitions</button>
-      {% for c, depth in categories %}<button type="button" data-category="{{ c.pk }}" style="padding-left: {{ depth|add:1 }}em">{{ c.name }}</button>{% endfor %}
-      {% if assets %}<button type="button" data-category="assets">🔧 Assets waiting to be ordered</button>{% endif %}</nav>
+      {% for c, depth in categories %}<button type="button" data-category="{{ c.pk }}" style="padding-left: {{ depth|add:1 }}em">{{ c.name }}</button>{% endfor %}</nav>
     <div class="finder-results"><table class="list"><thead><tr><th>Item definition</th><th>Description</th><th>Category</th><th class="num">In stock</th></tr></thead>
       <tbody id="finder-rows"></tbody></table><p class="muted small pad" id="finder-note"></p></div>
   </div>
@@ -66,7 +65,6 @@
     <button class="btn primary" id="pick-add" disabled>＋ Add</button>
   </form>
 </dialog>
-{{ assets_json|json_script:"waiting-assets" }}
 {% if budget_left is not None and budget_left < 0 %}<div class="flash warning">Placing it takes {{ order.budget|link }} over its budget by {{ budget_left|money_abs }}.</div>{% endif %}
 {% if lines %}<form method="post" action="{% url 'orders:place' order.pk %}" class="card place-form">{% csrf_token %}
   <label>Expected <input type="date" name="expected_on" value="{{ order.expected_on|date:'Y-m-d' }}" min="{{ today|date:'Y-m-d' }}"></label>
@@ -79,12 +77,15 @@
   <form method="post" action="{% url 'orders:receive' order.pk %}">{% csrf_token %}
   <table class="list">
     <tr><th>Item definition</th><th class="num">Ordered</th><th class="num">Received</th>{% if order.status == 'ordered' or order.status == 'partly' %}<th>Arrived now</th><th>Into</th>{% endif %}</tr>
-    {% for line, where in lines %}<tr data-brief-url="{{ line.item|brief_url }}">
-      <td>{% if line.asset %}🔧 {% endif %}<a href="{{ line.item.get_absolute_url }}">{{ line.item.number }}</a> <span class="muted small">{{ line.text }}</span></td>
+    {% for line, where, tags in lines %}<tr data-brief-url="{{ line.item|brief_url }}">
+      <td><a href="{{ line.item.get_absolute_url }}">{{ line.item.number }}</a> <span class="muted small">{{ line.text }}</span>
+        {% for r in line.records.all %}{% if forloop.first %}<br>{% endif %}{{ r|link }}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
       <td class="num">{{ line.quantity|qty }}</td>
       <td class="num">{{ line.received|qty }}{% if line.outstanding == 0 %} ✓{% endif %}</td>
       {% if order.status == 'ordered' or order.status == 'partly' %}
-        <td>{% if line.outstanding %}<input type="text" name="q_{{ line.pk }}" inputmode="decimal" placeholder="{{ line.outstanding|qty }}" aria-label="How many {{ line.item.number }} arrived" class="qty">
+        <td>{% if line.outstanding and line.tagged %}<input type="text" name="t_{{ line.pk }}" placeholder="{{ tags|default:'Asset tags' }}" aria-label="Asset tags of the {{ line.item.number }} that arrived">
+          {% if tags %}<button type="button" class="btn small ghost" data-all="t_{{ line.pk }}" data-value="{{ tags }}" title="All of it">All</button>{% endif %}
+        {% elif line.outstanding %}<input type="text" name="q_{{ line.pk }}" inputmode="decimal" placeholder="{{ line.outstanding|qty }}" aria-label="How many {{ line.item.number }} arrived" class="qty">
           <button type="button" class="btn small ghost" data-all="q_{{ line.pk }}" data-value="{{ line.outstanding|qty }}" title="All of it">All</button>{% endif %}</td>
         <td>{% if line.outstanding and line.stocked %}<select name="l_{{ line.pk }}" aria-label="Where {{ line.item.number }} goes"><option value="">Location…</option>
           {% for l, depth in locations %}<option value="{{ l.pk }}"{% if l.pk == where %} selected{% endif %}>{% for _ in ""|ljust:depth %}&nbsp;&nbsp;&nbsp;{% endfor %}{{ l.name }}</option>{% endfor %}</select>{% endif %}</td>
@@ -124,14 +125,13 @@
   document.querySelectorAll('[data-all]').forEach(function (b) {
     b.addEventListener('click', function () { b.form.querySelector('[name="' + b.dataset.all + '"]').value = b.dataset.value; });
   });
-  /* Adding to the order: an item definition (by category, words, or the whole list) or an asset waiting to be ordered; picking
+  /* Adding to the order: an item definition (by category, words, or the whole list); picking
      one fills in the line at the bottom. After adding, the popup opens again for the next one. */
   var finder = document.getElementById('finder');
   if (finder) {
     var q = document.getElementById('finder-q'), rows = document.getElementById('finder-rows'), note = document.getElementById('finder-note');
     var picked = document.getElementById('picked'), number = document.getElementById('pick-number'), add = document.getElementById('pick-add');
     var quantity = document.getElementById('pick-quantity'), price = document.getElementById('pick-price');
-    var assets = JSON.parse(document.getElementById('waiting-assets').textContent);
     var category = '', timer, asked = 0;
     var pick = function (item, tr) {
       rows.querySelectorAll('tr.on').forEach(function (o) { o.classList.remove('on'); });
@@ -139,10 +139,10 @@
       number.value = item.number;
       picked.textContent = item.number + ' · ' + item.description;
       picked.className = '';
-      quantity.disabled = item.asset; quantity.value = item.asset ? '1' : '';
+      quantity.value = '';
       price.placeholder = item.price ? 'Price each (last ' + item.price + ')' : 'Price each';
       add.disabled = false;
-      (item.asset ? price : quantity).focus();
+      quantity.focus();
     };
     var show = function (items, more) {
       rows.replaceChildren();
@@ -159,11 +159,7 @@
       note.textContent = items.length ? (more ? 'Showing the first ' + items.length + ': search or pick a category to narrow it down.' : '') : 'Nothing found.';
     };
     var search = function () {
-      var mine = ++asked, words = q.value.trim().toLowerCase();
-      if (category === 'assets') {
-        show(assets.filter(function (a) { return (a.number + ' ' + a.description).toLowerCase().indexOf(words) !== -1; }), false);
-        return;
-      }
+      var mine = ++asked;
       fetch('{% url "inventory:find" %}?q=' + encodeURIComponent(q.value) + '&category=' + category)
         .then(function (r) { return r.json(); }).then(function (data) {
           if (mine !== asked) return;

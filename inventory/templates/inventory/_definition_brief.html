@@ -21,7 +21,7 @@
   </dl>
   {% if definition.physical %}<h4>Locations</h4>
   <table class="list compact">
-    {% for s in stock %}<tr><td>{{ s.location|link }}</td><td class="num">{{ s.quantity|qty }} {{ definition.unit }}</td></tr>
+    {% for location, quantity in stock %}<tr><td>{{ location|link }}</td><td class="num">{{ quantity|qty }} {{ definition.unit }}</td></tr>
     {% empty %}<tr><td class="empty small">None in stock.</td></tr>{% endfor %}
   </table>{% endif %}
 </div>

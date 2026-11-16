@@ -16,8 +16,7 @@
     <a href="#harnesses" data-section="harnesses"><span>Harnesses</span><span class="muted small">{{ harnesses|length|add:n_sub.harnesses }}</span></a>
     <a href="#orders" data-section="orders"><span>Orders</span><span class="muted small">{{ orders|length|add:n_sub.orders }}</span></a>
     <a href="#devices" data-section="devices"><span>Devices</span><span class="muted small">{{ devices|length|add:n_sub.devices }}</span></a>
-    <a href="#assets" data-section="assets"><span>Assets</span><span class="muted small">{{ assets|length|add:n_sub.assets }}</span></a>
-    <a href="#tools" data-section="tools"><span>Tools</span><span class="muted small">{{ tools|length|add:n_sub.tools }}</span></a>
+    <a href="#assets" data-section="assets"><span>Assets and tools</span><span class="muted small">{{ assets|length|add:n_sub.assets }}</span></a>
   </nav>
 
   <div class="browser-middle">
@@ -77,7 +76,7 @@
 
 <div data-panel="assets" hidden>
 <section class="card flush">
-    <div class="card-head"><h3>Assets <span class="muted small">{{ assets|length|add:n_sub.assets }}</span></h3></div>
+    <div class="card-head"><h3>Assets and tools <span class="muted small">{{ assets|length|add:n_sub.assets }}</span></h3></div>
     <table class="list">{% for a in assets %}<tr data-brief-url="{{ a|brief_url }}"><td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="small">{{ a.name }}</span></td>
       <td class="small muted">{{ a.location|link|default:"" }}</td>
       <td class="num">{% include "work/_out.html" with what="asset" id=a.pk name=a.number %}</td></tr>{% endfor %}
@@ -87,17 +86,6 @@
   </section>
 </div>
 
-<div data-panel="tools" hidden>
-<section class="card flush">
-    <div class="card-head"><h3>Tools <span class="muted small">{{ tools|length|add:n_sub.tools }}</span></h3></div>
-    <table class="list">{% for a in tools %}<tr data-brief-url="{{ a|brief_url }}"><td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="small">{{ a.name }}</span></td>
-      <td class="small muted">{{ a.location|link|default:"" }}</td>
-      <td class="num">{% include "work/_out.html" with what="asset" id=a.pk name=a.number %}</td></tr>{% endfor %}
-      {% for a in sub_tools %}<tr data-brief-url="{{ a|brief_url }}"><td class="thumb-cell">{% thumb a %}</td><td><a href="{{ a.get_absolute_url }}">{{ a.number }}</a> <span class="small">{{ a.name }}</span> {% include "work/_via.html" with via=a.via %}</td>
-      <td class="small muted">{{ a.location|link|default:"" }}</td><td></td></tr>{% endfor %}</table>
-    {% include "work/_add.html" with what="asset" choices=other_tools label="A tool" %}
-  </section>
-</div>
 
   </div>
 

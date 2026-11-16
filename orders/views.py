@@ -14,7 +14,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from assets.models import Asset
 from budgets.models import Budget
 from inventory import stock
 from inventory.models import Category, Location, ItemDefinition, Vendor
@@ -69,17 +68,17 @@ class RequestForm(OrderForm):
 @login_required
 def order_list(request):
     shown = request.GET.get('show') if request.GET.get('show') in SHOWN else 'open'
-    found = Order.objects.filter(SHOWN[shown][1]).select_related('vendor').prefetch_related('lines__definition', 'lines__asset')
+    found = Order.objects.filter(SHOWN[shown][1]).select_related('vendor').prefetch_related('lines__definition')
     q = request.GET.get('q', '').strip()
     if q:
         found = found.filter(Q(number__icontains=q) | Q(vendor__name__icontains=q) | Q(vendor_reference__icontains=q) | Q(request__icontains=q)
-                             | Q(lines__definition__number__icontains=q) | Q(lines__asset__number__icontains=q)).distinct()
+                             | Q(lines__definition__number__icontains=q)).distinct()
     if request.GET.get('export'):
         return excel.download('orders', [
             ('Orders', ['Order', 'Asked for', 'Vendor', 'Status', "Vendor's number", 'Ordered', 'Expected', 'Received', 'Late'],
              [(o.number, o.request, o.vendor.name if o.vendor else '', o.get_status_display(), o.vendor_reference, o.ordered_on, o.expected_on, o.received_on,
                'yes' if o.overdue else '') for o in found]),
-            ('Lines', ['Order', 'Item number or asset', 'Description', 'Ordered', 'Received', 'Price each'],
+            ('Lines', ['Order', 'Item number', 'Description', 'Ordered', 'Received', 'Price each'],
              [(o.number, line.item.number, line.text, line.quantity, line.received, line.price)
               for o in found for line in o.lines.all()])])
     found = list(found[:300])
@@ -117,10 +116,8 @@ def order_new(request):
 
 def _where(line):
     """Where a received item definition most likely goes: the location that holds most of it."""
-    if line.asset_id:
-        return line.asset.location_id
-    row = line.definition.stock.filter(quantity__gt=0).order_by('-quantity').first()
-    return row.location_id if row else None
+    have = stock.in_stock(line.definition) if line.definition else []
+    return have[0][0].pk if have else None
 
 
 @login_required
@@ -131,17 +128,23 @@ def order(request, pk):
         form.save()
         messages.success(request, f'{item} is saved.')
         return redirect(item)
-    lines = list(item.lines.select_related('definition', 'asset'))
+    lines = list(item.lines.select_related('definition'))
     left = None   # what the budget has left once this draft is placed
     if item.budget_id and item.status == Order.Status.DRAFT:
         from budgets.money import totals
         left = totals([item.budget])[item.budget_id].remaining - item.total
     return render(request, 'orders/order.html', {
         'budget_left': left,
-        'order': item, 'form': form, 'lines': [(line, _where(line)) for line in lines], 'locations': Location.ordered(),
-        'today': date.today(), 'categories': Category.of(Category.Kind.DEFINITIONS),
-        'assets_json': [{'number': a.number, 'description': a.name, 'category': a.get_kind_display(), 'have': '', 'asset': True,
-                         'price': qty(a.price)} for a in Asset.objects.filter(status=Asset.Status.ORDERED, order_lines=None)]})
+        'order': item, 'form': form, 'lines': [(line, _where(line), _tags(line)) for line in lines], 'locations': Location.ordered(),
+        'today': date.today(), 'categories': Category.ordered()})
+
+
+def _tags(line):
+    """The asset tags the ones still to come of an asset line would get, the first free ones: "A-004 A-005"."""
+    from records.service import next_tags
+    if not line.tagged or line.outstanding <= 0 or line.outstanding != int(line.outstanding):
+        return ''
+    return ' '.join(next_tags(line.definition.number, int(line.outstanding)))
 
 
 def _draft(request, pk):
@@ -158,14 +161,8 @@ def line_add(request, pk):
         item = _draft(request, pk)
         number = request.POST.get('definition', '').strip()
         definition = ItemDefinition.objects.filter(number__iexact=number).first()
-        asset = Asset.objects.filter(number__iexact=number).first() if definition is None else None
-        if asset is not None:   # an asset on order, by its asset tag
-            if asset.status != Asset.Status.ORDERED or asset.order_lines.exclude(order__status=Order.Status.CANCELLED).exists():
-                raise ValidationError(f'{asset} is not an asset waiting to be ordered.')
-            OrderLine.objects.create(order=item, asset=asset, quantity=1, price=asset.price)
-            return redirect(reverse('orders:order', args=[pk]) + '#add')
         if definition is None:
-            raise ValidationError(f'There is no item definition or asset "{number}".')
+            raise ValidationError(f'There is no item definition "{number}".')
         quantity = stock.amount(request.POST.get('quantity'))
         price = request.POST.get('price', '').strip()
         line = item.lines.filter(definition=definition).first()
@@ -189,7 +186,7 @@ def line_change(request, pk, line):
         if request.POST.get('remove'):
             row.delete()
         else:
-            row.quantity = Decimal(1) if row.asset_id else stock.amount(request.POST.get('quantity'))
+            row.quantity = stock.amount(request.POST.get('quantity'))
             price = request.POST.get('price', '').strip()
             row.price = stock.amount(price, allow_zero=True) if price else None
             row.save(update_fields=['quantity', 'price'])
@@ -219,9 +216,10 @@ def receive(request, pk):
     arrived = []
     for line in item.lines.select_related('definition'):
         quantity = request.POST.get(f'q_{line.pk}', '').strip()
-        if quantity and quantity != '0':
+        tags = request.POST.get(f't_{line.pk}', '').strip()
+        if (quantity and quantity != '0') or tags:
             where = request.POST.get(f'l_{line.pk}', '')
-            arrived.append((line, quantity, locations.get(int(where)) if where.isdigit() else None))
+            arrived.append((line, quantity, locations.get(int(where)) if where.isdigit() else None, tags))
     try:
         booked = service.receive(item, arrived, request.user)
         messages.success(request, f'Received: {", ".join(booked)}.')

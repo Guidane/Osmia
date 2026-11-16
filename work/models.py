@@ -21,7 +21,7 @@ class Project(TreeWalk, models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     department = models.ForeignKey('accounts.Department', null=True, blank=True, on_delete=models.SET_NULL, related_name='work_projects')
     devices = models.ManyToManyField('devices.Device', blank=True, related_name='work_projects')
-    assets = models.ManyToManyField('assets.Asset', blank=True, related_name='work_projects')
+    records = models.ManyToManyField('records.Record', blank=True, related_name='work_projects')   # its assets (and tools)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

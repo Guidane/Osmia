@@ -23,7 +23,7 @@
 </style>{% endblock %}
 {% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small back"><a href="{% if kind == 'definition' %}{% url 'inventory:definitions' %}{% else %}{% url 'assets:list' %}{% endif %}">← {% if kind == 'definition' %}Item definitions{% else %}Assets{% endif %}</a></p>
+<p class="small back"><a href="{% if kind == 'definition' %}{% url 'inventory:definitions' %}{% else %}{% url 'records:assets' %}{% endif %}">← {% if kind == 'definition' %}Item definitions{% else %}Assets{% endif %}</a></p>
 <form method="get" class="card label-settings">
   <input type="hidden" name="ids" value="{{ ids }}">
   <div class="page-head"><h1>🏷 Labels of {{ things|length }} {{ kind }}{{ things|length|pluralize }}</h1><span class="spacer"></span>

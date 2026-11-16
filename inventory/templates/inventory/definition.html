@@ -12,21 +12,25 @@
 
 <div class="browser" data-sections>
   <nav class="card browser-tree" aria-label="{{ definition.number }}">
-    {% if definition.physical %}<a href="#stock" data-section="stock" class="tree-head"><span>{{ definition.number }} · locations</span><span class="muted small">{{ stock|length }}</span></a>
+    <a href="#records" data-section="records" class="tree-head"><span>{{ definition.number }} · records</span><span class="muted small">{{ records|length }}</span></a>
     <a href="#orders" data-section="orders" style="--depth: 1"><span>Orders</span><span class="muted small">{{ lines|length }}</span></a>
-    <a href="#history" data-section="history" style="--depth: 1"><span>History</span><span class="muted small">{{ movements|length }}</span></a>
-    {% else %}<a href="#orders" data-section="orders" class="tree-head"><span>{{ definition.number }} · orders</span><span class="muted small">{{ lines|length }}</span></a>{% endif %}
+    {% if definition.physical %}<a href="#history" data-section="history" style="--depth: 1"><span>History</span><span class="muted small">{{ movements|length }}</span></a>{% endif %}
   </nav>
 
   <div class="browser-middle">
-    {% if definition.physical %}<div data-panel="stock">
+    <div data-panel="records">
   <section class="card">
-    <h3>Locations</h3>
+    <h3>Records</h3>
     <table class="list">
-      {% for s in stock %}<tr data-brief-url="{{ s.location|brief_url }}"><td><a href="{{ s.location.get_absolute_url }}">{{ s.location }}</a></td><td class="num">{{ s.quantity|qty }} {{ definition.unit }}</td></tr>
-      {% empty %}<tr><td class="empty small">None in stock.</td></tr>{% endfor %}
+      <tr>{% if definition.is_asset %}<th>Asset tag</th>{% endif %}<th class="num">Quantity</th>{% if definition.physical %}<th>Location</th>{% endif %}<th>Order</th><th>Since</th>{% if definition.is_asset %}<th>Status</th>{% endif %}</tr>
+      {% for r in records %}<tr data-brief-url="{{ r|brief_url }}">{% if definition.is_asset %}<td><a href="{{ r.get_absolute_url }}">{{ r.tag }}</a></td>{% endif %}
+        <td class="num">{% if not definition.is_asset %}<a href="{{ r.get_absolute_url }}">{{ r.quantity|qty }}</a>{% else %}{{ r.quantity|qty }}{% endif %} {{ definition.unit }}</td>
+        {% if definition.physical %}<td>{{ r.location|link|default:"" }}</td>{% endif %}
+        <td>{% if r.order_line %}{{ r.order_line.order|link }}{% endif %}</td><td class="small nowrap">{{ r.created_at|date:"j M Y" }}</td>
+        {% if definition.is_asset %}<td class="small">{{ r.get_status_display }}{% if r.holder %} · {{ r.holder }}{% endif %}</td>{% endif %}</tr>
+      {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}
     </table>
-    <form method="post" action="{% url 'inventory:definition_stock' definition.pk %}" class="stock-form">{% csrf_token %}
+    {% if definition.physical and not definition.is_asset %}<form method="post" action="{% url 'inventory:definition_stock' definition.pk %}" class="stock-form">{% csrf_token %}
       <select name="action" aria-label="What happens" data-stock-action>
         <option value="add">Add</option><option value="use">Use / take out</option><option value="move">Move</option><option value="count">Count (set to)</option></select>
       <input type="text" name="quantity" inputmode="decimal" placeholder="How many" aria-label="How many" required>
@@ -37,10 +41,11 @@
       <input type="text" name="note" placeholder="Note (optional)" aria-label="Note" maxlength="300">
       <button class="btn">Save</button>
     </form>
-    {% if not locations %}<p class="small muted">Make a <a href="{% url 'inventory:location_new' %}">location</a> first.</p>{% endif %}
+    {% if not locations %}<p class="small muted">Make a <a href="{% url 'inventory:location_new' %}">location</a> first.</p>{% endif %}{% endif %}
+    {% if definition.is_asset %}<a class="btn" href="{% url 'records:new' %}?definition={{ definition.pk }}">＋ Asset</a>{% endif %}
   </section>
-    </div>{% endif %}
-    <div data-panel="orders"{% if definition.physical %} hidden{% endif %}>
+    </div>
+    <div data-panel="orders" hidden>
   <section class="card flush">
     <div class="card-head"><h3>Orders</h3></div>
     <table class="list">

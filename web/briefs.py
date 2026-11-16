@@ -37,12 +37,12 @@ def device(d):
             'details': [('Made', d.get_origin_display(), ''), ('Manufacturer', ' · '.join(x for x in (d.manufacturer, d.model) if x), ''),
                         ('Version', f'v{d.version}' if d.version else 'not saved', ''), ('Description', d.description, '')],
             'tables': [_table('Connectors', connectors, 'No connectors yet.'),
-                       _table('Assets', [(_link(a), a.get_status_display()) for a in d.assets.all()[:20]])]}
+                       _table('Built or bought', [(_link(a), a.get_status_display()) for a in d.records.all()[:20]])]}
 
 
 def order(o):
     lines = [(_link(line.item) if hasattr(line.item, 'get_absolute_url') else line.item.number,
-              f'{qty(line.quantity)}', f'{qty(line.received)} in', money(line.price)) for line in o.lines.select_related('definition', 'asset')]
+              f'{qty(line.quantity)}', f'{qty(line.received)} in', money(line.price)) for line in o.lines.select_related('definition')]
     late = o.overdue
     return {'title': o.number, 'what': '',
             'badges': [('Late' if late else o.get_status_display(), 'ok' if o.status == 'received' else 'failed' if late or o.status == 'cancelled' else '')],
@@ -67,7 +67,7 @@ def project(p):
             'badges': [(p.get_status_display(), 'ok' if p.status == 'active' else '')],
             'details': [('Part of', str(p.parent or ''), p.parent.get_absolute_url() if p.parent else ''), ('Owner', str(p.owner or ''), ''),
                         _of('Department', p.department),
-                        ('Devices', p.devices.count(), ''), ('Assets and tools', p.assets.count(), ''), ('Orders', p.orders.count(), '')],
+                        ('Devices', p.devices.count(), ''), ('Assets and tools', p.records.count(), ''), ('Orders', p.orders.count(), '')],
             'tables': [_table('Sub-projects', [(_link(c), c.get_status_display()) for c in p.children.order_by('code', 'name')]),
                        _table('Setups', [(_link(d),) for d in p.setups.all()])]}
 
@@ -101,8 +101,8 @@ def user(u):
             'details': [('User name', u.username, ''), ('Email', u.email, f'mailto:{u.email}' if u.email else ''), ('Phone', u.phone, ''),
                         ('Department', str(u.department or ''), u.department.get_absolute_url() if u.department else ''),
                         ('Last logged in', _date(u.last_login) or 'never', '')],
-            'tables': [_table('Has out', [((a.number, a.get_absolute_url()), a.name) for a in u.held_assets.all()[:15]]),
-                       _table('Looks after', [((a.number, a.get_absolute_url()), a.name) for a in u.kept_assets.all()[:15]])]}
+            'tables': [_table('Has out', [((a.number, a.get_absolute_url()), a.name) for a in u.held_records.select_related('definition', 'harness', 'device')[:15]]),
+                       _table('Looks after', [((a.number, a.get_absolute_url()), a.name) for a in u.kept_records.select_related('definition', 'harness', 'device')[:15]])]}
 
 
 def location(l):
@@ -113,14 +113,10 @@ def location(l):
 
 
 def category(c):
-    from assets.models import Asset
     from inventory.models import ItemDefinition
-    below = c.below()
-    many = Asset.objects.filter(category_id__in=below).exclude(status='retired') if c.kind == 'assets' else ItemDefinition.objects.filter(category_id__in=below, active=True)
-    listed = reverse('assets:list' if c.kind == 'assets' else 'inventory:definitions')
+    many = ItemDefinition.objects.filter(category_id__in=c.below(), active=True)
     return {'title': c.name, 'what': c.path, 'edit_url': f"{reverse('inventory:categories')}?edit={c.pk}",
-            'details': [('Of', 'assets' if c.kind == 'assets' else 'definitions', ''),
-                        ('Assets' if c.kind == 'assets' else 'Item definitions', many.count(), f'{listed}?category={c.pk}')],
+            'details': [('Item definitions', many.count(), f"{reverse('inventory:definitions')}?category={c.pk}")],
             'tables': [_table('Attributes', [(a.name, a.get_kind_display(), '' if a.category_id == c.pk else f'from {a.category.name}')
                                              for a in c.all_attributes()]),
                        _table('Under it', [((k.name, k.get_absolute_url()),) for k in c.children.all()])]}

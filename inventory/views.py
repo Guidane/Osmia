@@ -1,4 +1,5 @@
-"""Item definitions (finding them, their page with stock, history and orders), locations, vendors and categories."""
+"""Item definitions (finding them, their page with their records (the stock), history and orders), locations, vendors and
+categories."""
 import json
 
 from django.contrib import messages
@@ -18,10 +19,12 @@ from web.shortcuts import edit_page, errors
 from web.forms import initial_for
 
 from . import attributes as attributes_kept
+from records.models import Record
+
 from . import stock
 from .attributes import DefinitionStore
 from .forms import AttributeForm, BranchForm, CategoryForm, FamilyBranchForm, FamilyForm, LocationForm, DefinitionForm, VendorForm
-from .models import Attribute, Branch, Category, Family, FamilyBranch, Location, ItemDefinition, DefinitionLink, DefinitionValue, Stock, Vendor
+from .models import Attribute, Branch, Category, Family, FamilyBranch, Location, ItemDefinition, DefinitionLink, DefinitionValue, Vendor
 
 PAGE = 200   # item definitions listed at most
 
@@ -38,7 +41,7 @@ def search(found, q):
 @login_required
 def find(request):
     """Item definitions matching ?q= (words) and ?category= (with those under it), for finding one to pick: JSON."""
-    found = search(ItemDefinition.objects.filter(active=True).select_related('category').annotate(have=Sum('stock__quantity')),
+    found = search(ItemDefinition.objects.filter(active=True).select_related('category').annotate(have=Sum('records__quantity')),
                    request.GET.get('q', '').strip())
     category = Category.objects.filter(pk=request.GET.get('category') or 0).first()
     if category is not None:
@@ -51,7 +54,7 @@ def find(request):
 @login_required
 def definitions(request):
     q = request.GET.get('q', '').strip()
-    found = search(ItemDefinition.objects.select_related('category', 'vendor').annotate(have=Sum('stock__quantity')), q)
+    found = search(ItemDefinition.objects.select_related('category', 'vendor').annotate(have=Sum('records__quantity')), q)
     category = Category.objects.filter(pk=request.GET.get('category') or 0).first()
     attributes = category.all_attributes() if category else []
     if category is not None:
@@ -62,7 +65,7 @@ def definitions(request):
         return excel.download('definitions', _definition_sheets(found))
     if q and found.count() == 1:
         return redirect(found.get())
-    tree = Category.of(Category.Kind.DEFINITIONS)
+    tree = Category.ordered()
     own = dict(ItemDefinition.objects.filter(active=True).values('category').annotate(n=Count('pk')).values_list('category', 'n'))
     children = {}
     for c, _ in tree:
@@ -82,7 +85,7 @@ def definitions(request):
 def _brief(definition):
     """What the details beside the list show of ``definition``."""
     return {'definition': definition, 'attributes': attributes_kept.shown(definition, definition.category),
-            'stock': definition.stock.select_related('location').filter(quantity__gt=0), 'on_hand': definition.on_hand,
+            'stock': stock.in_stock(definition), 'on_hand': definition.on_hand,
             'on_order': orders.on_order(definition)}
 
 
@@ -99,8 +102,10 @@ def _definition_sheets(definitions):
                        "Vendor's number", 'Last price', 'Minimum', 'On hand', 'Active'],
              [(p.number, p.get_kind_display(), p.description, p.category.path if p.category else '', p.manufacturer, p.mpn, p.unit,
                p.vendor.name if p.vendor else '', p.vendor_number, p.price, p.minimum, p.have or 0, 'yes' if p.active else 'no') for p in definitions]),
-            ('Stock', ['Item number', 'Location', 'Quantity'],
-             [(s.definition.number, s.location.path, s.quantity) for s in Stock.objects.filter(definition__in=definitions, quantity__gt=0)
+            ('Records', ['Item number', 'Asset tag', 'Location', 'Quantity', 'Order', 'Since'],
+             [(r.definition.number, r.tag or '', r.location.path if r.location else '', r.quantity,
+               r.order_line.order.number if r.order_line else '', r.created_at.date())
+              for r in Record.objects.filter(definition__in=definitions, quantity__gt=0).select_related('definition', 'location', 'order_line__order')
               .select_related('definition', 'location')]),
             ('Attributes', ['Item number', 'Category', 'Attribute', 'Value', 'Unit'],
              [(v.definition.number, v.definition.category.path if v.definition.category else '', v.attribute.name,
@@ -119,7 +124,7 @@ def definition_form(request, pk=None):
         messages.success(request, f'{definition} is saved.')
         return redirect(definition)
     numbers = ItemDefinition.objects.filter(active=True).values_list('number', 'description')[:5000] \
-        if any(a.kind == Attribute.Kind.LINK and not a.to_assets for a in form.attributes) else []
+        if any(a.kind == Attribute.Kind.LINK for a in form.attributes) else []
     return render(request, 'inventory/attributes_form.html', {'form': form, 'title': f'Change {definition}' if definition else 'New item definition',
                                                               'back': definition.get_absolute_url() if definition else None, 'definition_numbers': numbers})
 
@@ -129,7 +134,7 @@ def definition(request, pk):
     definition = get_object_or_404(ItemDefinition.objects.select_related('category', 'vendor', 'family', 'branch'), pk=pk)
     return render(request, 'inventory/definition.html', {
         'attributes': attributes_kept.shown(definition, definition.category), 'linked_here': attributes_kept.linked_here(definition),
-        'definition': definition, 'stock': definition.stock.select_related('location').filter(quantity__gt=0),
+        'definition': definition, 'records': definition.records.filter(quantity__gt=0).select_related('location', 'order_line__order', 'holder'),
         'on_hand': definition.on_hand, 'on_order': orders.on_order(definition),
         'lines': definition.order_lines.select_related('order__vendor').order_by('-order__pk')[:20],
         'movements': definition.movements.select_related('source', 'target', 'user')[:50],
@@ -303,7 +308,7 @@ def _family_brief(family):
     face = family.face if (family.face or {}).get('contacts') else None
     return {'family': family, 'face': {'face': face, 'pins': [[c[0], ''] for c in face['contacts']]} if face else None,
             'branches': family.branches.annotate(n=Count('definitions')),
-            'definitions': family.definitions.select_related('branch').annotate(have=Sum('stock__quantity'))[:30]}
+            'definitions': family.definitions.select_related('branch').annotate(have=Sum('records__quantity'))[:30]}
 
 
 @login_required
@@ -321,7 +326,7 @@ def standard_categories(request):
     categories, attributes = make()
     messages.success(request, f'{categories} standard categor{"y" if categories == 1 else "ies"} and {attributes} attribute{"" if attributes == 1 else "s"} added.'
                      if categories or attributes else 'The standard categories are all there.')
-    return redirect(f"{reverse('inventory:categories')}?kind=definitions")
+    return redirect('inventory:categories')
 
 
 @login_required
@@ -352,7 +357,7 @@ def family(request, pk):
         'faces': {side: {'face': f, 'pins': [[c[0], ''] for c in f['contacts']]} for side, f in (('pin', face), ('socket', mirrored(face)))}
                  if face else None,
         'family': item, 'form': form, 'branch': branch, 'branches': item.branches.annotate(n=Count('definitions')),
-        'definitions': item.definitions.select_related('vendor', 'branch').annotate(have=Sum('stock__quantity'))})
+        'definitions': item.definitions.select_related('vendor', 'branch').annotate(have=Sum('records__quantity'))})
 
 
 def _with_branches(family):
@@ -423,48 +428,37 @@ def connector(request, pk):
 
 @login_required
 def categories(request):
-    """The categories of item definitions (or of assets: ?kind=assets): their tree on the left (?category= the one picked), the
-    categories in it in the middle, the details of the one picked on the right; a form to add one (or change one:
-    ?edit=<pk>)."""
-    from assets.models import Asset
+    """The categories of item definitions: their tree on the left (?category= the one picked), the categories in it in
+    the middle, the details of the one picked on the right; a form to add one (or change one: ?edit=<pk>)."""
     from web import briefs, browse
     item = Category.objects.filter(pk=request.GET.get('edit') or 0).first()
-    kind = item.kind if item else request.GET.get('kind') if request.GET.get('kind') in Category.Kind.values else Category.Kind.DEFINITIONS
-    form = CategoryForm(request.POST or None, instance=item, kind=kind)
+    form = CategoryForm(request.POST or None, instance=item)
     if request.method == 'POST' and form.is_valid():
         saved = form.save()
         messages.success(request, f'{saved} is saved.')
-        return redirect(f"{reverse('inventory:categories')}?kind={kind}&category={saved.pk}")
-    if kind == Category.Kind.ASSETS:
-        counts = Asset.objects.exclude(status='retired')
-    else:
-        counts = ItemDefinition.objects.filter(active=True)
-    counts = dict(counts.values('category').annotate(n=Count('pk')).values_list('category', 'n'))
+        return redirect(f"{reverse('inventory:categories')}?category={saved.pk}")
+    counts = dict(ItemDefinition.objects.filter(active=True).values('category').annotate(n=Count('pk')).values_list('category', 'n'))
     own = dict(Attribute.objects.values('category').annotate(n=Count('pk')).values_list('category', 'n'))
-    tree = Category.of(kind)
-    picked = Category.objects.filter(pk=request.GET.get('category') or 0, kind=kind).first()
+    tree = Category.ordered()
+    picked = Category.objects.filter(pk=request.GET.get('category') or 0).first()
     shown = [(c, d) for c, d in tree if picked is None or c.pk in set(picked.below())]
-    nodes = [browse.node(label, f'?kind={key}', None, key == kind and picked is None) for key, label in Category.Kind.choices]
-    at = next(i for i, n in enumerate(nodes) if n['on'] or n['url'] == f'?kind={kind}')
-    nodes[at + 1:at + 1] = browse.nodes(tree, counts, picked, lambda c: f'?kind={kind}&category={c.pk}', label=lambda c: c.name, depth=1)
+    nodes = [browse.node('All categories', '?', None, picked is None)]
+    nodes += browse.nodes(tree, counts, picked, lambda c: f'?category={c.pk}', label=lambda c: c.name, depth=1)
     top = picked.chain()[-1].pk if picked else None
     base = min((d for c, d in shown), default=0)
     return render(request, 'inventory/categories.html', {
         'categories': [(c, depth - base, counts.get(c.pk, 0), own.get(c.pk, 0)) for c, depth in shown], 'form': form, 'item': item,
-        'kind': kind, 'kinds': Category.Kind.choices, 'nodes': nodes, 'picked': picked, 'top': top,
-        'brief': briefs.of('category', picked) if picked else None})
+        'nodes': nodes, 'picked': picked, 'top': top, 'brief': briefs.of('category', picked) if picked else None})
 
 
 def _category_page(request, item, form):
-    """A category's page: the attributes its item definitions and assets fill in (those it gets from above, and its own), the
-    categories under it, how many item definitions and assets are in it, and a form to add an attribute."""
-    from assets.models import Asset
+    """A category's page: the attributes its item definitions fill in (those it gets from above, and its own), the
+    categories under it, how many item definitions are in it, and a form to add an attribute."""
     every = item.all_attributes()
     below = item.below()
     return render(request, 'inventory/category.html', {
         'category': item, 'inherited': [a for a in every if a.category_id != item.pk], 'own': [a for a in every if a.category_id == item.pk],
-        'form': form, 'children': item.children.all(), 'definitions': ItemDefinition.objects.filter(category_id__in=below, active=True).count(),
-        'assets': Asset.objects.filter(category_id__in=below).exclude(status='retired').count()})
+        'form': form, 'children': item.children.all(), 'definitions': ItemDefinition.objects.filter(category_id__in=below, active=True).count()})
 
 
 @login_required

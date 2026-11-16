@@ -8,7 +8,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from inventory import stock
-from inventory.models import Category, Location, Movement, ItemDefinition, Stock, Vendor
+from inventory.models import Category, Location, Movement, ItemDefinition, Vendor
+from records.models import Record
 
 
 class Base(TestCase):
@@ -36,7 +37,8 @@ class StockTests(Base):
         stock.use(self.plug, '2,5', self.bench, self.ada)                      # a comma works too
         self.assertEqual(self.plug.on_hand, Decimal('22.5'))
         stock.count(self.plug, self.shelf, 18, self.ada)
-        self.assertEqual(Stock.objects.get(definition=self.plug, location=self.shelf).quantity, 18)
+        self.assertEqual(sum(r.quantity for r in Record.objects.filter(definition=self.plug, location=self.shelf)), 18)
+        self.assertEqual(Record.objects.filter(definition=self.plug).count(), 2)   # the delivery split by the move: each its own
         self.assertEqual([(m.kind, m.quantity) for m in Movement.objects.order_by('pk')],
                          [('added', 25), ('moved', 5), ('used', Decimal('2.5')), ('counted', -2)])
 
@@ -146,4 +148,3 @@ class StandardCategoryTests(Base):
         response = self.client.post(reverse('inventory:categories_standard'), follow=True)   # again: nothing new
         self.assertEqual((Category.objects.count(), Attribute.objects.count()), before)
         self.assertContains(response, 'The standard categories are all there.')
-        self.assertFalse(Category.objects.filter(kind='assets').exists())

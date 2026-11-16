@@ -10,7 +10,7 @@ from inventory import stock
 from inventory.models import Movement, ItemDefinition
 from inventory.tests.test_inventory import Base
 from orders import service
-from orders.models import Order
+from orders.models import Order, OrderLine
 from web.models import Notification
 
 
@@ -99,37 +99,37 @@ class OrderTests(Base):
         self.assertNotContains(self.client.get(reverse('inventory:definition', args=[self.wire.pk])), 'Reorder</button>')
 
 
-class AssetOrderTests(Base):
-    def test_an_asset_on_order_is_ordered_and_received(self):
-        from assets.models import Asset
-        response = self.client.post(reverse('assets:new'), {'number': 'T-009', 'name': 'Crimp tool', 'kind': 'tool', 'vendor': self.acme.pk,
-                                                            'price': '250', 'on_order': 'on'})
-        tool = Asset.objects.get(number='T-009')
-        self.assertEqual(tool.status, 'ordered')
-        self.assertRedirects(response, reverse('assets:asset', args=[tool.pk]))
-        self.client.post(reverse('assets:act', args=[tool.pk]), {'action': 'order'})
-        order = Order.objects.get()
-        line = order.lines.get()
-        self.assertEqual((line.asset, line.quantity, line.price), (tool, 1, Decimal('250')))
-        with self.assertRaisesMessage(ValidationError, 'is on an order already'):
-            service.order_asset(tool, self.ada)
-        service.reorder(self.plug, self.ada)                                   # an item definition on the same draft
-        self.assertEqual(order.lines.count(), 2)
-        service.place(order, self.ada)
-        self.assertEqual(service.on_order(self.plug), 10)
-        self.assertContains(self.client.get(reverse('orders:order', args=[order.pk])), 'T-009')
-        self.client.post(reverse('orders:receive', args=[order.pk]), {f'q_{line.pk}': '1', f'l_{line.pk}': self.bench.pk})
-        tool.refresh_from_db()
-        self.assertEqual((tool.status, tool.location), ('available', self.bench))
-        self.assertEqual(self.plug.on_hand, 0)                                  # assets don't go into stock
-        self.assertEqual(Order.objects.get().status, 'partly')
-        self.assertEqual(tool.events.get().kind, 'received')
-
-    def test_an_asset_on_order_is_added_by_its_asset_tag(self):
-        from assets.models import Asset
-        meter = Asset.objects.create(number='M-002', name='Meter', kind='measuring', status='ordered', vendor=self.acme)
+class RecordTests(Base):
+    """What arrives is records: each delivery its own; each one of an item definition that is an asset its own, with
+    its asset tag."""
+    def test_a_delivery_is_a_record_of_its_own(self):
         order = Order.objects.create(vendor=self.acme, created_by=self.ada)
-        self.client.post(reverse('orders:line_add', args=[order.pk]), {'definition': 'm-002'})
-        self.assertEqual(order.lines.get().asset, meter)
-        response = self.client.post(reverse('orders:line_add', args=[order.pk]), {'definition': 'M-002'}, follow=True)
-        self.assertContains(response, 'not an asset waiting to be ordered')
+        line = order.lines.create(definition=self.plug, quantity=10, price=Decimal('2.50'))
+        service.place(order, self.ada)
+        stock.add(self.plug, 4, self.shelf, self.ada)
+        self.client.post(reverse('orders:receive', args=[order.pk]), {f'q_{line.pk}': '6', f'l_{line.pk}': self.shelf.pk})
+        received = self.plug.records.get(order_line=line)
+        self.assertEqual((received.quantity, received.location, received.price), (6, self.shelf, Decimal('2.50')))
+        self.assertEqual(self.plug.records.count(), 2)
+        stock.use(self.plug, 5, self.shelf, self.ada)                          # the oldest first: the 4 added, then 1 of the 6
+        self.assertEqual([r.quantity for r in self.plug.records.all()], [5])
+        self.assertContains(self.client.get(reverse('inventory:definition', args=[self.plug.pk])), order.number)
+
+    def test_each_asset_that_arrives_gets_its_tag(self):
+        meter = ItemDefinition.objects.create(number='METER-1', description='Bench meter', vendor=self.acme, is_asset=True, price=Decimal('300'))
+        order = Order.objects.create(vendor=self.acme, created_by=self.ada)
+        line = order.lines.create(definition=meter, quantity=3, price=Decimal('300'))
+        service.place(order, self.ada)
+        page = self.client.get(reverse('orders:order', args=[order.pk]))
+        self.assertContains(page, 'METER-1-001 METER-1-002 METER-1-003')        # the tags they would get
+        response = self.client.post(reverse('orders:receive', args=[order.pk]), {f'q_{line.pk}': '2', f'l_{line.pk}': self.bench.pk}, follow=True)
+        self.assertContains(response, 'its asset tag')                          # a quantity is not enough
+        self.client.post(reverse('orders:receive', args=[order.pk]), {f't_{line.pk}': 'M-1, M-2', f'l_{line.pk}': self.bench.pk})
+        self.assertEqual(list(meter.records.values_list('tag', 'quantity', 'location')), [('M-1', 1, self.bench.pk), ('M-2', 1, self.bench.pk)])
+        self.assertEqual((OrderLine.objects.get().received, Order.objects.get().status), (2, 'partly'))
+        self.assertEqual(meter.on_hand, 2)
+        response = self.client.post(reverse('orders:receive', args=[order.pk]), {f't_{line.pk}': 'M-2', f'l_{line.pk}': self.bench.pk}, follow=True)
+        self.assertContains(response, 'There is already an asset M-2')
+        with self.assertRaisesMessage(ValidationError, 'is an asset'):
+            stock.use(meter, 1, self.bench, self.ada)
+        self.assertContains(self.client.get(reverse('records:assets')), 'M-1')

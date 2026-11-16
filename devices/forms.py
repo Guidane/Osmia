@@ -6,7 +6,7 @@ from .models import Connector, Device
 
 
 class DeviceForm(DefinitionOrFamilyForm):
-    """A device, and (ticked) a unit of it made as an asset, with the next free asset tag."""
+    """A device, and (ticked) one of it made: a record with the next free asset tag."""
     make_asset = forms.BooleanField(required=False, label='Make an asset')
 
     def __init__(self, *args, **kwargs):
@@ -16,13 +16,11 @@ class DeviceForm(DefinitionOrFamilyForm):
             self.fields['make_asset'].label = 'Make another asset'
 
     def add_unit(self, device):
-        """The unit asked for, as an asset of the device: <number>-001, -002, …"""
-        from assets.models import Asset
-        from assets.service import next_tag
+        """The one asked for, a record of the device with an asset tag: <number>-001, -002, …"""
+        from records.models import Record
+        from records.service import next_tag
         if self.cleaned_data.get('make_asset'):
-            return Asset.objects.create(number=next_tag(device.number), name=device.name, device=device,
-                                        version=device.version or None, manufacturer=device.manufacturer, model=device.model,
-                                        kind=Asset.Kind.LAB if device.origin == 'external' else Asset.Kind.DEVICE)
+            return Record.objects.create(tag=next_tag(device.number), device=device, version=device.version or None)
 
     class Meta:
         model = Device

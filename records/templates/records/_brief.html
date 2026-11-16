@@ -1,0 +1,10 @@
+{% load osmia %}<div class="brief" data-brief="{{ record.pk }}">
+  <div class="brief-head"><h3><a href="{{ record.get_absolute_url }}">{{ record.number }}</a></h3>
+    {% if record.tag %}<span class="badge{% if record.status == 'available' or record.status == 'in_use' %} ok{% elif record.status == 'retired' or record.status == 'repair' %} failed{% endif %}">{{ record.get_status_display }}</span>{% endif %}
+    <span class="spacer"></span><a class="btn small" href="{{ record.get_absolute_url }}">Open</a><a class="btn small ghost" href="{% url 'records:edit' record.pk %}">Change</a></div>
+  <p class="brief-what">{{ record.name }}</p>
+  {% preview record %}
+  {% include "records/_details.html" %}
+  {% if events %}<h4>What happened</h4>
+  <table class="list compact">{% for e in events %}<tr><td class="small nowrap">{{ e.at|date:"j M Y" }}</td><td class="small">{{ e.get_kind_display }} <span class="muted">{{ e.note }}</span></td></tr>{% endfor %}</table>{% endif %}
+</div>

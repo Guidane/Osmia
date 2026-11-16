@@ -95,7 +95,7 @@
         <div class="card-head"><h3>Built</h3></div>
         <table class="list">
           <tr><th>Asset tag</th><th>Version</th><th>Status</th><th>Built</th></tr>
-          {% for u in units %}<tr data-brief-url="{% url 'assets:brief' u.pk %}"><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td>{% if u.version %}v{{ u.version }}{% else %}as it was{% endif %}</td>
+          {% for u in units %}<tr data-brief-url="{% url 'records:brief' u.pk %}"><td><a href="{{ u.get_absolute_url }}">{{ u.number }}</a></td><td>{% if u.version %}v{{ u.version }}{% else %}as it was{% endif %}</td>
             <td><span class="badge{% if u.status == 'available' or u.status == 'in_use' %} ok{% elif u.status == 'retired' %} failed{% endif %}">{{ u.get_status_display }}</span></td>
             <td class="small">{{ u.built_on }}{% if u.built_by %} · {{ u.built_by }}{% endif %}</td></tr>
           {% empty %}<tr><td colspan="4" class="empty small">None built yet.</td></tr>{% endfor %}

@@ -1,6 +1,7 @@
-"""Where what item definitions and assets fill in for their attributes is kept: values (DefinitionValue, AssetValue) and links to item definitions or
-assets (DefinitionLink and DefinitionAsset for item definitions, AssetLink for assets). ``store_for`` gives the one for an item definition or an asset;
-forms, pages and lists use it the same way for both."""
+"""Where what item definitions and assets fill in for their attributes is kept: an item definition's values (DefinitionValue)
+and links to other item definitions (DefinitionLink); an asset's (a record with an asset tag) values for the asset
+fields (RecordValue). ``store_for`` gives the one for an item definition or a record; forms, pages and lists use it the
+same way for both."""
 from .models import Attribute, ItemDefinition, DefinitionLink, DefinitionValue
 
 
@@ -40,65 +41,44 @@ class DefinitionStore(Store):
     value_model, subject = DefinitionValue, 'definition'
 
     def linked(self, attribute, definition):
-        if attribute.to_assets:
-            from assets.models import Asset
-            return list(Asset.objects.filter(definition_links__definition=definition, definition_links__attribute=attribute))
         return list(ItemDefinition.objects.filter(linked_from__definition=definition, linked_from__attribute=attribute))
 
     def set_links(self, definition, attribute, wanted):
-        from assets.models import DefinitionAsset
-        model, field = (DefinitionAsset, 'asset') if attribute.to_assets else (DefinitionLink, 'target')
-        model.objects.filter(definition=definition, attribute=attribute).exclude(**{f'{field}__in': wanted}).delete()
+        DefinitionLink.objects.filter(definition=definition, attribute=attribute).exclude(target__in=wanted).delete()
         for x in wanted:
-            model.objects.get_or_create(definition=definition, attribute=attribute, **{field: x})
+            DefinitionLink.objects.get_or_create(definition=definition, attribute=attribute, target=x)
 
     def drop_links(self, definition, kept):
-        from assets.models import DefinitionAsset
         DefinitionLink.objects.filter(definition=definition).exclude(attribute__in=kept).delete()
-        DefinitionAsset.objects.filter(definition=definition).exclude(attribute__in=kept).delete()
 
     def link_texts(self, definitions):
         """{item definition id: {attribute id: "A-1, B-2"}} of what the item definitions link to, for lists."""
-        from assets.models import DefinitionAsset
         out = {}
         for link in DefinitionLink.objects.filter(definition__in=definitions).select_related('target'):
             out.setdefault(link.definition_id, {}).setdefault(link.attribute_id, []).append(link.target.number)
-        for link in DefinitionAsset.objects.filter(definition__in=definitions).select_related('asset'):
-            out.setdefault(link.definition_id, {}).setdefault(link.attribute_id, []).append(link.asset.number)
         return {p: {a: ', '.join(n) for a, n in d.items()} for p, d in out.items()}
 
 
-class AssetStore(Store):
-    subject = 'asset'
+class RecordStore(Store):
+    """What an asset (a record with an asset tag) fills in: the asset fields, never links."""
+    subject = 'record'
 
     @property
     def value_model(self):
-        from assets.models import AssetValue
-        return AssetValue
+        from records.models import RecordValue
+        return RecordValue
 
-    def linked(self, attribute, asset):
-        from assets.models import Asset
-        if attribute.to_assets:
-            return list(Asset.objects.filter(linked_from__asset=asset, linked_from__attribute=attribute))
-        return list(ItemDefinition.objects.filter(linked_from_assets__asset=asset, linked_from_assets__attribute=attribute))
+    def linked(self, attribute, record):
+        return []
 
-    def set_links(self, asset, attribute, wanted):
-        from assets.models import AssetLink
-        field = 'target' if attribute.to_assets else 'definition'
-        AssetLink.objects.filter(asset=asset, attribute=attribute).exclude(**{f'{field}__in': wanted}).delete()
-        for x in wanted:
-            AssetLink.objects.get_or_create(asset=asset, attribute=attribute, **{field: x})
+    def set_links(self, record, attribute, wanted):
+        pass
 
-    def drop_links(self, asset, kept):
-        from assets.models import AssetLink
-        AssetLink.objects.filter(asset=asset).exclude(attribute__in=kept).delete()
+    def drop_links(self, record, kept):
+        pass
 
-    def link_texts(self, assets):
-        from assets.models import AssetLink
-        out = {}
-        for link in AssetLink.objects.filter(asset__in=assets).select_related('definition', 'target'):
-            out.setdefault(link.asset_id, {}).setdefault(link.attribute_id, []).append((link.definition or link.target).number)
-        return {t: {a: ', '.join(n) for a, n in d.items()} for t, d in out.items()}
+    def link_texts(self, records):
+        return {}
 
 
 def number_up(attribute, objs):
@@ -115,22 +95,14 @@ def number_up(attribute, objs):
 
 
 def store_for(obj):
-    return DefinitionStore() if isinstance(obj, ItemDefinition) else AssetStore()
+    return DefinitionStore() if isinstance(obj, ItemDefinition) else RecordStore()
 
 
-def linked_here(obj):
-    """What other item definitions and assets say of ``obj`` (an item definition or an asset): {"Mates with pins": [item definitions and assets]}."""
-    from assets.models import AssetLink, DefinitionAsset
+def linked_here(definition):
+    """What other item definitions say of ``definition``: {"Mates with pins": [item definitions]}."""
     found = {}
-    if isinstance(obj, ItemDefinition):
-        links = list(DefinitionLink.objects.filter(target=obj).select_related('definition', 'attribute__category'))
-        links += list(AssetLink.objects.filter(definition=obj).select_related('asset', 'attribute__category'))
-    else:
-        links = list(DefinitionAsset.objects.filter(asset=obj).select_related('definition', 'attribute__category'))
-        links += list(AssetLink.objects.filter(target=obj).select_related('asset', 'attribute__category'))
-    for link in links:
-        source = link.definition if isinstance(link, (DefinitionLink, DefinitionAsset)) else link.asset
-        found.setdefault(link.attribute.other_side(), []).append(source)
+    for link in DefinitionLink.objects.filter(target=definition).select_related('definition', 'attribute__category'):
+        found.setdefault(link.attribute.other_side(), []).append(link.definition)
     return sorted(found.items())
 
 

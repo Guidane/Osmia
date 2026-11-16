@@ -172,9 +172,9 @@ def standard_categories():
 
     def add(parent, nodes):
         for name, attributes, children in nodes:
-            category = Category.objects.filter(kind=Category.Kind.DEFINITIONS, parent=parent, name__iexact=name).first()
+            category = Category.objects.filter(parent=parent, name__iexact=name).first()
             if category is None:
-                category = Category.objects.create(kind=Category.Kind.DEFINITIONS, parent=parent, name=name)
+                category = Category.objects.create(parent=parent, name=name)
                 made[0] += 1
             for spec in attributes:
                 attribute(category, spec)

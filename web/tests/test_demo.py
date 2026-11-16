@@ -50,14 +50,13 @@ class DemoTests(TestCase):
 
     def test_stock_real_movements_changed_is_kept(self):
         from inventory import stock
-        from inventory.models import Stock
         demo.switch_on(self.ada)
         tie = ItemDefinition.objects.get(number='TIE-100')
-        row = Stock.objects.get(definition=tie)
+        row = tie.records.get()
         stock.add(tie, 34, row.location, self.ada, 'received')                  # real: after the demo
         kept = demo.switch_off()
         self.assertIn('TIE-100', kept)
-        self.assertEqual(Stock.objects.get(definition=tie).quantity, 534)             # what was there, and what came in
+        self.assertEqual(ItemDefinition.objects.get(number='TIE-100').on_hand, 534)             # what was there, and what came in
         self.assertFalse(ItemDefinition.objects.filter(number='DSUB-9-PLUG').exists())
 
     def test_names_already_taken_are_refused(self):

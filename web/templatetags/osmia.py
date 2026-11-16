@@ -134,7 +134,7 @@ def json_text(value):
 
 @register.filter
 def brief_url(obj):
-    """Where the details of ``obj`` beside a list are (an item definition, a family, an asset, a harness, or a kind of
+    """Where the details of ``obj`` beside a list are (an item definition, a family, a record, a harness, or a kind of
     ``web.briefs``), or '' when it has none."""
     from django.urls import reverse
 
@@ -146,7 +146,7 @@ def brief_url(obj):
     if label == 'inventory.Branch':
         return reverse('inventory:family_brief', args=[obj.family_id])
     own = {'inventory.ItemDefinition': 'inventory:definition_brief', 'inventory.Family': 'inventory:family_brief',
-           'assets.Asset': 'assets:brief', 'harnesses.Harness': 'harnesses:brief'}
+           'records.Record': 'records:brief', 'harnesses.Harness': 'harnesses:brief'}
     if label in own:
         return reverse(own[label], args=[obj.pk])
     kind = next((k for k, (model, _) in KINDS.items() if model == label), None)

@@ -8,7 +8,7 @@ from budgets.models import Budget
 from harnesses.models import Harness
 from inventory.models import Category, Location, ItemDefinition
 from setups.models import Setup
-from assets.models import Asset
+from records.models import Record
 
 
 class EditFormTests(TestCase):
@@ -41,10 +41,10 @@ class EditFormTests(TestCase):
         self.selected(reverse('budgets:edit', args=[budget.pk]), year.pk)
         harness = Harness.objects.create(setup=setup, name='Loom')
         self.selected(reverse('harnesses:edit', args=[harness.pk]), setup.pk)
-        tools = Category.objects.create(name='Tools', kind='assets')
-        tool = Asset.objects.create(number='T-1', name='Crimper', category=tools, location=shelf)
-        self.selected(reverse('assets:edit', args=[tool.pk]), tools.pk)
-        self.selected(reverse('assets:edit', args=[tool.pk]), shelf.pk)
+        crimper = ItemDefinition.objects.create(number='CRIMPER', is_asset=True)
+        tool = Record.objects.create(tag='T-1', definition=crimper, location=shelf)
+        self.selected(reverse('records:edit', args=[tool.pk]), crimper.pk)
+        self.selected(reverse('records:edit', args=[tool.pk]), shelf.pk)
 
     def test_something_new_starts_from_the_address(self):
         store = Location.objects.create(name='Store')

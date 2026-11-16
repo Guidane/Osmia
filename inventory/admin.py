@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, Location, Movement, ItemDefinition, Stock, Vendor
+from .models import Category, Location, Movement, ItemDefinition, Vendor
 
 
 @admin.register(ItemDefinition)
@@ -26,4 +26,4 @@ class MovementAdmin(admin.ModelAdmin):
         return False
 
 
-admin.site.register([Category, Location, Stock])
+admin.site.register([Category, Location])

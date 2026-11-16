@@ -22,7 +22,7 @@ from orders import service
 from orders.models import Order
 from setups import contents
 from setups.models import Setup
-from assets.models import Asset, DefinitionAsset
+from records.models import Record
 from inventory.attributes import number_up
 from web import versions
 
@@ -109,8 +109,8 @@ def _make(user):
             value, figure = attributes[name].clean_value(raw)
             DefinitionValue.objects.create(definition=definitions[number], attribute=attributes[name], value=value, number=figure)
     for number, description, kind, (top, below), unit, vendor, price in BOUGHT:
-        top, _ = Category.objects.get_or_create(kind=Category.Kind.DEFINITIONS, parent=None, name=top)
-        category, _ = Category.objects.get_or_create(kind=Category.Kind.DEFINITIONS, parent=top, name=below)
+        top, _ = Category.objects.get_or_create(parent=None, name=top)
+        category, _ = Category.objects.get_or_create(parent=top, name=below)
         if vendor not in vendors:
             vendors[vendor] = Vendor.objects.create(name=vendor, email=f'sales@{vendor.split()[0].lower()}.example')
         definitions[number] = ItemDefinition.objects.create(number=number, description=description, kind=kind, category=category,
@@ -132,23 +132,28 @@ def _make(user):
     ItemDefinition.objects.filter(number='DSUB-25-RECEPT').update(family=dsub25, branch=Branch.objects.create(family=dsub25, name='socket', contacts='socket'))
     ItemDefinition.objects.filter(number__in=['DSUB-9-PLUG', 'DSUB-9-PLUG-B']).update(family=dsub9, branch=pin)
     ItemDefinition.objects.filter(number='DSUB-9-RECEPT').update(family=dsub9, branch=socket)
-    workshop = Category.objects.create(name='Workshop', kind='assets')
-    crimpers = Category.objects.create(name='Crimp tools', parent=workshop, kind='assets')
-    lab = Category.objects.create(name='Lab equipment', parent=workshop, kind='assets')
+    workshop = Category.objects.create(name='Workshop')
+    crimpers = Category.objects.create(name='Crimp tools', parent=workshop)
+    lab = Category.objects.create(name='Lab equipment', parent=workshop)
     Attribute.objects.create(category=crimpers, name='Wire size', kind='text', help='e.g. 20-24 AWG')
     Attribute.objects.create(category=lab, name='Output', kind='text', help='e.g. 0-30 V, 5 A')
-    crimp = Asset.objects.create(number='T-001', name='D-sub crimp tool', kind='tool', category=crimpers, manufacturer='TE',
-                                 location=store, keeper=user, calibration_months=12, calibrated_on=date.today() - timedelta(days=355))
-    Asset.objects.create(number='T-002', name='Contact extraction tool', kind='tool', category=crimpers, location=store)
-    Asset.objects.create(number='M-001', name='Multimeter', kind='measuring', category=lab, manufacturer='Fluke', location=store,
-                         keeper=user, calibration_months=12, calibrated_on=date.today() - timedelta(days=100))
-    asset_id = Attribute.objects.create(category=workshop, name='Asset ID', kind='auto', prefix='WS-', digits=4)
+    tools = {number: ItemDefinition.objects.create(number=number, description=description, category=category, manufacturer=make,
+                                                   mpn=mpn, is_asset=True)
+             for number, description, category, make, mpn in (
+                 ('TE-91601', 'D-sub crimp tool', crimpers, 'TE', '91601-1'),
+                 ('EXTRACT-DSUB', 'Contact extraction tool', crimpers, '', ''),
+                 ('FLUKE-87V', 'Multimeter', lab, 'Fluke', '87V'))}
+    Record.objects.create(tag='T-001', definition=tools['TE-91601'], location=store, keeper=user, calibration_months=12,
+                          calibrated_on=date.today() - timedelta(days=355))
+    Record.objects.create(tag='T-002', definition=tools['EXTRACT-DSUB'], location=store)
+    Record.objects.create(tag='M-001', definition=tools['FLUKE-87V'], location=store, keeper=user, calibration_months=12,
+                          calibrated_on=date.today() - timedelta(days=100))
+    asset_id = Attribute.objects.create(category=None, name='Asset ID', kind='auto', prefix='WS-', digits=4)
     fits = Attribute.objects.create(category=categories['Contacts'], name='Fits into', kind='interacts', target=categories['D-sub'],
                                     reverse_name='Takes contacts')
-    crimped = Attribute.objects.create(category=categories['Contacts'], name='Crimped with', kind='link', links_to='asset',
-                                       reverse_name='Crimps')
+    crimped = Attribute.objects.create(category=categories['Contacts'], name='Crimped with', kind='link', reverse_name='Crimps')
     DefinitionLink.objects.create(definition=definitions['DSUB-CONTACT-M'], attribute=fits, target=definitions['DSUB-9-PLUG'])
-    DefinitionAsset.objects.create(definition=definitions['DSUB-CONTACT-M'], attribute=crimped, asset=crimp)
+    DefinitionLink.objects.create(definition=definitions['DSUB-CONTACT-M'], attribute=crimped, target=tools['TE-91601'])
     year = Budget.objects.create(number='FY26', name='2026', amount=50000, owner=user)
     eng_budget = Budget.objects.create(number='FY26-ENG', name='Engineering', parent=year, amount=20000, owner=user, department=engineering)
     Budget.objects.create(number='FY26-OPS', name='Operations', parent=year, amount=15000, owner=user)
@@ -189,15 +194,14 @@ def _make(user):
                                         set_type=SETS.get(s, ('', 'Straight'))[1]) for p, s in pins)
         versions.save(devices[number], user, 'first')
     for n in (1, 2, 3):
-        Asset.objects.create(number=f'LOAD-200-{n:03d}', name='Load board', kind='device', device=devices['LOAD-200'], version=1,
-                             serial=f'LB-{n:04d}', status='in_use' if n < 3 else 'available', location=store)
+        Record.objects.create(tag=f'LOAD-200-{n:03d}', device=devices['LOAD-200'], version=1, serial=f'LB-{n:04d}',
+                              status='in_use' if n < 3 else 'available', location=store)
     psu = Device.objects.create(number='PSU-24', name='Lab power supply 24 V', origin='external', manufacturer='Delta', model='E 030-5',
                                 colour='#4b5563')
     out = Connector.objects.create(device=psu, designator='OUT', name='DC out')
     Pin.objects.bulk_create([Pin(connector=out, number='1', signal='+24 V'), Pin(connector=out, number='2', signal='0 V')])
     versions.save(psu, user, 'as bought')
-    Asset.objects.create(number='PSU-01', name='Lab power supply 24 V', kind='lab', category=lab, device=psu, version=1,
-                         manufacturer='Delta', model='E 030-5', serial='DE-77812', location=store, keeper=user)
+    Record.objects.create(tag='PSU-01', device=psu, version=1, serial='DE-77812', location=store, keeper=user)
 
     setup = Setup.objects.create(code='BR-1', name='Base', owner=user, department=engineering, description='The controller and one load board.')
     Budget.objects.create(number='FY26-ENG-BR', name='Burn-in rack', parent=eng_budget, setup=setup, amount=8000, owner=user)
@@ -249,7 +253,7 @@ def _make(user):
     contents.place(rack, kind='harness', harness_id=loom.pk,
                    ends={str(e.pk): [at[loom.plugs[e.pk].device.number], loom.plugs[e.pk].pk] for e in loom.ends.all()})
     contents.ask_harness(two, ctrl, second, 'The sensor cable from the controller to load board 2, about 2 m, shielded.', user, sam)
-    number_up(asset_id, list(Asset.objects.filter(category__in=workshop.below()).order_by('pk')))
+    number_up(asset_id, list(Record.objects.filter(definition__category__in=workshop.below()).order_by('pk')))
     _work(user, engineering, [setup, two, rig, rack], devices, psu, definitions, [late, coming, asked, mine])
 
 
@@ -326,22 +330,23 @@ def _page(title, body, user, owner=None, parent=None, position=0):
 def _work(user, engineering, setups, devices, psu, definitions, orders):
     """Projects with what is in them, documentation pages, and pictures and files of things."""
     from work.models import Project as Work
-    tools = list(Asset.objects.filter(kind='tool'))
+    tools = list(Record.objects.filter(definition__category__name='Crimp tools').exclude(tag=None))
     burn = Work.objects.create(code='BR', name='Burn-in rack', owner=user, department=engineering,
                                description='The burn-in rack: a controller, its load boards, the rack hub and the five devices it feeds.',
                                notes='Ready for the test lab by the end of the quarter.')
-    burn.assets.set(tools)
+    burn.records.set(tools)
     Setup.objects.filter(pk__in=[s.pk for s in setups]).update(in_project=burn)
     Order.objects.filter(pk__in=[o.pk for o in orders[:3]]).update(in_project=burn)
     for device in sorted(devices.values(), key=lambda d: d.number):   # a sub-project for each of its devices, with the units built
         sub = Work.objects.create(code=f'BR-{device.number.split("-")[0]}', name=device.name, parent=burn, owner=user,
                                   department=engineering, description=f'The {device.name.lower()} of the burn-in rack.')
         sub.devices.set([device])
-        sub.assets.set(Asset.objects.filter(device=device))
+        sub.records.set(Record.objects.filter(device=device))
     lab = Work.objects.create(code='LAB', name='Lab upkeep', owner=user, department=engineering,
                               description='Keeping the lab going: tools, instruments, the bench supply.')
     lab.devices.set([psu])
-    lab.assets.set(Asset.objects.filter(kind__in=['tool', 'measuring', 'lab']))
+    lab.records.set(Record.objects.filter(definition__category__parent__name='Workshop').exclude(tag=None)
+                    | Record.objects.filter(device=psu))
     Order.objects.filter(pk=orders[3].pk).update(in_project=lab)
     Work.objects.create(code='TB-0', name='Old test bench', status='done', owner=user, description='The bench before the rack.')
 
@@ -439,7 +444,7 @@ def switch_on(user):
 @transaction.atomic
 def switch_off():
     """Take away every row the demo made. What real data uses now (a real order line of a demo item definition; a demo item definition real
-    stock movements went in or out of, with its stock) stays: returns those, as text."""
+    stock movements went in or out of, with its records) stays: returns those, as text."""
     from django.apps import apps
     from django.db.models import ProtectedError, RestrictedError
 
@@ -450,7 +455,7 @@ def switch_off():
         left.setdefault(record.model, set()).add(record.object_id)
     moved = set(Movement.objects.exclude(pk__in=left.get('inventory.Movement', ())).values_list('definition_id', flat=True))
     stays = {('inventory.ItemDefinition', pk) for pk in moved} | {
-        ('inventory.Stock', pk) for pk in apps.get_model('inventory.Stock').objects.filter(definition_id__in=moved).values_list('pk', flat=True)}
+        ('records.Record', pk) for pk in apps.get_model('records.Record').objects.filter(definition_id__in=moved).values_list('pk', flat=True)}
     for _ in range(20):   # deleting a row can free another (an order line, then its item definition)
         progress = False
         for label, ids in list(left.items()):

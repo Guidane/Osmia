@@ -50,11 +50,11 @@ def attribute_field(attribute, required, initial):
     if attribute.kind == Attribute.Kind.AUTO:   # given, not filled in
         common['required'] = False
         return forms.CharField(disabled=True, **common)
-    if attribute.kind == Attribute.Kind.LINK and not attribute.to_assets:   # any item definition: by item number
+    if attribute.kind == Attribute.Kind.LINK:   # any item definition: by item number
         return forms.CharField(widget=forms.TextInput(attrs={'list': 'definition-numbers', 'autocomplete': 'off',
                                                              'placeholder': 'Item numbers, separated by commas'}), **common)
-    if attribute.is_link:   # a category's item definitions, or assets: picked from a list
-        choices = [(c.pk, str(c) if attribute.to_assets else f'{c.number} {c.description}'.strip()) for c in attribute.candidates()]
+    if attribute.is_link:   # a category's item definitions: picked from a list
+        choices = [(c.pk, f'{c.number} {c.description}'.strip()) for c in attribute.candidates()]
         return forms.MultipleChoiceField(choices=choices, widget=forms.SelectMultiple(attrs={'size': min(max(len(choices), 2), 6)}), **common)
     if attribute.kind == Attribute.Kind.CHOICE:
         return forms.ChoiceField(choices=[('', '—')] + [(c, c) for c in attribute.choice_list()], **common)
@@ -73,7 +73,7 @@ class AttributesForm(TreeForm):
     def __init__(self, *args, **kwargs):
         from .attributes import store_for
         super().__init__(*args, **kwargs)
-        node = self.instance.category
+        node = getattr(self.instance, 'category', None)   # (a record has none: only the asset fields)
         if self.is_bound:
             picked = str(self.data.get('category') or '')
             node = Category.objects.filter(pk=picked).first() if picked.isdigit() else None
@@ -86,7 +86,7 @@ class AttributesForm(TreeForm):
         for a in self.attributes:
             if a.is_link and self.instance.pk:
                 linked = self.store.linked(a, self.instance)
-                have[a.pk] = [x.pk for x in linked] if a.kind == Attribute.Kind.INTERACTS or a.to_assets else ', '.join(x.number for x in linked)
+                have[a.pk] = [x.pk for x in linked] if a.kind == Attribute.Kind.INTERACTS else ', '.join(x.number for x in linked)
             self.fields[f'attr_{a.pk}'] = attribute_field(a, a.required and not moved, have.get(a.pk))
 
     def common(self):
@@ -113,8 +113,8 @@ class AttributesForm(TreeForm):
         return data
 
     def _linked(self, attribute, raw):
-        """The item definitions or assets a link attribute names: picked from its list, or item numbers separated by commas."""
-        if attribute.kind == Attribute.Kind.LINK and not attribute.to_assets:
+        """The item definitions a link attribute names: picked from its list, or item numbers separated by commas."""
+        if attribute.kind == Attribute.Kind.LINK:
             numbers = [n.strip() for n in str(raw or '').split(',') if n.strip()]
             found = {n: ItemDefinition.objects.filter(number__iexact=n).first() for n in numbers}
             missing = [n for n, definition in found.items() if definition is None]
@@ -131,11 +131,11 @@ class AttributesForm(TreeForm):
 
 class DefinitionForm(AttributesForm):
     """An item definition, and the attributes of its category (and of those above it)."""
-    tree_fields = {'category': (Category, {'kind': Category.Kind.DEFINITIONS})}
+    tree_fields = {'category': Category}
 
     class Meta:
         model = ItemDefinition
-        fields = ['kind', 'number', 'description', 'category', 'kin', 'manufacturer', 'mpn', 'unit', 'datasheet',
+        fields = ['kind', 'is_asset', 'number', 'description', 'category', 'kin', 'manufacturer', 'mpn', 'unit', 'datasheet',
                   'vendor', 'vendor_number', 'price', 'minimum', 'reorder_quantity', 'notes', 'active']
         widgets = {'notes': forms.Textarea(attrs={'rows': 3})}
 
@@ -178,22 +178,22 @@ class AttributeForm(forms.ModelForm):
     choices is refused while what item definitions and assets filled in wouldn't fit."""
     class Meta:
         model = Attribute
-        fields = ['name', 'kind', 'unit', 'choices', 'prefix', 'digits', 'target', 'links_to', 'reverse_name', 'required', 'help']
+        fields = ['name', 'kind', 'unit', 'choices', 'prefix', 'digits', 'target', 'reverse_name', 'required', 'help']
         widgets = {'choices': forms.Textarea(attrs={'rows': 4})}
 
     def __init__(self, *args, category, **kwargs):   # (category None: an asset field)
         super().__init__(*args, **kwargs)
         self.category = category
-        self.fields['target'].choices = tree_choices(Category, kind=Category.Kind.DEFINITIONS)
+        self.fields['target'].choices = tree_choices(Category)
         self.fields['digits'].required = False
-        if category is None:   # what interacts with item definitions of a category is an item definition's
-            self.fields['kind'].choices = [c for c in self.fields['kind'].choices if c[0] != Attribute.Kind.INTERACTS]
+        if category is None:   # an asset field: a value of an asset's own, never a link
+            self.fields['kind'].choices = [c for c in self.fields['kind'].choices if c[0] not in Attribute.LINKS]
             for name in ('target', 'reverse_name'):
                 del self.fields[name]
 
     def _values(self):
         """What item definitions and assets filled in for it."""
-        return list(self.instance.values.select_related('definition')) + list(self.instance.asset_values.select_related('asset'))
+        return list(self.instance.values.select_related('definition')) + list(self.instance.record_values.select_related('record'))
 
     def clean_digits(self):
         return self.cleaned_data.get('digits') or 5
@@ -212,18 +212,15 @@ class AttributeForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        trial = Attribute(name=data.get('name') or self.instance.name, kind=data.get('kind'), choices=data.get('choices', ''),
-                          links_to=data.get('links_to', ''))
+        trial = Attribute(name=data.get('name') or self.instance.name, kind=data.get('kind'), choices=data.get('choices', ''))
         was_link = self.instance.pk and self.instance.is_link
         if trial.kind == Attribute.Kind.CHOICE and not trial.choice_list():
             self.add_error('choices', 'List the choices, one per line.')
         elif trial.kind == Attribute.Kind.INTERACTS and not data.get('target'):
             self.add_error('target', 'Pick the category whose item definitions it interacts with.')
-        elif trial.kind == Attribute.Kind.LINK and not data.get('links_to'):
-            self.add_error('links_to', 'Say what it links to.')
-        elif was_link and (trial.kind != self.instance.kind or trial.links_to != self.instance.links_to
+        elif was_link and (trial.kind != self.instance.kind
                            or (trial.kind == Attribute.Kind.INTERACTS and data.get('target') != self.instance.target)):
-            if self.instance.links.exists() or self.instance.asset_links.exists() or self.instance.asset_targets.exists():
+            if self.instance.links.exists():
                 raise forms.ValidationError('Things link with it already: take those links away first.')
         elif self.instance.pk and (trial.is_link or (trial.kind == Attribute.Kind.AUTO and self.instance.kind != Attribute.Kind.AUTO)):
             if self._values():
@@ -234,7 +231,7 @@ class AttributeForm(forms.ModelForm):
                 try:
                     trial.clean_value(v.value)
                 except forms.ValidationError:
-                    misfits.append(f'{getattr(v, "definition", None) or v.asset}: "{v.value}"')
+                    misfits.append(f'{getattr(v, "definition", None) or v.record}: "{v.value}"')
             if misfits:
                 raise forms.ValidationError(f'{len(misfits)} would not fit any more: '
                                             + ', '.join(misfits[:3]) + (', …' if len(misfits) > 3 else '') + '. Change those first.')
@@ -246,23 +243,21 @@ class AttributeForm(forms.ModelForm):
         if not attribute.pk:
             attribute.position = Attribute.objects.filter(category=self.category).count()
         if not attribute.is_link:
-            attribute.target, attribute.links_to, attribute.reverse_name = None, '', ''
+            attribute.target, attribute.reverse_name = None, ''
         elif attribute.kind == Attribute.Kind.LINK:
             attribute.target = None
         attribute.save()
         if attribute.kind == Attribute.Kind.AUTO:   # those in the category get their number now, oldest first
-            from assets.models import Asset
+            from records.models import Record
 
             from .attributes import number_up
             for v in self._values():
                 v.value = attribute.auto_value(int(v.number))
                 v.save(update_fields=['value'])
             if self.category is None:   # an asset field: every asset
-                number_up(attribute, list(Asset.objects.order_by('pk')))
+                number_up(attribute, list(Record.objects.exclude(tag=None).order_by('pk')))
                 return attribute
-            below = self.category.below()
-            number_up(attribute, list(ItemDefinition.objects.filter(category_id__in=below).order_by('pk'))
-                      + list(Asset.objects.filter(category_id__in=below).order_by('pk')))
+            number_up(attribute, list(ItemDefinition.objects.filter(category_id__in=self.category.below()).order_by('pk')))
             return attribute
         for v in self._values():   # kept as the (new) type keeps them, e.g. "10.0" → "10"
             v.value, v.number = attribute.clean_value(v.value)
@@ -344,16 +339,13 @@ class BranchForm(forms.ModelForm):
 
 
 class CategoryForm(TreeForm):
-    """A category of item definitions or of assets (``kind``), under one of the same kind."""
+    """A category of item definitions, under another."""
+    tree_fields = {'parent': Category}
+
     class Meta:
         model = Category
         fields = ['name', 'parent']
         labels = {'parent': 'Part of'}
-
-    def __init__(self, *args, kind, **kwargs):
-        self.tree_fields = {'parent': (Category, {'kind': kind})}
-        super().__init__(*args, **kwargs)
-        self.instance.kind = kind
 
     def clean_parent(self):
         return self._not_inside_itself('parent', "A category can't be part of itself.")

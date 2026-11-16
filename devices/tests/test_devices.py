@@ -121,27 +121,28 @@ class DeviceTests(DeviceBase):
         self.assertFalse(versions.changed(self.controller))
 
     def test_a_unit_made_with_the_device_and_deleting_it_from_the_list(self):
-        from assets.models import Asset
+        from records.models import Record
         versions.save(self.controller, self.ada)
         page = self.client.get(reverse('devices:device', args=[self.controller.pk]))
-        self.assertNotContains(page, reverse('assets:new'))                         # no "Add one" any more
+        self.assertNotContains(page, reverse('records:new'))                        # no "Add one" any more
         base = {'number': 'CTRL-1', 'name': 'Controller', 'origin': 'in_house', 'colour': '#3b7dd8'}
         self.client.post(reverse('devices:edit', args=[self.controller.pk]), dict(base, make_asset='on'))
-        unit = Asset.objects.get(number='CTRL-1-001')
-        self.assertEqual((unit.device, unit.version, unit.kind), (self.controller, 1, 'device'))
+        unit = Record.objects.get(tag='CTRL-1-001')
+        self.assertEqual((unit.device, unit.version, unit.definition), (self.controller, 1, None))
         self.assertContains(self.client.get(reverse('devices:device', args=[self.controller.pk]) + '?show=assets'), 'CTRL-1-001')
         self.client.post(reverse('devices:edit', args=[self.controller.pk]), dict(base, make_asset='on'))
         self.client.post(reverse('devices:edit', args=[self.controller.pk]), base)                  # not ticked: none
-        self.assertEqual(list(self.controller.assets.values_list('number', flat=True)), ['CTRL-1-001', 'CTRL-1-002'])
+        self.assertEqual(list(self.controller.records.values_list('tag', flat=True)), ['CTRL-1-001', 'CTRL-1-002'])
         self.client.post(reverse('devices:new'), {'number': 'NEW-1', 'name': 'New one', 'origin': 'external', 'colour': '#000000',
                                                   'make_asset': 'on'})
-        self.assertEqual(Asset.objects.get(number='NEW-1-001').kind, 'lab')
+        self.assertEqual(Record.objects.get(tag='NEW-1-001').device.number, 'NEW-1')
         self.assertContains(self.client.get(reverse('devices:list')), reverse('devices:delete', args=[self.controller.pk]))
+        self.client.post(reverse('devices:delete', args=[self.controller.pk]))
+        self.assertTrue(Device.objects.filter(pk=self.controller.pk).exists())      # not while there are records of it
+        Record.objects.filter(device=self.controller).delete()
         self.client.post(reverse('devices:delete', args=[self.controller.pk]))
         self.assertFalse(Device.objects.filter(pk=self.controller.pk).exists())
         self.assertFalse(Connector.objects.filter(pk=self.j1.pk).exists())
-        unit.refresh_from_db()
-        self.assertIsNone(unit.device)                                               # the asset stays
 
     def test_a_device_in_a_setup_is_not_deleted(self):
         from setups.models import Placement, Setup

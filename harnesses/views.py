@@ -1,5 +1,5 @@
 """Harnesses: the list, a harness's page (ends, pinout, items, parts list, what is wrong, versions, the harnesses
-built: assets, each with a checklist), editing its ends, pinout and items as tables."""
+built: records with an asset tag, each with a checklist), editing its ends, pinout and items as tables."""
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -18,7 +18,7 @@ from inventory import stock
 from inventory.faces import drawn, face_of
 from inventory.models import Location, ItemDefinition, DefinitionGroup, choices_of_definitions, definition_or_family
 from setups.models import Setup
-from assets.service import next_tag
+from records.service import next_tag
 from web import excel, rows, versions
 from web.shortcuts import edit_page, errors
 from web.templatetags.osmia import qty
@@ -122,7 +122,7 @@ def harness(request, pk):
         'items': item.items.select_related('definition'), 'definitions': item.parts_list(),
         'problems': [text for _, text in found], 'bad_wires': {thing.pk for thing, _ in found if isinstance(thing, Wire)},
         'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item),
-        'units': item.assets.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number)})
+        'units': item.records.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number)})
 
 
 def _picked_as(found):
@@ -410,32 +410,31 @@ def restore(request, pk, number):
     return redirect(item)
 
 
-# -- Harnesses built: each an asset -------------------------------------------------------------------
+# -- Harnesses built: each a record with an asset tag -------------------------------------------------------------------
 
 @transaction.atomic
 def build(harness, number, version, user, take_from=None):
-    """A harness built: an asset (asset tag ``number``) of the version it is built to (else as it is now), being built,
-    with a checklist of its wires; its item definitions taken out of ``take_from`` when given."""
-    from assets.models import Asset, AssetCheck
-    from assets.service import event
+    """A harness built: a record of it with its asset tag (``number``), of the version it is built to (else as it is
+    now), being built, with a checklist of its wires; what it is made of taken out of ``take_from`` when given."""
+    from records.models import Record, RecordCheck
+    from records.service import event
     number = (number or '').strip()
     if not number:
         raise ValidationError('Give it an asset tag.')
-    if Asset.objects.filter(number__iexact=number).exists():
+    if Record.objects.filter(tag__iexact=number).exists():
         raise ValidationError(f'There is already an asset {number}.')
     data = version.data if version else harness.snapshot()
     if not data.get('wires'):
         raise ValidationError(f'{harness.number} has no pinout yet.')
-    asset = Asset.objects.create(number=number[:100], name=harness.name, kind=Asset.Kind.HARNESS, harness=harness,
-                                 version=version.number if version else None, status=Asset.Status.BUILDING,
-                                 built_by=user, built_on=date.today())
-    AssetCheck.objects.bulk_create(AssetCheck(
-        asset=asset, position=i, wire=f'{w["from"]}:{w["from_pin"]} → {w["to"]}:{w["to_pin"]}', between=f'{w["from"]} → {w["to"]}',
+    asset = Record.objects.create(tag=number[:100], harness=harness, version=version.number if version else None,
+                                  status=Record.Status.BUILDING, built_by=user, built_on=date.today())
+    RecordCheck.objects.bulk_create(RecordCheck(
+        record=asset, position=i, wire=f'{w["from"]}:{w["from_pin"]} → {w["to"]}:{w["to_pin"]}', between=f'{w["from"]} → {w["to"]}',
         signal=w.get('signal', ''), colour=w.get('colour', ''), wire_set=w.get('set', '')) for i, w in enumerate(data['wires']))
     if take_from is not None:
         for definition, quantity in parts_of(data):
             take = stock.use_any if isinstance(definition, DefinitionGroup) else stock.use
-            take(definition, quantity, take_from, user, note=f'built into {asset.number}')
+            take(definition, quantity, take_from, user, note=f'built into {asset.tag}')
     event(asset, 'built', user, f'{harness.number}' + (f' v{version.number}' if version else ''))
     return asset
 

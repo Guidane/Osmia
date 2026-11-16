@@ -8,7 +8,7 @@ from django.urls import reverse
 from devices.models import Connector, Device, Pin
 from devices.tests.test_devices import DeviceBase
 from harnesses import views
-from assets.models import Asset
+from records.models import Record
 from harnesses.models import Harness, HarnessEnd, Wire
 from inventory import stock
 from setups.models import Setup
@@ -197,17 +197,17 @@ class BuildTests(HarnessBase):
         stock.add(self.wire, 10, self.shelf, self.ada)
         response = self.client.post(reverse('harnesses:unit_add', args=[self.harness.pk]),
                                     {'serial': 'H-0001-001', 'version': v1.pk, 'take_from': self.shelf.pk})
-        unit = Asset.objects.get()
+        unit = Record.objects.exclude(harness=None).get()
         self.assertRedirects(response, unit.get_absolute_url())
-        self.assertEqual((unit.kind, unit.harness, unit.version, unit.status), ('harness', self.harness, 1, 'building'))
+        self.assertEqual((unit.tag, unit.harness, unit.version, unit.status), ('H-0001-001', self.harness, 1, 'building'))
         self.assertEqual(self.plug.on_hand, 3)                                  # two connectors went into it
         self.assertEqual(self.wire.on_hand, Decimal('9.5'))
         checks = list(unit.checks.all())
         self.assertEqual([c.wire for c in checks], ['P1:1 → P2:1', 'P1:2 → P2:3'])
-        response = self.client.post(reverse('assets:checklist', args=[unit.pk]), {f'verified_{checks[0].pk}': 'on'}, follow=True)
+        response = self.client.post(reverse('records:checklist', args=[unit.pk]), {f'verified_{checks[0].pk}': 'on'}, follow=True)
         self.assertContains(response, 'place it before verifying it')
-        self.client.post(reverse('assets:checklist', args=[unit.pk]), {f'placed_{c.pk}': 'on' for c in checks} | {f'verified_{c.pk}': 'on' for c in checks})
-        self.assertEqual(Asset.objects.get().status, 'available')
+        self.client.post(reverse('records:checklist', args=[unit.pk]), {f'placed_{c.pk}': 'on' for c in checks} | {f'verified_{c.pk}': 'on' for c in checks})
+        self.assertEqual(Record.objects.exclude(harness=None).get().status, 'available')
 
     def test_not_without_a_pinout_or_enough_stock(self):
         with self.assertRaisesMessage(ValidationError, 'has no pinout yet'):
@@ -215,7 +215,7 @@ class BuildTests(HarnessBase):
         self.connect('1', '1')
         with self.assertRaisesMessage(ValidationError, 'There are only 0 pcs of DSUB-9-PLUG'):
             views.build(self.harness, 'X-1', None, self.ada, take_from=self.shelf)
-        self.assertFalse(Asset.objects.exists())
+        self.assertFalse(Record.objects.exclude(harness=None).exists())
 
     def test_versions_restore_the_pinout(self):
         self.connect('1', '1', signal='+24 V')

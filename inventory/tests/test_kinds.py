@@ -27,11 +27,13 @@ class KindTests(Base):
         order.refresh_from_db()
         self.assertEqual(order.status, Order.Status.RECEIVED)
         self.assertFalse(Movement.objects.filter(definition=self.calibration).exists())
+        made = self.calibration.records.get()                                 # a record of it: no location, no stock
+        self.assertEqual((made.order_line, made.location, made.quantity), (line, None, 1))
 
     def test_its_page_and_form(self):
         page = self.client.get(self.calibration.get_absolute_url())
         self.assertContains(page, 'Service')
-        self.assertNotContains(page, 'data-panel="stock"')
+        self.assertNotContains(page, 'stock-form')
         self.assertNotContains(page, 'on hand')
         self.client.post(reverse('inventory:definition_edit', args=[self.calibration.pk]),
                          {'kind': 'subscription', 'number': 'CAL-DMM', 'unit': 'year', 'minimum': '5', 'reorder_quantity': '2'})

@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from accounts.models import Department
-from assets.models import Asset
+from records.models import Record
 from devices.models import Device
 from harnesses.models import Harness
 from orders.models import Order
@@ -46,7 +46,7 @@ def project_list(request):
     shown = request.GET.get('status', 'active')
     every = {p.pk: p for p in Project.objects.select_related('owner').annotate(
         n_setups=Count('setups', distinct=True), n_orders=Count('orders', distinct=True),
-        n_devices=Count('devices', distinct=True), n_assets=Count('assets', distinct=True))}
+        n_devices=Count('devices', distinct=True), n_assets=Count('records', distinct=True))}
     fits = {pk for pk, p in every.items() if shown not in Project.Status.values or p.status == shown}
     q = request.GET.get('q', '').strip()
     inside = every.get(int(request.GET['in'])) if request.GET.get('in', '').isdigit() else None
@@ -88,7 +88,7 @@ def project_form(request, pk=None):
 @login_required
 def project(request, pk):
     item = get_object_or_404(Project.objects.select_related('owner', 'department'), pk=pk)
-    assets = list(item.assets.select_related('location', 'keeper'))
+    assets = list(item.records.select_related('location', 'keeper', 'definition', 'harness', 'device'))
     under = {p.pk: p for p in Project.objects.filter(pk__in=item.below() - {item.pk})}   # its sub-projects, all the way down
 
     def rolled(things, own, via):   # what its sub-projects have (and it hasn't itself), each with the sub-project it is from
@@ -99,7 +99,7 @@ def project(request, pk):
                 t.via = under[via(t)]
                 out.append(t)
         return out
-    sub_assets = rolled(Asset.objects.filter(work_projects__in=under).select_related('location').annotate(via_pk=Min('work_projects', filter=Q(work_projects__in=under))).order_by('number'),
+    sub_assets = rolled(Record.objects.filter(work_projects__in=under).select_related('location', 'definition', 'harness', 'device').annotate(via_pk=Min('work_projects', filter=Q(work_projects__in=under))).order_by('tag'),
                         assets, lambda t: t.via_pk)
     context = {
         'project': item,
@@ -111,20 +111,18 @@ def project(request, pk):
         'sub_orders': rolled(Order.objects.filter(in_project__in=under).select_related('vendor'), [], lambda t: t.in_project_id),
         'sub_devices': rolled(Device.objects.filter(work_projects__in=under).annotate(via_pk=Min('work_projects', filter=Q(work_projects__in=under))).order_by('number'),
                               item.devices.all(), lambda t: t.via_pk),
-        'sub_assets': [a for a in sub_assets if a.kind != Asset.Kind.TOOL],
-        'sub_tools': [a for a in sub_assets if a.kind == Asset.Kind.TOOL],
+        'sub_assets': sub_assets,
         'setups': item.setups.prefetch_related('harnesses'),
         'orders': item.orders.select_related('vendor', 'created_by'),
         'devices': item.devices.all(),
-        'assets': [a for a in assets if a.kind != Asset.Kind.TOOL],
-        'tools': [a for a in assets if a.kind == Asset.Kind.TOOL],
+        'assets': assets,
         'free_setups': Setup.objects.filter(in_project=None),
         'free_orders': Order.objects.filter(in_project=None).exclude(status=Order.Status.CANCELLED).order_by('-number')[:200],
         'other_devices': Device.objects.exclude(pk__in=item.devices.values('pk')),
-        'other_assets': Asset.objects.exclude(pk__in=item.assets.values('pk')).exclude(kind=Asset.Kind.TOOL),
-        'other_tools': Asset.objects.exclude(pk__in=item.assets.values('pk')).filter(kind=Asset.Kind.TOOL),
+        'other_assets': Record.objects.exclude(tag=None).exclude(pk__in=item.records.values('pk')).exclude(status=Record.Status.RETIRED)
+                        .select_related('definition', 'harness', 'device').order_by('tag'),
     }
-    context['n_sub'] = {k: len(context['sub_' + k]) for k in ('setups', 'harnesses', 'orders', 'devices', 'assets', 'tools')}
+    context['n_sub'] = {k: len(context['sub_' + k]) for k in ('setups', 'harnesses', 'orders', 'devices', 'assets')}
     return render(request, 'work/project.html', context)
 
 
@@ -142,9 +140,9 @@ def link(request, pk):
             thing.in_project = item
         thing.save(update_fields=['in_project'])
     elif what in ('device', 'asset'):
-        thing = get_object_or_404(Device if what == 'device' else Asset, pk=thing_id)
-        (item.devices if what == 'device' else item.assets).remove(thing) if out else \
-            (item.devices if what == 'device' else item.assets).add(thing)
+        thing = get_object_or_404(Device if what == 'device' else Record.objects.exclude(tag=None), pk=thing_id)
+        (item.devices if what == 'device' else item.records).remove(thing) if out else \
+            (item.devices if what == 'device' else item.records).add(thing)
     else:
         return redirect(item)
     messages.success(request, f'{thing} is {"taken out of" if out else "in"} {item}.')

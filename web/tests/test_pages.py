@@ -77,7 +77,7 @@ class BrowserTests(TestCase):
         ada = get_user_model().objects.create_superuser('ada', 'ada@example.com', 'pw')
         self.client.force_login(ada)
         demo.switch_on(ada)
-        pages = [('inventory:definitions', 'definition', 'inventory.ItemDefinition', None), ('assets:list', 'asset', 'assets.Asset', None),
+        pages = [('inventory:definitions', 'definition', 'inventory.ItemDefinition', None), ('records:assets', 'asset', 'records.Record', None),
                  ('harnesses:list', 'harness', 'harnesses.Harness', None), ('inventory:families', 'family', 'inventory.Family', None),
                  ('devices:list', 'device', 'devices.Device', 'device'), ('orders:list', 'order', 'orders.Order', 'order'),
                  ('inventory:vendors', 'vendor', 'inventory.Vendor', 'vendor'), ('setups:list', 'setup', 'setups.Setup', 'setup'),
@@ -85,7 +85,7 @@ class BrowserTests(TestCase):
                  ('accounts:users', 'user', 'accounts.User', 'user'), ('inventory:locations', 'location', 'inventory.Location', 'location')]
         for name, param, model, kind in pages:
             with self.subTest(page=name):
-                thing = apps.get_model(model).objects.first()
+                thing = apps.get_model(model).objects.exclude(**({'tag': None} if model == 'records.Record' else {})).first()
                 page = self.client.get(reverse(name), {param: thing.pk})
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, 'browser')

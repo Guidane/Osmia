@@ -18,19 +18,6 @@ def _draft_for(vendor, user):
     return order or Order.objects.create(vendor=vendor, created_by=user)
 
 
-@transaction.atomic
-def order_asset(asset, user):
-    """Put ``asset`` (one on order) on the draft order for its vendor (a new one if there is none). Returns the line."""
-    from assets.models import Asset
-    if asset.status != Asset.Status.ORDERED:
-        raise ValidationError(f'{asset} is not on order: an asset to buy is made "On order" first.')
-    if asset.vendor_id is None:
-        raise ValidationError(f'{asset} has no vendor: say where it is bought first.')
-    if OrderLine.objects.filter(asset=asset).exclude(order__status=Order.Status.CANCELLED).exists():
-        raise ValidationError(f'{asset} is on an order already.')
-    return OrderLine.objects.create(order=_draft_for(asset.vendor, user), asset=asset, quantity=1, price=asset.price)
-
-
 def on_order(definition):
     """How many of ``item definition`` (or of the item definitions of a family) are ordered and not yet received."""
     lines = OrderLine.objects.filter(order__status__in=Order.OPEN)
@@ -98,25 +85,34 @@ def place(order, user, expected_on=None):
 
 @transaction.atomic
 def receive(order, arrived, user):
-    """What arrived for ``order``: [(line, quantity, location)], booked into stock (a service, subscription, … just
-    counts as received, without a location). The order is received when
-    nothing is outstanding; whoever made it hears what came."""
+    """What arrived for ``order``: [(line, quantity, location[, tags])], each a record (``records``): so many in a location,
+    or (an item definition that is an asset) one per asset tag in ``tags``, its quantity; a service, subscription, … is
+    a record without a location. The order is received when nothing is outstanding; whoever made it hears what came."""
     if order.status not in Order.OPEN:
         raise ValidationError(f'{order} is {order.get_status_display().lower()}: there is nothing to receive.')
     booked = []
-    for line, quantity, location in arrived:
+    for line, quantity, location, *tags in arrived:
+        tags = tags[0] if tags else None
         if line.order_id != order.pk:
             raise ValidationError('That line is on another order.')
+        if line.tagged:
+            tags = stock.tags(tags) if isinstance(tags, str) else list(tags or [])
+            if not tags:
+                raise ValidationError(f'Give each {line.item} that arrived its asset tag.')
+            quantity = len(tags)
         quantity = stock.amount(quantity)
         if location is None and line.stocked:
             raise ValidationError(f'Say where the {line.item} goes.')
         if quantity > line.outstanding:
             raise ValidationError(f'Only {line.outstanding.normalize():f} of {line.item} are still to come.')
-        if line.asset_id:
-            _asset_arrived(line.asset, location, user, order)
+        if line.tagged:
+            stock.add_tagged(line.definition, tags, location, user, kind=Movement.Kind.RECEIVED, reference=order.number,
+                             url=order.get_absolute_url(), order_line=line)
         elif line.stocked:
             stock.add(line.definition, quantity, location, user, kind=Movement.Kind.RECEIVED, reference=order.number,
-                      url=order.get_absolute_url())
+                      url=order.get_absolute_url(), order_line=line)
+        else:
+            stock.add_other(line.definition, quantity, user, order_line=line)
         OrderLine.objects.filter(pk=line.pk).update(received=F('received') + quantity)
         booked.append(f'{quantity.normalize():f} × {line.item.number}')
     if not booked:
@@ -129,13 +125,6 @@ def receive(order, arrived, user):
         notify([order.created_by], f'{order} ({order.vendor}): {", ".join(booked)} arrived'
                + ('; it is complete.' if complete else '.'), order.get_absolute_url())
     return booked
-
-
-def _asset_arrived(asset, location, user, order):
-    """An asset ordered arrived: available, at the location ``location``."""
-    from assets.models import Asset, AssetEvent
-    Asset.objects.filter(pk=asset.pk).update(status=Asset.Status.AVAILABLE, location=location)
-    AssetEvent.objects.create(asset=asset, kind=AssetEvent.Kind.RECEIVED, user=user, note=f'{order.number}, location {location.path}')
 
 
 def cancel(order, user):

@@ -1,4 +1,4 @@
-"""Devices: the list, a device's page (its connectors and pins, versions, the assets that are it and the harnesses
+"""Devices: the list, a device's page (its connectors and pins, versions, the records of it (built or bought) and the harnesses
 plugged into it), and changing them."""
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -22,7 +22,7 @@ def device_list(request):
     """The devices, like the item definitions: where they are from on the left (made in-house, bought), the devices in the middle,
     the details of the one picked on the right."""
     q = request.GET.get('q', '').strip()
-    found = Device.objects.annotate(n_connectors=Count('connectors', distinct=True), n_units=Count('assets', distinct=True))
+    found = Device.objects.annotate(n_connectors=Count('connectors', distinct=True), n_units=Count('records', distinct=True))
     if q:
         found = found.filter(Q(number__icontains=q) | Q(name__icontains=q) | Q(manufacturer__icontains=q) | Q(model__icontains=q))
     origin = request.GET.get('origin', '')
@@ -65,15 +65,18 @@ def device_form(request, pk=None):
 @login_required
 @require_POST
 def device_delete(request, pk):
-    """The device, with its connectors and versions; its assets stay, no longer of a device. Not while a setup
-    has it."""
+    """The device, with its connectors and versions. Not while a setup has it, nor while there are records of it
+    (one built or bought: retire those)."""
     item = get_object_or_404(Device, pk=pk)
     setups = sorted({str(p.setup) for p in item.placements.select_related('setup')})
     if setups:
         messages.error(request, f'{item} is in the setup {", ".join(setups)}: take it out there first.')
         return redirect('devices:list')
+    made = list(item.records.values_list('tag', flat=True)[:5])
+    if made:
+        messages.error(request, f'There are records of {item} ({", ".join(t or "?" for t in made)}): it stays.')
+        return redirect(item)
     with transaction.atomic():
-        item.assets.update(device=None)
         item.delete()
     messages.success(request, f'{item} is deleted.')
     return redirect('devices:list')
@@ -113,7 +116,7 @@ def device(request, pk):
     pins = {c.pk: c.ordered_pins() for c in connectors}
     picked = next((c for c in connectors if str(c.pk) == request.GET.get('connector')), None)
     show = 'connector' if picked else 'assets' if request.GET.get('show') == 'assets' else 'device'
-    units = list(item.assets.select_related('location', 'category'))
+    units = list(item.records.select_related('location', 'keeper', 'holder'))
     nodes = [browse.node(item.number, '?', len(connectors), show == 'device', open=True)]
     nodes += [browse.node(f'{c.designator} {c.name}'.strip(), f'?connector={c.pk}', len(pins[c.pk]), picked == c, 1) for c in connectors]
     nodes.append(browse.node('Assets', '?show=assets', len(units), show == 'assets'))
@@ -128,7 +131,7 @@ def device(request, pk):
             context['row'] = one
             context['row_brief'] = {'connector': one, 'pins': pins[one.pk], 'ends': plugged.get(one.pk, []), 'face': _face(one, pins[one.pk])}
     elif show == 'assets' and request.GET.get('asset'):
-        from assets.views import _brief
+        from records.views import _brief
         one = next((u for u in units if str(u.pk) == request.GET['asset']), None)
         if one:
             context['row'] = one

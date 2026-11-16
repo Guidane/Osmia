@@ -40,25 +40,14 @@ class Vendor(models.Model):
 
 
 class Category(Tree):
-    """A kind of item definition, or of asset: each has its own tree. Its attributes, and those of the categories above it, are
-    what its item definitions (or assets) fill in."""
-    class Kind(models.TextChoices):
-        DEFINITIONS = 'definitions', 'Item definitions'
-        ASSETS = 'assets', 'Assets'
-
-    kind = models.CharField(max_length=12, choices=Kind, default=Kind.DEFINITIONS)
-
+    """A kind of item definition, in a tree. Its attributes, and those of the categories above it, are what its item
+    definitions fill in."""
     class Meta(Tree.Meta):
         verbose_name_plural = 'categories'
         constraints = [models.UniqueConstraint(fields=['parent', 'name'], name='unique_category_name')]
 
     def get_absolute_url(self):
         return reverse('inventory:category', args=[self.pk])
-
-    @classmethod
-    def of(cls, kind):
-        """The categories of item definitions (or assets), depth first, as (category, depth)."""
-        return cls.ordered(cls.objects.filter(kind=kind))
 
     def all_attributes(self):
         """Its attributes and those it gets from above: the top category's first."""
@@ -69,9 +58,9 @@ class Category(Tree):
 
 
 class Attribute(models.Model):
-    """Something the item definitions and assets of a category, and those of every category under it, fill in, e.g. Resistance in Ω.
-    One of no category is an asset field: every asset fills it in (what a company keeps of its assets: a cost centre,
-    an inventory number, a purchase date)."""
+    """Something the item definitions of a category, and those of every category under it, fill in, e.g. Resistance in Ω.
+    One of no category is an asset field: every asset (a record with an asset tag) fills it in (what a company keeps of
+    its assets: a cost centre, an inventory number, a purchase date)."""
     class Kind(models.TextChoices):
         TEXT = 'text', 'Text'
         INTEGER = 'integer', 'Whole number'
@@ -80,14 +69,10 @@ class Attribute(models.Model):
         YESNO = 'yesno', 'Yes / no'
         AUTO = 'auto', 'Auto number (an ID)'
         INTERACTS = 'interacts', 'Interacts with item definitions of a category'
-        LINK = 'link', 'Link to an item definition or an asset'
-
-    class LinksTo(models.TextChoices):
-        DEFINITION = 'definition', 'An item definition (of any category)'
-        ASSET = 'asset', 'An asset (a tool, lab equipment…)'
+        LINK = 'link', 'Link to an item definition'
 
     NUMERIC = (Kind.INTEGER, Kind.DECIMAL)
-    LINKS = (Kind.INTERACTS, Kind.LINK)   # what item definitions fill in are other item definitions (or assets), not a value
+    LINKS = (Kind.INTERACTS, Kind.LINK)   # what item definitions fill in are other item definitions, not a value
 
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.CASCADE, related_name='attributes')
     name = models.CharField(max_length=100)
@@ -100,7 +85,6 @@ class Attribute(models.Model):
     help = models.CharField(max_length=200, blank=True)
     target = models.ForeignKey(Category, null=True, blank=True, on_delete=models.CASCADE, related_name='interactions',
                                verbose_name='interacts with')
-    links_to = models.CharField(max_length=10, choices=LinksTo, blank=True)
     reverse_name = models.CharField('name on the other side', max_length=100, blank=True)
     position = models.PositiveIntegerField(default=0)
 
@@ -114,26 +98,19 @@ class Attribute(models.Model):
     def is_link(self):
         return self.kind in self.LINKS
 
-    @property
-    def to_assets(self):
-        return self.kind == self.Kind.LINK and self.links_to == self.LinksTo.ASSET
-
     def other_side(self):
-        """What the item definitions or assets linked to call this attribute."""
+        """What the item definitions linked to call this attribute."""
         return self.reverse_name or f'{self.name} (of {self.category.name if self.category else "assets"})'
 
     @classmethod
     def asset_fields(cls):
-        """The asset fields: what every asset fills in, whatever its category."""
+        """The asset fields: what every asset (a record with an asset tag) fills in, whatever its item definition."""
         return list(cls.objects.filter(category=None))
 
     def candidates(self):
-        """What may be linked to with this attribute: the target category's item definitions (and below), every item definition, or assets."""
+        """What may be linked to with this attribute: the target category's item definitions (and below), or every one."""
         if self.kind == self.Kind.INTERACTS:
             return ItemDefinition.objects.filter(category_id__in=self.target.below(), active=True) if self.target else ItemDefinition.objects.none()
-        if self.to_assets:
-            from assets.models import Asset
-            return Asset.objects.exclude(status='retired')
         return ItemDefinition.objects.filter(active=True)
 
     def choice_list(self):
@@ -176,8 +153,7 @@ class Attribute(models.Model):
     def next_number(self):
         """The next auto number of this attribute: one more than the highest given to an item definition or an asset."""
         from django.db.models import Max
-        from assets.models import AssetValue
-        highest = max(self.values.aggregate(n=Max('number'))['n'] or 0, AssetValue.objects.filter(attribute=self).aggregate(n=Max('number'))['n'] or 0)
+        highest = max(self.values.aggregate(n=Max('number'))['n'] or 0, self.record_values.aggregate(n=Max('number'))['n'] or 0)
         return int(highest) + 1
 
     def show(self, value):
@@ -218,6 +194,7 @@ class ItemDefinition(models.Model):
         YEAR = 'year', 'years'
 
     kind = models.CharField(max_length=12, choices=Kind, default=Kind.PHYSICAL)
+    is_asset = models.BooleanField('is asset', default=False)   # each one a record of its own, with an asset tag
     number = models.CharField('item number', max_length=100)
     description = models.CharField(max_length=300, blank=True)
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, related_name='definitions')
@@ -255,7 +232,7 @@ class ItemDefinition(models.Model):
 
     @property
     def on_hand(self):
-        return self.stock.aggregate(n=Sum('quantity'))['n'] or Decimal(0)
+        return self.records.aggregate(n=Sum('quantity'))['n'] or Decimal(0)
 
 
 class DefinitionGroup:
@@ -281,7 +258,8 @@ class DefinitionGroup:
 
     @property
     def on_hand(self):
-        return Stock.objects.filter(definition__in=self.members()).aggregate(n=Sum('quantity'))['n'] or Decimal(0)
+        from records.models import Record
+        return Record.objects.filter(definition__in=self.members()).aggregate(n=Sum('quantity'))['n'] or Decimal(0)
 
 
 PartGroup = DefinitionGroup   # what the migrations made before item definitions call it
@@ -417,20 +395,6 @@ class DefinitionLink(models.Model):
 
     def __str__(self):
         return f'{self.definition} {self.attribute} {self.target}'
-
-
-class Stock(models.Model):
-    """How many of an item definition are in a location now."""
-    definition = models.ForeignKey(ItemDefinition, on_delete=models.CASCADE, related_name='stock')
-    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name='stock')
-    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
-
-    class Meta:
-        ordering = ['definition__number', 'location__name']
-        constraints = [models.UniqueConstraint(fields=['definition', 'location'], name='unique_stock')]
-
-    def __str__(self):
-        return f'{self.definition} × {self.quantity} in {self.location}'
 
 
 class Movement(models.Model):

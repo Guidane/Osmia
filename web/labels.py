@@ -1,4 +1,4 @@
-"""Labels (stickers) for item definitions and assets, printed on A4 sheets of labels: one or many at a time, in the sheet size and
+"""Labels (stickers) for item definitions and assets (records with an asset tag), printed on A4 sheets of labels: one or many at a time, in the sheet size and
 with what each label shows chosen on the page (and kept as the default for item definitions or assets).
 
 /labels/definition/?ids=3,8,12 (or /labels/asset/…): the sheets, ready to print."""
@@ -24,6 +24,10 @@ SHOWN = {   # what a label can show, with what it shows by default
     'asset': [('number', 'Asset tag', True), ('name', 'Name', True), ('picture', 'Picture', False), ('asset_number', 'Asset number', False), ('serial', 'Serial number', False),
               ('category', 'Category', False), ('location', 'Location', False)],
 }
+CATEGORY = {   # where the category of what a label is of is
+    'definition': lambda d: d.category,
+    'asset': lambda r: r.definition.category if r.definition else None,
+}
 
 
 def _things(kind, ids):
@@ -31,8 +35,9 @@ def _things(kind, ids):
         from inventory.models import ItemDefinition
         model = ItemDefinition
     else:
-        from assets.models import Asset
-        model = Asset
+        from records.models import Record
+        found = {o.pk: o for o in Record.objects.filter(pk__in=ids).exclude(tag=None).select_related('definition__category', 'harness', 'device', 'location')}
+        return [found[i] for i in ids if i in found]
     found = {o.pk: o for o in model.objects.filter(pk__in=ids).select_related('category')}
     return [found[i] for i in ids if i in found]
 
@@ -63,10 +68,12 @@ def _label(kind, thing, layout, attributes):
         lines.append(('small', f'No. {thing.asset_number}'))
     if 'serial' in show and getattr(thing, 'serial', ''):
         lines.append(('small', f'S/N {thing.serial}'))
-    if 'category' in show and thing.category:
-        lines.append(('small', thing.category.name))
+    category = CATEGORY[kind](thing)
+    if 'category' in show and category:
+        lines.append(('small', category.name))
     if 'location' in show:
-        where = thing.location if kind == 'asset' else next((s.location for s in thing.stock.filter(quantity__gt=0).select_related('location')), None)
+        from inventory.stock import in_stock
+        where = thing.location if kind == 'asset' else next((place for place, _ in in_stock(thing)), None)
         if where:
             lines.append(('small', where.path))
     wanted = [a for a in attributes if a.name in layout['attributes']]
@@ -94,9 +101,11 @@ def sheet(request, kind):
         query = request.GET.copy()
         query.pop('save')
         return redirect(f'{request.path}?{query.urlencode()}')
-    attributes = {}   # the attributes of the things' categories, to choose from
+    attributes = {}   # the attributes of the things' categories (an asset's: the asset fields), to choose from
+    from inventory.models import Attribute
     for thing in things:
-        for a in thing.category.all_attributes() if thing.category else []:
+        category = CATEGORY[kind](thing)
+        for a in (Attribute.asset_fields() if kind == 'asset' else category.all_attributes() if category else []):
             if not a.is_link:
                 attributes.setdefault(a.name, a)
     copies = max(1, min(int(request.GET.get('copies') or 1), 100)) if str(request.GET.get('copies') or '1').isdigit() else 1

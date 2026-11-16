@@ -1,0 +1,18 @@
+{% load osmia %}{# What a record is, as details: ``record`` (and ``attributes``: an asset's fields). #}
+<dl class="details">
+  {% if record.definition %}<dt>Item definition</dt><dd>{{ record.definition|link }}{% if record.definition.category %} <span class="muted small">{{ record.definition.category }}</span>{% endif %}</dd>{% endif %}
+  {% if record.device %}<dt>Device</dt><dd>{{ record.device|link }}{% if record.version %} v{{ record.version }}{% endif %}</dd>{% endif %}
+  {% if record.harness %}<dt>Harness</dt><dd>{{ record.harness|link }}{% if record.version %} v{{ record.version }}{% endif %}</dd>{% endif %}
+  {% if not record.tag %}<dt>Quantity</dt><dd>{{ record.quantity|qty }} {{ record.definition.unit }}</dd>{% endif %}
+  {% include "inventory/_attribute_values.html" %}
+  {% if record.tag %}<dt>Asset number</dt><dd>{{ record.asset_number|default:"—" }}</dd>
+  <dt>Serial number</dt><dd>{{ record.serial|default:"—" }}</dd>{% endif %}
+  {% if record.built_on %}<dt>Built</dt><dd>{{ record.built_on }}{% if record.built_by %} by {{ record.built_by }}{% endif %}</dd>{% endif %}
+  {% if record.location or not record.definition or record.definition.physical %}<dt>Location</dt><dd>{{ record.location|link|default:"—" }}</dd>{% endif %}
+  {% if record.tag %}<dt>Looked after by</dt><dd>{{ record.keeper|default:"—" }}</dd>
+  {% if record.holder %}<dt>Out with</dt><dd>{{ record.holder }}</dd>{% endif %}{% endif %}
+  {% if record.order_line %}<dt>Bought</dt><dd>{{ record.order_line.order|link }}{% if record.order_line.order.vendor %} · {{ record.order_line.order.vendor|link }}{% endif %}{% if record.price %} · {{ record.price|money }}{% endif %}</dd>
+  {% elif record.price %}<dt>Price</dt><dd>{{ record.price|money }}</dd>{% endif %}
+  <dt>Since</dt><dd>{{ record.created_at|date:"j M Y" }}</dd>
+  {% if record.tag %}<dt>Calibration</dt><dd>{% if record.calibration_months %}every {{ record.calibration_months }} month{{ record.calibration_months|pluralize }}; last {{ record.calibrated_on|default:"never" }}; due <b{% if record.calibration_overdue %} class="error"{% endif %}>{{ record.calibration_due }}</b>{% else %}not needed{% endif %}</dd>{% endif %}
+</dl>

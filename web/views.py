@@ -67,14 +67,14 @@ def home(request):
     from setups.models import HarnessRequest
     from datetime import date
 
-    from assets.models import Asset
     from orders.models import Order
+    from records.models import Record
     from orders.service import needs_ordering
     from work.models import Project
     waiting = sorted(Order.objects.filter(status__in=Order.OPEN).select_related('vendor'),
                      key=lambda o: (not o.overdue, o.expected_on or date.max))
     from budgets.money import totals
-    from assets.service import due
+    from records.service import due
     over = [t.budget for t in totals().values() if t.over and t.budget.active]
     mine = home_reports_of(request.user)
     titles = {key: title for key, title, _ in REPORTS}
@@ -89,10 +89,10 @@ def home(request):
         'requests': Order.objects.filter(status=Order.Status.DRAFT, kind=Order.Kind.REQUEST).count(),
         'harness_requests': HarnessRequest.objects.filter(status='open').select_related('setup', 'created_by', 'ask'),
         'received': Order.objects.filter(status=Order.Status.RECEIVED).select_related('vendor').order_by('-received_on', '-pk')[:8],
-        'my_assets': Asset.objects.filter(holder=request.user).select_related('location') if 'my_assets' in mine else [],
+        'my_assets': Record.objects.filter(holder=request.user).select_related('location', 'definition', 'harness', 'device') if 'my_assets' in mine else [],
         'active_projects': Project.objects.filter(status=Project.Status.ACTIVE, parent=None).select_related('owner') if 'projects' in mine else [],
         'draft_orders': Order.objects.filter(status=Order.Status.DRAFT).select_related('vendor', 'created_by')[:20] if 'drafts' in mine else [],
-        'building': Asset.objects.filter(status=Asset.Status.BUILDING).select_related('built_by') if 'building' in mine else []})
+        'building': Record.objects.filter(status=Record.Status.BUILDING).select_related('built_by', 'harness') if 'building' in mine else []})
 
 
 @login_required

@@ -2,12 +2,10 @@
 {% block title %}{{ category.name }} · Osmia{% endblock %}
 {% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'inventory:categories' %}?kind={{ category.kind }}">← Categories</a></p>
+<p class="small"><a href="{% url 'inventory:categories' %}">← Categories</a></p>
 <div class="page-head"><h1>{{ category.path }}</h1><span class="spacer"></span>
-  {% if category.kind == 'assets' %}<a class="btn" href="{% url 'assets:list' %}?category={{ category.pk }}">{{ assets }} asset{{ assets|pluralize }}</a>
-  <a class="btn" href="{% url 'assets:new' %}?category={{ category.pk }}">＋ Asset</a>
-  {% else %}<a class="btn" href="{% url 'inventory:definitions' %}?category={{ category.pk }}">{{ definitions }} item definition{{ definitions|pluralize }}</a>
-  <a class="btn" href="{% url 'inventory:definition_new' %}?category={{ category.pk }}">＋ Item definition</a>{% endif %}
+  <a class="btn" href="{% url 'inventory:definitions' %}?category={{ category.pk }}">{{ definitions }} item definition{{ definitions|pluralize }}</a>
+  <a class="btn" href="{% url 'inventory:definition_new' %}?category={{ category.pk }}">＋ Item definition</a>
   <a class="btn" href="{% url 'inventory:categories' %}?edit={{ category.pk }}">Change</a></div>
 <div class="browser" data-sections>
   <nav class="card browser-tree" aria-label="{{ category.name }}">
@@ -56,9 +54,7 @@
       <div class="brief-head"><h3>{{ category.name }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'inventory:categories' %}?edit={{ category.pk }}">Change</a></div>
       <dl class="details">
         <dt>Path</dt><dd>{{ category.path }}</dd>
-        <dt>Of</dt><dd>{% if category.kind == 'assets' %}assets{% else %}item definitions{% endif %}</dd>
-        {% if category.kind == 'assets' %}<dt>Assets</dt><dd><a href="{% url 'assets:list' %}?category={{ category.pk }}">{{ assets }}</a></dd>
-        {% else %}<dt>Item definitions</dt><dd><a href="{% url 'inventory:definitions' %}?category={{ category.pk }}">{{ definitions }}</a></dd>{% endif %}
+        <dt>Item definitions</dt><dd><a href="{% url 'inventory:definitions' %}?category={{ category.pk }}">{{ definitions }}</a></dd>
         <dt>Under it</dt><dd>{% for c in children %}<a href="{{ c.get_absolute_url }}">{{ c.name }}</a>{% if not forloop.last %} · {% endif %}{% empty %}—{% endfor %}</dd>
       </dl>
     </div>

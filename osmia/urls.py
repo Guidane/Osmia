@@ -15,5 +15,6 @@ urlpatterns = [
     re_path(r'^parts/(?P<rest>.*)$', RedirectView.as_view(url='/item-definitions/%(rest)s', query_string=True)),   # the old address
     path('projects/', include('work.urls')),
     path('budgets/', include('budgets.urls')),
-    path('assets/', include('assets.urls')),
+    path('', include('records.urls')),   # /records/c and /assets/c
+    re_path(r'^assets/(?P<pk>[0-9]+)/(?P<rest>.*)$', RedirectView.as_view(url='/records/%(pk)s/%(rest)s', query_string=True)),   # an asset's old address
 ]

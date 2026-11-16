@@ -9,7 +9,7 @@ KINDS = {   # kind: (model, what one is called)
     'project': ('work.Project', 'Project'), 'setup': ('setups.Setup', 'Setup'), 'harness': ('harnesses.Harness', 'Harness'),
     'device': ('devices.Device', 'Device'), 'definition': ('inventory.ItemDefinition', 'Item definition'), 'family': ('inventory.Family', 'Family'),
     'order': ('orders.Order', 'Order'), 'vendor': ('inventory.Vendor', 'Vendor'), 'budget': ('budgets.Budget', 'Budget'),
-    'asset': ('assets.Asset', 'Asset'), 'location': ('inventory.Location', 'Location'), 'page': ('web.Page', 'Page'),
+    'record': ('records.Record', 'Record'), 'location': ('inventory.Location', 'Location'), 'page': ('web.Page', 'Page'),
 }
 
 

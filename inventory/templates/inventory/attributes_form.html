@@ -32,7 +32,8 @@
 {% block scripts %}<script>
   /* Another category has other attributes: show them (what is filled in stays). */
   var form = document.getElementById('definition-form');
-  form.querySelector('[name=category]').addEventListener('change', function () {
+  var category = form.querySelector('[name=category]');
+  if (category) category.addEventListener('change', function () {
     var flag = document.createElement('input');
     flag.type = 'hidden'; flag.name = 'refresh'; flag.value = '1';
     form.appendChild(flag);

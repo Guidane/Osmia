@@ -46,7 +46,8 @@ INSTALLED_APPS = [
     'setups',
     'harnesses',
     'budgets',
-    'assets',
+    'assets',   # only the migrations of assets from before records
+    'records',
     'work',
 ]
 

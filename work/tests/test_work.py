@@ -2,7 +2,8 @@
 assets and tools (in several)."""
 from django.urls import reverse
 
-from assets.models import Asset
+from inventory.models import ItemDefinition
+from records.models import Record
 from devices.models import Device
 from inventory.tests.test_inventory import Base
 from orders.models import Order
@@ -19,14 +20,14 @@ class ProjectTests(Base):
         setup = Setup.objects.create(name='Rack')
         order = Order.objects.create(vendor=self.acme)
         device = Device.objects.create(number='CTRL-1', name='Controller')
-        crimper = Asset.objects.create(number='T-1', name='Crimper', kind='tool')
-        scope = Asset.objects.create(number='M-1', name='Scope', kind='measuring')
+        crimper = Record.objects.create(tag='T-1', definition=ItemDefinition.objects.create(number='CRIMPER', is_asset=True))
+        scope = Record.objects.create(tag='M-1', definition=ItemDefinition.objects.create(number='SCOPE', is_asset=True))
         link = reverse('work:link', args=[project.pk])
         for what, thing in (('setup', setup), ('order', order), ('device', device), ('asset', crimper), ('asset', scope)):
             self.client.post(link, {'what': what, 'id': thing.pk})
         page = self.client.get(project.get_absolute_url())
-        self.assertEqual([list(page.context[k]) for k in ('setups', 'orders', 'devices', 'assets', 'tools')],
-                         [[setup], [order], [device], [scope], [crimper]])
+        self.assertEqual([list(page.context[k]) for k in ('setups', 'orders', 'devices')], [[setup], [order], [device]])
+        self.assertEqual(set(page.context['assets']), {crimper, scope})
         other = Project.objects.create(name='Test rig')
         self.client.post(reverse('work:link', args=[other.pk]), {'what': 'device', 'id': device.pk})
         self.client.post(reverse('work:link', args=[other.pk]), {'what': 'setup', 'id': setup.pk})
@@ -64,20 +65,20 @@ class ProjectTests(Base):
         # what the sub-projects have shows on the project too, marked with where it is from
         device = Device.objects.create(number='LB-1', name='Load board')
         deep.devices.add(device)
-        tool = Asset.objects.create(number='T-9', name='Crimper', kind='tool')
-        boards.assets.add(tool)
+        tool = Record.objects.create(tag='T-9', definition=ItemDefinition.objects.create(number='CRIMPER', is_asset=True))
+        boards.records.add(tool)
         Setup.objects.create(name='Boards', in_project=deep)
         page = self.client.get(rack.get_absolute_url())
         self.assertEqual(list(page.context['children']), [boards])
         self.assertEqual([(d, d.via) for d in page.context['sub_devices']], [(device, deep)])
-        self.assertEqual([(t, t.via) for t in page.context['sub_tools']], [(tool, boards)])
+        self.assertEqual([(t, t.via) for t in page.context['sub_assets']], [(tool, boards)])
         self.assertEqual([d.name for d in page.context['sub_setups']], ['Boards'])
         from harnesses.models import Harness
         loom = Harness.objects.create(setup=Setup.objects.get(name='Boards'), name='Board loom')
         page = self.client.get(rack.get_absolute_url())
         self.assertEqual([(h, h.via) for h in page.context['sub_harnesses']], [(loom, deep)])   # a sub-project's setup's
         self.assertContains(page, 'BR-LB-B')
-        for tab in ('subs', 'setups', 'harnesses', 'orders', 'devices', 'assets', 'tools'):   # the page as a tree, a panel each
+        for tab in ('subs', 'setups', 'harnesses', 'orders', 'devices', 'assets'):   # the page as a tree, a panel each
             self.assertContains(page, f'data-panel="{tab}"')
         self.assertContains(page, 'data-notes')                                          # notes on the right
         # the list: a tree on the left, the projects of the one picked, its details

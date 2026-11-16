@@ -1,0 +1,96 @@
+{% extends "base.html" %}{% load osmia %}
+{% block title %}{{ record.number }} · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
+{% block content %}
+<p class="small">{% if record.tag %}<a href="{% url 'records:assets' %}?asset={{ record.pk }}">← Assets</a>{% elif record.thing %}<a href="{{ record.thing.get_absolute_url }}#records">← {{ record.thing.number }}</a>{% endif %}</p>
+<div class="page-head"><h1>{{ record.number }}</h1><span class="muted">{{ record.name }}</span>
+  {% if record.tag %}<span class="badge{% if record.status == 'available' or record.status == 'in_use' %} ok{% elif record.status == 'retired' or record.status == 'repair' %} failed{% endif %}">{{ record.get_status_display }}{% if record.holder %}: {{ record.holder }}{% endif %}</span>{% endif %}
+  <span class="spacer"></span>{% if record.tag %}<a class="btn" href="{% url 'web:labels' 'asset' %}?ids={{ record.pk }}">🏷 Label</a>{% endif %}<a class="btn" href="{% url 'records:edit' record.pk %}">Change</a></div>
+{% if record.calibration_overdue %}<div class="flash error">Calibration was due on {{ record.calibration_due }}.</div>{% endif %}
+
+<div class="browser" data-sections>
+  <nav class="card browser-tree" aria-label="{{ record.number }}">
+    <a href="#now" data-section="now" class="tree-head"><span>{{ record.number }}</span><span class="muted small"></span></a>
+    {% if checks %}<a href="#checklist" data-section="checklist" style="--depth: 1"><span>Checklist</span><span class="muted small">{{ verified }} / {{ checks|length }}</span></a>{% endif %}
+    {% if record.tag %}<a href="#history" data-section="history" style="--depth: 1"><span>History</span><span class="muted small">{{ events|length }}</span></a>{% endif %}
+  </nav>
+
+  <div class="browser-middle">
+  <div data-panel="now">
+  <section class="card">
+    {% if record.tag %}<h3>What happened</h3>
+    {% if record.status == 'building' %}
+      <p class="small">Being built: tick its wires in the checklist.</p>
+    {% elif record.status == 'available' %}
+      <form method="post" action="{% url 'records:act' record.pk %}" class="inline-form">{% csrf_token %}
+        <select name="to" aria-label="Who takes it">{% for p in people %}<option value="{{ p.pk }}"{% if p == user %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+        <input type="text" name="note" placeholder="What for (optional)" aria-label="What for" maxlength="300">
+        <button class="btn primary" name="action" value="out">Check it out</button></form>
+    {% elif record.status != 'retired' %}
+      <form method="post" action="{% url 'records:act' record.pk %}" class="inline-form">{% csrf_token %}
+        <input type="text" name="note" placeholder="Note (optional)" aria-label="Note" maxlength="300">
+        <button class="btn primary" name="action" value="back">It is back</button></form>
+    {% endif %}
+    {% if record.calibration_months and record.status != 'retired' %}
+      <form method="post" action="{% url 'records:act' record.pk %}" class="inline-form">{% csrf_token %}
+        <input type="date" name="on" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" aria-label="Calibrated on">
+        <input type="text" name="note" placeholder="Certificate, by whom (optional)" aria-label="Note" maxlength="300">
+        <button class="btn" name="action" value="calibrated">Calibrated</button></form>{% endif %}
+    {% if record.status != 'retired' and record.location or record.status != 'retired' and not record.definition or record.status != 'retired' and record.definition.physical %}
+      <form method="post" action="{% url 'records:act' record.pk %}" class="inline-form">{% csrf_token %}
+        <select name="location" aria-label="Move to" required><option value="">Move to…</option>
+          {% for l, depth in locations %}<option value="{{ l.pk }}">{% for _ in ""|ljust:depth %}&nbsp;&nbsp;&nbsp;{% endfor %}{{ l.name }}</option>{% endfor %}</select>
+        <button class="btn small" name="action" value="move">Move</button></form>{% endif %}
+    {% if record.status == 'available' %}
+      <form method="post" action="{% url 'records:act' record.pk %}" class="inline-form">{% csrf_token %}
+        <input type="text" name="note" placeholder="Where, why (optional)" aria-label="Where or why" maxlength="300">
+        <button class="btn small" name="action" value="in_use">In use</button>
+        <button class="btn small" name="action" value="calibration">Away for calibration</button>
+        <button class="btn small" name="action" value="repair">In repair</button>
+        <button class="btn small ghost" name="action" value="retired" data-confirm="Retire {{ record.tag }}? It stays, with its history.">Retire</button></form>{% endif %}
+    {% else %}<h3>{{ record.quantity|qty }} {{ record.definition.unit }} of {{ record.definition|link }}</h3>
+      <p class="small">{% if record.order_line %}Received with {{ record.order_line.order|link }}{% if record.order_line.order.vendor %} from {{ record.order_line.order.vendor|link }}{% endif %}{% else %}Added{% endif %} on {{ record.created_at|date:"j M Y" }}{% if record.location %}, in {{ record.location|link }}{% endif %}.</p>
+      {% if record.definition.physical %}<p class="small"><a href="{{ record.definition.get_absolute_url }}#records">Add, use, move or count {{ record.definition.number }}</a></p>{% endif %}
+    {% endif %}
+  </section>
+  </div>
+
+{% if checks %}
+<div data-panel="checklist" hidden>
+<form method="post" action="{% url 'records:checklist' record.pk %}" class="card flush">{% csrf_token %}
+  <div class="card-head"><h3>Checklist <span class="muted small">{{ placed }} / {{ checks|length }} placed · {{ verified }} / {{ checks|length }} verified</span></h3></div>
+  <table class="list">
+    <tr><th>Wire</th><th>Signal</th><th>Set</th><th>Colour</th><th>Placed</th><th>Verified</th></tr>
+    {% for c in checks %}{% ifchanged c.between %}<tr class="group-row"><th colspan="6">{{ c.between }}</th></tr>{% endifchanged %}
+      <tr><td>{{ c.wire }}</td><td>{{ c.signal }}</td><td>{{ c.wire_set }}</td><td>{{ c.colour }}</td>
+        <td><input type="checkbox" name="placed_{{ c.pk }}" aria-label="{{ c.wire }} placed"{% if c.placed %} checked{% endif %}></td>
+        <td><input type="checkbox" name="verified_{{ c.pk }}" aria-label="{{ c.wire }} verified"{% if c.verified %} checked{% endif %}></td></tr>
+    {% endfor %}
+  </table>
+  <div class="actions pad"><button class="btn primary">Save</button></div>
+</form>
+</div>
+{% endif %}
+
+{% if record.tag %}<div data-panel="history" hidden>
+  <section class="card flush">
+    <div class="card-head"><h3>History</h3></div>
+    <table class="list">{% for e in events %}<tr><td class="small nowrap">{{ e.at|date:"j M Y H:i" }}</td><td>{{ e.get_kind_display }} <span class="muted small">{{ e.note }}</span></td><td class="small muted">{{ e.user|default:"" }}</td></tr>
+      {% empty %}<tr><td class="empty small">Nothing yet.</td></tr>{% endfor %}</table>
+  </section>
+</div>{% endif %}
+
+  </div>
+
+  <aside class="card browser-detail" data-detail>
+    <div class="brief">
+      <div class="brief-head"><h3>{{ record.number }}</h3><span class="spacer"></span><a class="btn small ghost" href="{% url 'records:edit' record.pk %}">Change</a></div>
+      <p class="brief-what">{{ record.name }}</p>
+    {% preview record %}
+    {% include "records/_details.html" %}
+    </div>
+    {% include "web/_notes.html" with notes=record.notes owner=record %}{% side record %}
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}
