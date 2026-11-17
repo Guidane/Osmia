@@ -148,3 +148,25 @@ class AssetFieldTests(Base):
 def value_of(record, attribute):
     found = RecordValue.objects.filter(record=record, attribute=attribute).first()
     return found.value if found else None
+
+
+class StockPageTests(Base):
+    """The stock: every item definition with something in a location, how many in all and where."""
+    def test_all_that_is_in_stock(self):
+        from inventory import stock
+        stock.add(self.plug, 6, self.shelf, self.ada)
+        stock.add(self.plug, 4, self.bench, self.ada)
+        stock.add(self.wire, 20, self.bench, self.ada)
+        stock.use(self.wire, 20, self.bench, self.ada)                       # used up: not in stock
+        page = self.client.get(reverse('records:stock'))
+        self.assertEqual([(r['definition'], r['quantity']) for r in page.context['rows']], [(self.plug, 10)])
+        self.assertNotContains(page, 'WIRE-22-RED')
+        self.assertContains(page, 'Bench')
+        page = self.client.get(reverse('records:stock'), {'location': self.store.pk})   # the store and what is inside it
+        self.assertEqual([r['quantity'] for r in page.context['rows']], [6])
+        self.assertEqual(self.client.get(reverse('records:stock'), {'q': 'nothing like it'}).context['rows'], [])
+        self.assertEqual(self.client.get(reverse('records:stock'), {'category': self.dsub.pk}).context['rows'][0]['definition'], self.plug)
+        picked = self.client.get(reverse('records:stock'), {'definition': self.plug.pk})
+        self.assertContains(picked, f'data-brief="{self.plug.pk}"')
+        response = self.client.get(reverse('records:stock'), {'export': 1})
+        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

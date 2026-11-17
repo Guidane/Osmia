@@ -1,4 +1,4 @@
-"""Included at the top: a record's own pages under /records/, the assets (the records with an asset tag) under /assets/."""
+"""Included at the top: a record's own pages under /records/, the stock under /stock/, the assets (the records with an asset tag) under /assets/."""
 from django.urls import path
 
 from . import views
@@ -11,6 +11,7 @@ urlpatterns = [
     path('records/<int:pk>/brief/', views.record_brief, name='brief'),
     path('records/<int:pk>/act/', views.act, name='act'),
     path('records/<int:pk>/checklist/', views.checklist, name='checklist'),
+    path('stock/', views.stock, name='stock'),
     path('assets/', views.asset_list, name='assets'),
     path('assets/new/', views.record_form, name='new'),
     path('assets/fields/', views.fields, name='fields'),

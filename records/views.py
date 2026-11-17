@@ -1,4 +1,4 @@
-"""Records: the assets list (the records with an asset tag: the categories of their item definitions as a tree on the left,
+"""Records: the stock (all that is there: what the records in locations hold, by item definition), the assets list (the records with an asset tag: the categories of their item definitions as a tree on the left,
 the assets of the one picked in the middle, by status, those due for calibration; the details of the one picked on the
 right), a record's page (an asset's: checking it out and back, calibration, sending it away, moving it, a harness's
 checklist, its history), a new asset made by hand, the asset fields."""
@@ -229,6 +229,58 @@ def checklist(request, pk):
     except ValidationError as exc:
         errors(request, exc)
     return redirect(item)
+
+
+@login_required
+def stock(request):
+    """All that is in stock: each item definition with records in a location (?location=: in it and those inside it), how
+    many there are in all and where; the categories (with stock) as a tree on the left (?category=), the details of the
+    item definition picked on the right (?definition=)."""
+    from inventory.views import _brief as definition_brief
+    from inventory.views import search
+    from web import browse
+    q = request.GET.get('q', '').strip()
+    found = Record.objects.filter(quantity__gt=0).exclude(location=None).exclude(definition=None)
+    location = Location.objects.filter(pk=request.GET.get('location') or 0).first()
+    if location is not None:
+        found = found.filter(location_id__in=location.below())
+    if q:
+        found = found.filter(definition__in=search(ItemDefinition.objects.all(), q))
+    every = found
+    category = Category.objects.filter(pk=request.GET.get('category') or 0).first()
+    if category is not None:
+        found = found.filter(definition__category_id__in=category.below())
+    rows = {}
+    for r in found.select_related('definition__category', 'location').order_by('definition__number', 'location__name'):
+        row = rows.setdefault(r.definition_id, {'definition': r.definition, 'quantity': 0, 'places': {}})
+        row['quantity'] += r.quantity
+        row['places'][r.location] = row['places'].get(r.location, 0) + r.quantity
+    rows = sorted(rows.values(), key=lambda row: row['definition'].number.lower())
+    for row in rows:
+        row['places'] = sorted(row['places'].items(), key=lambda p: -p[1])
+        d = row['definition']
+        row['low'] = bool(d.minimum) and row['quantity'] < d.minimum
+    if request.GET.get('export'):
+        return excel.download('stock', [('Stock', ['Item number', 'Description', 'Category', 'Location', 'Quantity', 'Unit'],
+                                         [(row['definition'].number, row['definition'].description,
+                                           row['definition'].category.path if row['definition'].category else '', place.path, n, row['definition'].unit)
+                                          for row in rows for place, n in row['places']])])
+    counts = {}
+    for c in every.values_list('definition__category', 'definition').distinct():
+        counts[c[0]] = counts.get(c[0], 0) + 1
+    tree = Category.ordered()
+    keep = set()
+    for c, _ in tree:
+        if counts.get(c.pk):
+            keep.update(c.chain_pks())
+    tree = [(c, d) for c, d in tree if c.pk in keep]
+    kept = browse.keep(request, 'q', 'location')
+    nodes = [browse.node('All stock', f'?{kept[1:]}', len({d for _, d in every.values_list('definition__category', 'definition')}), category is None)]
+    nodes += browse.nodes(tree, counts, category, lambda c: f'?category={c.pk}{kept}', label=lambda c: c.name, depth=1)
+    picked = ItemDefinition.objects.filter(pk=request.GET.get('definition') or 0).first()
+    return render(request, 'records/stock.html', {
+        'rows': rows, 'q': q, 'category': category, 'location': location, 'locations': Location.ordered(), 'nodes': nodes,
+        'picked': picked, 'brief': definition_brief(picked) if picked else None})
 
 
 # -- the asset fields: what every asset fills in, whatever it is ---------------------------------------------------

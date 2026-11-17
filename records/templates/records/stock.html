@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% load osmia %}
+{% block title %}Stock · Osmia{% endblock %}
+{% block content_class %}wide{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Stock</h1>{% if location %}<span class="muted">in {{ location|link }}</span>{% endif %}<span class="spacer"></span>
+  <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ Excel</a></div>
+<div class="browser" data-param="definition">
+  {% include "web/_tree_nav.html" with label="Categories" %}
+
+  <div class="browser-middle">
+    <form method="get" class="filters">
+      {% if category %}<input type="hidden" name="category" value="{{ category.pk }}">{% endif %}
+      <input type="search" name="q" value="{{ q }}" placeholder="Item number, description, manufacturer…" aria-label="Search the stock">
+      <select name="location" aria-label="Location" onchange="this.form.submit()"><option value="">Every location</option>
+        {% for l, depth in locations %}<option value="{{ l.pk }}"{% if location.pk == l.pk %} selected{% endif %}>{% for _ in ""|ljust:depth %}&nbsp;&nbsp;&nbsp;{% endfor %}{{ l.name }}</option>{% endfor %}</select>
+      <button class="btn">Find</button>
+    </form>
+    <div class="card flush">
+      <table class="list browser-list">
+        <tr><th></th><th>Item number</th><th>Description</th>{% if not category %}<th>Category</th>{% endif %}<th class="num">In stock</th><th>Locations</th></tr>
+        {% for row in rows %}{% with d=row.definition %}<tr data-row="{{ d.pk }}" data-brief-url="{% url 'inventory:definition_brief' d.pk %}" class="{% if picked.pk == d.pk %}on{% endif %}" tabindex="0">
+          <td class="thumb-cell">{% thumb d %}</td><td><a href="{{ d.get_absolute_url }}">{{ d.number }}</a></td><td>{{ d.description }}</td>
+          {% if not category %}<td class="small">{{ d.category|link|default:"" }}</td>{% endif %}
+          <td class="num{% if row.low %} low{% endif %}">{{ row.quantity|qty }} <span class="muted small">{{ d.unit }}</span></td>
+          <td class="small">{% for place, n in row.places %}{{ place|link }} <span class="muted">{{ n|qty }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+        </tr>{% endwith %}{% empty %}<tr><td colspan="6" class="empty small">{% if q or category or location %}Nothing in stock matches.{% else %}Nothing in stock yet.{% endif %}</td></tr>{% endfor %}
+      </table>
+    </div>
+  </div>
+
+  <aside class="card browser-detail" data-detail>
+    {% if brief %}{% include "inventory/_definition_brief.html" with definition=brief.definition attributes=brief.attributes stock=brief.stock on_hand=brief.on_hand on_order=brief.on_order %}
+    {% else %}<p class="muted small pad">Pick an item definition to see it here.</p>{% endif %}
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}
