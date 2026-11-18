@@ -269,6 +269,7 @@
           remember(e.id + ':' + p[0], g);
           if (state.from && state.from.end === e.id && state.from.pin === p[0]) g.classList.add('chosen');
           if (editing) g.addEventListener('click', function () { pick(e.id, p[0], g); });
+          else if (has[p[0]]) g.addEventListener('click', function () { show('pin:' + e.id + ':' + p[0]); });   // its wires lit
         });
         return editing ? f.h + 26 : f.h - 10;   // editing: its tools below it
       }
@@ -306,6 +307,7 @@
         remember(at.end + ':' + at.pin, g);
         if (state.from && state.from.end === at.end && state.from.pin === at.pin) g.classList.add('chosen');
         if (editing) g.addEventListener('click', function () { pick(at.end, at.pin, g); });
+        else g.addEventListener('click', function () { show('pin:' + at.end + ':' + at.pin); });   // its wires lit
         return left ? x.left : x.right;
       }
       // a contact with several wires (a splice): drawn once, at its first row; its other rows branch off beside it
@@ -783,10 +785,19 @@
         svg.querySelectorAll('.lit').forEach(function (n) { n.classList.remove('lit'); });
         if (state.picked === null) return;
         var group = state.picked.indexOf('group:') === 0 ? state.picked.slice(6) : null;
+        var pin = null;   // a contact picked: the wires on it
+        if (state.picked.indexOf('pin:') === 0) {
+          var rest = state.picked.slice(4), cut = rest.indexOf(':');
+          pin = { end: rest.slice(0, cut), pin: rest.slice(cut + 1) };
+        }
+        var onPin = function (w) {
+          return (String(w.from) === pin.end && w.from_pin === pin.pin) || (String(w.to) === pin.end && w.to_pin === pin.pin);
+        };
         var inGroup = function (key) { return group !== null && (key === state.picked || (sets[key] && sets[key].group === group)); };
         svg.querySelectorAll('[data-set]').forEach(function (n) { if (n.dataset.set === state.picked || inGroup(n.dataset.set)) n.classList.add('lit'); });
         lines.forEach(function (d) {
-          var mine = group !== null ? (d.w.set ? sets[d.w.set].group : d.w.group) === group : (d.w.set || 'wire:' + d.w.id) === state.picked;
+          var mine = pin !== null ? onPin(d.w) : group !== null ? (d.w.set ? sets[d.w.set].group : d.w.group) === group
+            : (d.w.set || 'wire:' + d.w.id) === state.picked;
           if (!mine) return;
           d.g.classList.add('lit');
           [[d.w.from, d.w.from_pin], [d.w.to, d.w.to_pin]].forEach(function (p) {

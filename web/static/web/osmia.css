@@ -315,6 +315,8 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing.editing .pd-pin { cursor: pointer; }
 .pinout-drawing.editing .pd-pin:hover circle { stroke: var(--brand); stroke-width: 2; }
 .pinout-drawing.editing .pd-contact { cursor: pointer; }
+.pinout-drawing:not(.editing) .pd-contact, .pinout-drawing:not(.editing) .pd-pin:not(.empty) { cursor: pointer; }
+.pinout-drawing:not(.editing) .pd-contact:hover circle, .pinout-drawing:not(.editing) .pd-pin:not(.empty):hover circle { stroke: var(--brand); stroke-width: 2; }
 .pinout-drawing.editing .pd-contact:hover circle { stroke: var(--brand); stroke-width: 2; }
 .pinout-drawing .pd-pin.chosen circle, .pinout-drawing .pd-contact.chosen circle { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-pin.chosen .pd-num, .pinout-drawing .pd-contact.chosen .pd-num { fill: #fff; }
@@ -340,6 +342,9 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing .pd-tools .btn { padding: 0 6px; height: 22px; line-height: 20px; }
 .pinout-drawing .pd-wire-edge { fill: none; stroke: var(--text); stroke-width: 4.5; opacity: .35; stroke-linejoin: round; }
 .pinout-drawing .pd-wire-core { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
+.pinout-drawing.picking .pd-wire:not(.lit) { opacity: .2; }
+.pinout-drawing.picking .pd-wire.lit .pd-wire-edge { stroke: #b45309; stroke-width: 7; opacity: .45; }
+.pinout-drawing.picking .pd-wire.lit .pd-wire-core { stroke-width: 3.5; }
 .pinout-drawing .pd-pin.lit circle, .pinout-drawing .pd-contact.lit circle { fill: #fde047; stroke: #b45309; stroke-width: 2; }
 .wire-colour { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border-strong); margin-right: 4px; vertical-align: middle; }
 .wire-colour[data-colour="black"] { background: #1f2937; } .wire-colour[data-colour="brown"] { background: #92400e; }
