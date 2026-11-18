@@ -28,4 +28,6 @@ class PinoutDrawingTests(BrowserTestCase):
         page = self.go(harness.get_absolute_url())
         page.locator('#pinout-drawing g.pd-group-tag', has_text='Channel 2').click()
         expect(page.locator('.set-chips button[data-set].on')).to_have_text('Channel 2')
-        self.assertEqual(page.locator('#pinout-drawing g.pd-wire.lit').count(), harness.wires.filter(wire_group='Channel 2').count())
+        lit = page.locator('#pinout-drawing g.pd-wire.lit').count()   # (a shield is drawn in pieces)
+        self.assertGreaterEqual(lit, harness.wires.filter(wire_group='Channel 2').count())
+        self.assertLess(lit, page.locator('#pinout-drawing g.pd-wire').count())                  # not the other wires
