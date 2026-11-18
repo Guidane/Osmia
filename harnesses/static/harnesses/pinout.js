@@ -332,7 +332,7 @@
         var g = el('g', { class: 'pd-tag ' + cls }, svg), t = text(g, 0, -50, label, 'pd-tag-text'), long = 0;
         try { long = t.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
         svg.removeChild(g);
-        return Math.max((long || label.length * 5.6) + 8, 22) + 4;
+        return Math.max((long || label.length * 6.6) + 10, 24) + 4;
       }
       var reach = { left: 0, right: 0 }, BOX = 76;   // editing: a box's width (and its gap)
       if (editing) rows.forEach(function (r) { reach[r.loopback && side[r.w.from] === 'right' ? 'right' : 'left'] = 2 * BOX; });
@@ -473,11 +473,11 @@
         if (s.left) outer.left = Math.max(outer.left, s.x); else outer.right = Math.min(outer.right, s.x);
       });
       function tag(at, y, label, dir, cls, id) {   // a tag from ``at`` going ``dir``; where it ends
-        var g = el('g', { class: 'pd-tag ' + cls, 'data-tag-of': id }, over), t = text(g, 0, y + 3.5, label, 'pd-tag-text'), long = 0;
+        var g = el('g', { class: 'pd-tag ' + cls, 'data-tag-of': id }, over), t = text(g, 0, y + 4, label, 'pd-tag-text'), long = 0;
         try { long = t.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
-        var w = Math.max((long || label.length * 5.6) + 8, 22), cx = at + dir * w / 2;
+        var w = Math.max((long || label.length * 6.6) + 10, 24), cx = at + dir * w / 2;
         t.setAttribute('x', cx);
-        g.insertBefore(el('rect', { x: cx - w / 2, y: y - 7, width: w, height: 14, rx: 4 }), t);
+        g.insertBefore(el('rect', { x: cx - w / 2, y: y - 8, width: w, height: 16, rx: 4 }), t);
         return at + dir * (w + 4);
       }
       rows.forEach(function (r) {
@@ -702,8 +702,8 @@
           if (r.loop) {   // a loopback coming back: its gauge, and a purpose of its own
             var tag0 = r.loop.edge + dir * 6;
             if (w.gauge) {
-              var g = el('g', { class: 'pd-tag pd-gauge', 'data-tag-of': w.id }, over), t = text(g, tag0 + dir * (BOX - 4) / 2, r.yBack + 3.5, w.gauge, 'pd-tag-text');
-              g.insertBefore(el('rect', { x: dir > 0 ? tag0 : tag0 - BOX + 4, y: r.yBack - 7, width: BOX - 4, height: 14, rx: 4 }), t);
+              var g = el('g', { class: 'pd-tag pd-gauge', 'data-tag-of': w.id }, over), t = text(g, tag0 + dir * (BOX - 4) / 2, r.yBack + 4, w.gauge, 'pd-tag-text');
+              g.insertBefore(el('rect', { x: dir > 0 ? tag0 : tag0 - BOX + 4, y: r.yBack - 8, width: BOX - 4, height: 16, rx: 4 }), t);
             }
             labelButton(spot(tag0 + dir * BOX, r.yBack, BOX - 4), w.to_signal, 'to');
           }
@@ -745,11 +745,11 @@
           parts.forEach(function (part) {
             var top = part[0] - ROW / 2 + 3, low = part[part.length - 1] + ROW / 2 - 3;
             el('rect', { x: x.left + 6, y: top, width: x.right - x.left - 12, height: low - top, rx: 10, class: 'pd-group', 'data-set': 'group:' + g.name }, under);
-            var tagG = el('g', { class: 'pd-tag pd-group-tag', 'data-set': 'group:' + g.name }, over);
-            var t = text(tagG, mid, top + 3.5, g.name, 'pd-tag-text'), long = 0;
+            var tagG = el('g', { class: 'pd-tag pd-group-tag', 'data-set': 'group:' + g.name }, tools);   // over the areas: its click is its own
+            var t = text(tagG, mid, top + 4.5, g.name, 'pd-tag-text'), long = 0;
             try { long = t.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
-            var w = Math.max((long || g.name.length * 5.6) + 12, 30);
-            tagG.insertBefore(el('rect', { x: mid - w / 2, y: top - 7, width: w, height: 14, rx: 7 }), t);
+            var w = Math.max((long || g.name.length * 7.4) + 16, 34);
+            tagG.insertBefore(el('rect', { x: mid - w / 2, y: top - 9, width: w, height: 18, rx: 9 }), t);
             el('title', {}, tagG).textContent = g.name;
             tagG.addEventListener('click', function () { show('group:' + g.name); });
           });
