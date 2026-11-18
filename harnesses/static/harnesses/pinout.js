@@ -170,15 +170,39 @@
       var sets = {}, setOrder = [];
       rows.forEach(function (r) {
         if (!r.w.set) return;
-        var s = sets[r.w.set] = sets[r.w.set] || { name: r.w.set, type: '', rows: [], first: null };
+        var s = sets[r.w.set] = sets[r.w.set] || { name: r.w.set, type: '', rows: [], first: null, group: '' };
         s.rows.push(r);
         if (r.w.type !== 'Shield') s.type = s.type || r.w.type;
+        s.group = s.group || r.w.group || '';
         if (s.first === null || natural(r.a.pin, s.first) < 0) s.first = r.a.pin;
       });
       Object.keys(sets).forEach(function (k) { if (!sets[k].type) sets[k].type = 'Shield'; setOrder.push(sets[k]); });
-      setOrder.sort(function (a, b) { return natural(a.first, b.first); });
-      var rank = {};
-      setOrder.forEach(function (s, i) { rank[s.name] = i; });
+      // the groups: a name tag over sets ("Channel 1"); a wire in no set can be in one on its own
+      var groups0 = {}, groupOrder = [];
+      rows.forEach(function (r) {
+        var name = r.w.set ? sets[r.w.set].group : r.w.group;
+        if (!name) return;
+        var g = groups0[name] = groups0[name] || { name: name, first: null, rows: [] };
+        g.rows.push(r);
+        if (g.first === null || natural(r.a.pin, g.first) < 0) g.first = r.a.pin;
+      });
+      Object.keys(groups0).forEach(function (k) { groupOrder.push(groups0[k]); });
+      groupOrder.sort(function (a, b) { return natural(a.first, b.first) || natural(a.name, b.name); });
+      var groupRank = {};
+      groupOrder.forEach(function (g, i) { groupRank[g.name] = i; });
+      setOrder.sort(function (a, b) {   // a group's sets side by side, where its first pin is
+        var ka = a.group ? groups0[a.group].first : a.first, kb = b.group ? groups0[b.group].first : b.first;
+        return natural(ka, kb) || natural(a.group, b.group) || natural(a.first, b.first);
+      });
+      var rank = {}, n0 = 0;
+      setOrder.forEach(function (s, i) {   // a group's wires in no set come right after its sets
+        rank[s.name] = n0++;
+        var next = setOrder[i + 1];
+        if (s.group && (!next || next.group !== s.group)) rank['group:' + s.group] = n0++;
+      });
+      groupOrder.forEach(function (g) { if (rank['group:' + g.name] === undefined) rank['group:' + g.name] = n0++; });
+      function rankOf(r) { return r.w.set ? rank[r.w.set] : r.w.group ? rank['group:' + r.w.group] : n0; }
+      function groupOf(r) { return r.w.set ? sets[r.w.set].group : r.w.group || ''; }
 
       // grouped by the two ends they join, each group's rows by set (its shield last), then by pin
       var groups = {}, list = [];
@@ -190,7 +214,7 @@
       list.sort(function (a, b) { return index[a.left] - index[b.left] || index[a.right] - index[b.right]; });
       list.forEach(function (g) {
         g.rows.sort(function (p, q) {
-          var kp = p.w.set ? rank[p.w.set] : setOrder.length, kq = q.w.set ? rank[q.w.set] : setOrder.length;
+          var kp = rankOf(p), kq = rankOf(q);
           return kp - kq || (p.w.type === 'Shield') - (q.w.type === 'Shield') || natural(p.a.pin, q.a.pin);
         });
       });
@@ -208,7 +232,7 @@
       // the middle takes all the width there is (and no less than it needs)
       var fixed = x.left + C + 20 + 46 + widest.right + 10, room = (svg.parentNode.clientWidth || 0) - 20;
       state.width = svg.parentNode.clientWidth;
-      x.right = x.left + Math.max(editing ? 620 : 420, room - fixed);
+      x.right = x.left + Math.max(editing ? 740 : 420, room - fixed);
       x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
       var width = x.rightFace + widest.right + 10, mid = (x.left + x.right) / 2, TWIST = 25;   // half the twist's width
 
@@ -330,7 +354,7 @@
 
       // loopbacks: the wires of a set (or a wire on its own) go out one under another and come back in the opposite
       // order, the first the outermost: nested, none crossing; a shielded set keeps a row out and back for its shield
-      var LOOP = Math.max(240, Math.max(EL, ER) + (editing ? 380 : 30 + 2 * bigHalf + 40)), loopShield = {};   // past a row's tools
+      var LOOP = Math.max(240, Math.max(EL, ER) + (editing ? 490 : 30 + 2 * bigHalf + 40)), loopShield = {};   // past a row's tools
       function loopUnits(g) {
         var units = [], bySet = {};
         g.rows.forEach(function (r) {
@@ -463,7 +487,7 @@
           r.slots = { dir: dir, gauge: at, purpose: at + dir * BOX };
           r.tagEnd[L ? 'left' : 'right'] = at + dir * 2 * BOX;
           r.slots.set = own ? (L ? x.left + EL + 20 : x.right - ER - 20) : at + dir * (2 * BOX + 10);
-          r.slots.rest = r.slots.set + dir * 206;
+          r.slots.rest = r.slots.set + dir * 316;
           return;
         }
         var w = r.w, spliced = spliceOf['L' + w.id] || spliceOf['R' + w.id];
@@ -648,6 +672,9 @@
       });
 
       if (editing) {   // each row: its tools where what they set shows (its set drawn as it is: twisted, shielded)
+        var groupList = document.getElementById('pd-groups') || html('datalist', { id: 'pd-groups' }, document.body);
+        groupList.replaceChildren();
+        groupOrder.forEach(function (g) { html('option', { value: g.name }, groupList); });
         if (!document.getElementById('pd-gauges')) {   // the usual gauges to pick from
           var gauges = html('datalist', { id: 'pd-gauges' }, document.body);
           [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30].forEach(function (n) { html('option', { value: n + ' AWG' }, gauges); });
@@ -678,8 +705,13 @@
             }
             labelButton(spot(tag0 + dir * BOX, r.yBack, BOX - 4), w.to_signal, 'to');
           }
-          // over the twist: the set it is in, and how the set's wires go together (or this wire as the set's shield)
-          var box = spot(at.set, r.y, 202);
+          // over the twist: the group its set is in, the set it is in, and how the set's wires go together (or this wire
+          // as the set's shield)
+          var box = spot(at.set, r.y, 312);
+          var pickGroup = html('input', { type: 'text', 'aria-label': 'Group', placeholder: 'Group', list: 'pd-groups', class: 'pd-group-input',
+                                          'data-wire-group': w.id }, box);
+          pickGroup.value = groupOf(r);
+          pickGroup.addEventListener('change', function () { post({ action: 'group', wire: w.id, group: pickGroup.value }); });
           var pickSet = html('select', { 'aria-label': 'Set of ' + byId[r.a.end].designator + ':' + r.a.pin, 'data-wire': w.id }, box);
           var add = function (to, value, label) { var o = html('option', { value: value }, to); o.textContent = label; };
           add(pickSet, '', 'No set');
@@ -701,14 +733,32 @@
           gone.textContent = '✕';
           gone.addEventListener('click', function () { post({ action: 'delete', wire: w.id }); });
         });
-      } else {   // where each set's wires run: clicking there picks the set
+      } else {   // a group: its rows outlined, its name on top (it is picked there); where each set's wires run: picks the set
+        groupOrder.forEach(function (g) {
+          var ys = [];
+          g.rows.forEach(function (r) { if (r.y !== undefined) ys.push(r.y); if (r.yBack !== undefined) ys.push(r.yBack); });
+          ys.sort(function (a, b) { return a - b; });
+          var parts = [];
+          ys.forEach(function (v) { var last = parts[parts.length - 1]; if (last && v - last[last.length - 1] <= ROW + 1) last.push(v); else parts.push([v]); });
+          parts.forEach(function (part) {
+            var top = part[0] - ROW / 2 + 3, low = part[part.length - 1] + ROW / 2 - 3;
+            el('rect', { x: x.left + 6, y: top, width: x.right - x.left - 12, height: low - top, rx: 10, class: 'pd-group', 'data-set': 'group:' + g.name }, under);
+            var tagG = el('g', { class: 'pd-tag pd-group-tag', 'data-set': 'group:' + g.name }, over);
+            var t = text(tagG, mid, top + 3.5, g.name, 'pd-tag-text'), long = 0;
+            try { long = t.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
+            var w = Math.max((long || g.name.length * 5.6) + 12, 30);
+            tagG.insertBefore(el('rect', { x: mid - w / 2, y: top - 7, width: w, height: 14, rx: 7 }), t);
+            el('title', {}, tagG).textContent = g.name;
+            tagG.addEventListener('click', function () { show('group:' + g.name); });
+          });
+        });
         setOrder.forEach(function (s) {
           var ys = [];
           s.rows.forEach(function (r) { if (r.y !== undefined) ys.push(r.y); if (r.yBack !== undefined) ys.push(r.yBack); });
           if (!ys.length) return;
           var top = Math.min.apply(null, ys) - ROW / 2, low = Math.max.apply(null, ys) + ROW / 2;
           var area = el('rect', { x: x.left + 2, y: top, width: x.right - x.left - 4, height: low - top, rx: 8, class: 'pd-area', 'data-set': s.name }, areas);
-          el('title', {}, area).textContent = 'Set ' + s.name + ' · ' + s.type.toLowerCase();
+          el('title', {}, area).textContent = (s.group ? s.group + ' · set ' : 'Set ') + s.name + ' · ' + s.type.toLowerCase();
           area.addEventListener('click', function () { show(s.name); });
         });
         rows.forEach(function (r) {   // a wire in no set: picked on its own
@@ -732,24 +782,34 @@
         svg.classList.toggle('picking', state.picked !== null);
         svg.querySelectorAll('.lit').forEach(function (n) { n.classList.remove('lit'); });
         if (state.picked === null) return;
-        svg.querySelectorAll('[data-set]').forEach(function (n) { if (n.dataset.set === state.picked) n.classList.add('lit'); });
+        var group = state.picked.indexOf('group:') === 0 ? state.picked.slice(6) : null;
+        var inGroup = function (key) { return group !== null && (key === state.picked || (sets[key] && sets[key].group === group)); };
+        svg.querySelectorAll('[data-set]').forEach(function (n) { if (n.dataset.set === state.picked || inGroup(n.dataset.set)) n.classList.add('lit'); });
         lines.forEach(function (d) {
-          if ((d.w.set || 'wire:' + d.w.id) !== state.picked) return;
+          var mine = group !== null ? (d.w.set ? sets[d.w.set].group : d.w.group) === group : (d.w.set || 'wire:' + d.w.id) === state.picked;
+          if (!mine) return;
           d.g.classList.add('lit');
           [[d.w.from, d.w.from_pin], [d.w.to, d.w.to_pin]].forEach(function (p) {
             (lit[p[0] + ':' + p[1]] || []).forEach(function (n) { n.classList.add('lit'); });
           });
         });
       }
-      if (!editing) setOrder.forEach(function (s) {
-        var b = html('button', { type: 'button', class: 'btn small', 'data-set': s.name }, bar);
-        b.textContent = 'Set ' + s.name + ' · ' + s.type.toLowerCase();
-        b.addEventListener('click', function () { show(s.name); });
-      });
+      if (!editing) {   // a chip for each group, then for each set (in its group)
+        groupOrder.forEach(function (g) {
+          var b = html('button', { type: 'button', class: 'btn small chip-group', 'data-set': 'group:' + g.name }, bar);
+          b.textContent = g.name;
+          b.addEventListener('click', function () { show('group:' + g.name); });
+        });
+        setOrder.forEach(function (s) {
+          var b = html('button', { type: 'button', class: 'btn small', 'data-set': s.name }, bar);
+          b.textContent = (s.group ? s.group + ' · set ' : 'Set ') + s.name + ' · ' + s.type.toLowerCase();
+          b.addEventListener('click', function () { show(s.name); });
+        });
+      }
       var picked = state.picked;
       state.picked = null;
       svg.classList.remove('picking');
-      if (picked !== null && sets[picked] && !editing) show(picked);
+      if (picked !== null && (sets[picked] || groups0[String(picked).slice(6)]) && !editing) show(picked);
 
       html('span', { class: 'spacer' }, bar);
       var modes = html('span', { class: 'segmented' }, bar);

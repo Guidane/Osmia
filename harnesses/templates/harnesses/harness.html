@@ -38,13 +38,13 @@
       <section class="card flush">
         <div class="card-head"><h3>Wire list <span class="muted small">{{ wire_count }}</span></h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:pinout' harness.pk %}">Change</a></div>
         <div style="overflow-x:auto"><table class="list">
-          <tr><th>From</th><th>Pin</th><th>To</th><th>Pin</th><th>Signal</th><th>Set</th><th>Set type</th><th>Colour</th><th>Gauge</th><th class="num">Length</th><th>Wire</th></tr>
-          {% for between, wires in groups %}<tr class="group-row"><th colspan="11">{{ between }}</th></tr>
+          <tr><th>From</th><th>Pin</th><th>To</th><th>Pin</th><th>Signal</th><th>Group</th><th>Set</th><th>Set type</th><th>Colour</th><th>Gauge</th><th class="num">Length</th><th>Wire</th></tr>
+          {% for between, wires in groups %}<tr class="group-row"><th colspan="12">{{ between }}</th></tr>
             {% for w in wires %}<tr{% if w.pk in bad_wires %} class="bad"{% endif %}{% if w.used %} data-brief-url="{{ w.used|brief_url }}"{% endif %}>
-              <td>{{ w.from_end }}</td><td>{{ w.from_pin }}</td><td>{{ w.to_end }}</td><td>{{ w.to_pin }}</td><td>{{ w.signal }}</td>
+              <td>{{ w.from_end }}</td><td>{{ w.from_pin }}</td><td>{{ w.to_end }}</td><td>{{ w.to_pin }}</td><td>{{ w.signal }}</td><td class="small">{{ w.wire_group }}</td>
               <td>{{ w.wire_set }}</td><td class="small">{{ w.set_type }}</td><td>{% if w.colour %}<span class="wire-colour" data-colour="{{ w.colour }}"></span>{{ w.colour }}{% endif %}</td>
               <td class="small">{{ w.gauge }}</td><td class="num">{{ w.length|qty }}</td><td class="small">{{ w.used|link|default:"" }}</td></tr>{% endfor %}
-          {% empty %}<tr><td colspan="11" class="empty small">No wires yet.</td></tr>{% endfor %}
+          {% empty %}<tr><td colspan="12" class="empty small">No wires yet.</td></tr>{% endfor %}
         </table></div>
       </section>
     </div>

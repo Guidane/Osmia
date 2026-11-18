@@ -6,10 +6,11 @@
 <h1>Pins of {{ connector.designator }} <span class="muted small">{{ connector.name }}</span></h1>
 <form method="post" class="card flush" id="pins">{% csrf_token %}
   <table class="list rows-form">
-    <tr><th>Pin</th><th>Signal</th><th>Set</th><th>Set type</th><th>Description</th><th title="Take it away">✕</th></tr>
+    <tr><th>Pin</th><th>Signal</th><th>Group</th><th>Set</th><th>Set type</th><th>Description</th><th title="Take it away">✕</th></tr>
     {% for p in pins %}<tr>
       <td><input name="number_{{ p.pk }}" value="{{ p.number }}" aria-label="Pin number" class="pin-no" required></td>
       <td><input name="signal_{{ p.pk }}" value="{{ p.signal }}" aria-label="Signal of pin {{ p.number }}"></td>
+      <td><input name="group_{{ p.pk }}" value="{{ p.wire_group }}" list="pin-groups" data-group aria-label="Group of pin {{ p.number }}" class="pin-group"></td>
       <td><select name="set_{{ p.pk }}" data-set aria-label="Set of pin {{ p.number }}"><option value="">—</option>
         {% for s in sets %}<option{% if s == p.wire_set %} selected{% endif %}>{{ s }}</option>{% endfor %}<option value="+">＋ New set</option></select></td>
       <td><select name="set_type_{{ p.pk }}" data-type aria-label="Set type of pin {{ p.number }}">{% for t in set_types %}<option{% if t == p.set_type %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></td>
@@ -19,21 +20,24 @@
     {% for i in new %}<tr class="new">
       <td><input name="number_new{{ i }}" aria-label="New pin number" class="pin-no" placeholder="New"></td>
       <td><input name="signal_new{{ i }}" aria-label="Signal"></td>
+      <td><input name="group_new{{ i }}" list="pin-groups" data-group aria-label="Group" class="pin-group"></td>
       <td><select name="set_new{{ i }}" data-set aria-label="Set"><option value="">—</option>{% for s in sets %}<option>{{ s }}</option>{% endfor %}<option value="+">＋ New set</option></select></td>
       <td><select name="set_type_new{{ i }}" data-type aria-label="Set type">{% for t in set_types %}<option>{{ t }}</option>{% endfor %}</select></td>
       <td><input name="description_new{{ i }}" aria-label="Description"></td><td></td>
     </tr>{% endfor %}
   </table>
+  <datalist id="pin-groups">{% for g in groups %}<option value="{{ g }}">{% endfor %}</datalist>
   <input type="hidden" name="new" value="{{ new|length }}">
   <div class="actions pad"><button class="btn primary">Save</button></div>
 </form>
 {% endblock %}
 {% block scripts %}<script>
   /* Sets: picked from the list, or a new one (the next free number, then in every list); the pins of a set are all of
-     one type, so changing it on one changes it on all, and a pin put into a set takes the set's type. */
+     one type and in one group, so changing it on one changes it on all, and a pin put into a set takes the set's. */
   var form = document.getElementById('pins');
   var sets = function () { return Array.prototype.slice.call(form.querySelectorAll('[data-set]')); };
   var typeOf = function (select) { return select.closest('tr').querySelector('[data-type]'); };
+  var groupOf = function (select) { return select.closest('tr').querySelector('[data-group]'); };
   form.addEventListener('change', function (ev) {
     var t = ev.target;
     if (t.matches('[data-set]')) {
@@ -47,10 +51,10 @@
         return;
       }
       var mate = sets().find(function (s) { return s !== t && s.value && s.value === t.value; });
-      if (mate) typeOf(t).value = typeOf(mate).value;
-    } else if (t.matches('[data-type]')) {
-      var set = t.closest('tr').querySelector('[data-set]').value;
-      if (set) sets().forEach(function (s) { if (s.value === set) typeOf(s).value = t.value; });
+      if (mate) { typeOf(t).value = typeOf(mate).value; groupOf(t).value = groupOf(mate).value; }
+    } else if (t.matches('[data-type]') || t.matches('[data-group]')) {   // the whole set goes along
+      var set = t.closest('tr').querySelector('[data-set]').value, of = t.matches('[data-type]') ? typeOf : groupOf;
+      if (set) sets().forEach(function (s) { if (s.value === set) of(s).value = t.value; });
     }
   });
 </script>{% endblock %}

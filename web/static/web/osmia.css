@@ -303,6 +303,13 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-num { font: 600 10px system-ui, sans-serif; fill: var(--text); text-anchor: middle; pointer-events: none; }
 .pinout-drawing .pd-wire { pointer-events: none; }
 .pinout-drawing .pd-area { fill: transparent; cursor: pointer; }
+.pinout-drawing .pd-group { fill: none; stroke: var(--border-strong); stroke-width: 1.2; stroke-dasharray: 6 4; }
+.pinout-drawing .pd-group.lit { stroke: var(--brand); stroke-width: 2; }
+.pinout-drawing .pd-group-tag { cursor: pointer; }
+.pinout-drawing .pd-group-tag rect { fill: var(--panel); stroke: var(--border-strong); }
+.pinout-drawing .pd-group-tag.lit rect { stroke: var(--brand); fill: var(--brand-soft, var(--panel-2)); }
+.pinout-drawing .pd-tools .pd-group-input { font-size: 11px; padding: 1px 4px; height: 22px; width: 92px; min-width: 0; }
+.set-chips .chip-group { font-weight: 600; }
 .pinout-drawing .pd-area:hover { fill: rgba(59, 130, 246, .05); }
 .pinout-drawing .pd-area.lit { fill: rgba(59, 130, 246, .07); }
 .pinout-drawing.editing .pd-pin { cursor: pointer; }

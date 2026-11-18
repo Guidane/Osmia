@@ -76,7 +76,8 @@ class Device(DefinitionOrFamily):
             for number, p in pins.items():
                 Pin.objects.update_or_create(connector=connector, number=number,
                                              defaults={'signal': p.get('signal', ''), 'wire_set': p.get('set', ''),
-                                                       'set_type': p.get('set_type', 'Straight'), 'description': p.get('description', '')})
+                                                       'set_type': p.get('set_type', 'Straight'), 'wire_group': p.get('group', ''),
+                                                       'description': p.get('description', '')})
 
 
 class Connector(DefinitionOrFamily):
@@ -97,7 +98,8 @@ class Connector(DefinitionOrFamily):
 
     def snapshot(self):
         return {'designator': self.designator, 'name': self.name, 'definition': self.used_name,
-                'pins': [{'number': p.number, 'signal': p.signal, 'set': p.wire_set, 'set_type': p.set_type, 'description': p.description}
+                'pins': [{'number': p.number, 'signal': p.signal, 'set': p.wire_set, 'set_type': p.set_type, 'description': p.description,
+                          **({'group': p.wire_group} if p.wire_group else {})}   # (only when there is one: older versions have none)
                          for p in self.ordered_pins()]}
 
     def ordered_pins(self):
@@ -108,6 +110,7 @@ class Pin(models.Model):
     connector = models.ForeignKey(Connector, on_delete=models.CASCADE, related_name='pins')
     number = models.CharField(max_length=20)
     signal = models.CharField(max_length=100, blank=True)
+    wire_group = models.CharField('group', max_length=40, blank=True)   # a name tag over sets: "Channel 1"
     wire_set = models.CharField('set', max_length=20, blank=True)
     set_type = models.CharField(max_length=20, default='Straight', choices=[(t, t) for t in SET_TYPES])
     description = models.CharField(max_length=200, blank=True)

@@ -56,6 +56,21 @@ class DeviceTests(DeviceBase):
                          {'1': ('CAN', 'Shielded twisted'), '2': ('', 'Straight'), '6': ('CAN', 'Shielded twisted'),
                           '7': ('CAN', 'Shielded twisted'), '8': ('', 'Straight')})
 
+    def test_a_set_is_in_one_group(self):
+        pins = {p.number: p for p in self.j1.pins.all()}
+        self.j1.pins.filter(number__in=['6', '7']).update(wire_set='1', set_type='Twisted', wire_group='Channel 1')
+        post = {f'number_{p.pk}': p.number for p in pins.values()}
+        post.update({f'set_{pins["6"].pk}': '1', f'set_type_{pins["6"].pk}': 'Twisted', f'group_{pins["6"].pk}': 'Channel 1',
+                     f'set_{pins["7"].pk}': '1', f'set_type_{pins["7"].pk}': 'Twisted', f'group_{pins["7"].pk}': 'Channel 2',   # changed on one
+                     f'group_{pins["1"].pk}': 'Channel 2'})                                                                  # in no set: its own
+        self.client.post(reverse('devices:pins', args=[self.controller.pk, self.j1.pk]), post)
+        self.assertEqual({p.number: p.wire_group for p in self.j1.pins.all()}, {'1': 'Channel 2', '2': '', '6': 'Channel 2', '7': 'Channel 2'})
+        self.assertContains(self.client.get(reverse('devices:pins', args=[self.controller.pk, self.j1.pk])), '<option value="Channel 2">', html=False)
+        versions.save(self.controller, self.ada)
+        self.assertFalse(versions.changed(self.controller))
+        self.j1.pins.filter(number='1').update(wire_group='')
+        self.assertTrue(versions.changed(self.controller))
+
     def test_a_connector_s_family_picked_in_a_popup(self):
         from inventory.faces import start
         from inventory.models import Branch, Family
@@ -159,4 +174,4 @@ class DeviceTests(DeviceBase):
         book = load_workbook(BytesIO(response.content))
         rows = list(book['Pins'].values)
         self.assertEqual(rows[0][:5], ('Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin'))
-        self.assertIn(('CTRL-1', 'J1', 'Bus', 'DSUB-9-PLUG', '6', 'CAN H', None, None, None), rows)
+        self.assertIn(('CTRL-1', 'J1', 'Bus', 'DSUB-9-PLUG', '6', 'CAN H', None, None, None, None), rows)

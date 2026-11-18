@@ -106,7 +106,7 @@ def connect(setup, ends, name, pairs, definitions=(None, None)):
             raise ValidationError(f'There is no pin {a if pa is None else b} on that connector.')
         in_set = pa if pa.wire_set else pb
         Wire.objects.create(harness=harness, from_end=made[0], from_pin=a, to_end=made[1], to_pin=b, signal=pa.signal or pb.signal,
-                            wire_set=in_set.wire_set, set_type=in_set.set_type)
+                            wire_set=in_set.wire_set, set_type=in_set.set_type, wire_group=pa.wire_group or pb.wire_group)
     place(setup, kind='harness', harness_id=harness.pk,
           ends={str(end.pk): [key, connector.pk] for end, (key, connector) in zip(made, ends)})
     between = {ends[0][0], ends[1][0]}

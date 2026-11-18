@@ -94,7 +94,7 @@ class PinoutTests(HarnessBase):
         self.p2.used = None
         self.p2.save()
         self.assertEqual(self.client.get(reverse('harnesses:harness', args=[self.harness.pk])).context['drawing']['ends'][1]['face']['shape'], 'rect')
-        self.assertIn({'id': Wire.objects.get().pk, 'from': self.p1.pk, 'from_pin': '6', 'to': self.p2.pk, 'to_pin': '2', 'signal': '', 'to_signal': '', 'set': 'CAN', 'type': 'Twisted', 'gauge': '', 'length': '',
+        self.assertIn({'id': Wire.objects.get().pk, 'from': self.p1.pk, 'from_pin': '6', 'to': self.p2.pk, 'to_pin': '2', 'signal': '', 'to_signal': '', 'group': '', 'set': 'CAN', 'type': 'Twisted', 'gauge': '', 'length': '',
                        'colour': ''}, page.context['drawing']['wires'])
 
     def test_a_shield_joined_on_one_side_or_both(self):
@@ -130,6 +130,22 @@ class PinoutTests(HarnessBase):
         self.client.post(url, {'action': 'end_delete', 'end': self.p2.pk})
         self.assertFalse(self.harness.ends.filter(pk=self.p2.pk).exists())
         self.assertFalse(Wire.objects.filter(pk=wire.pk).exists())                           # its wires with it
+
+    def test_sets_in_groups_in_the_drawing(self):
+        url = reverse('harnesses:pinout_draw', args=[self.harness.pk])
+        tx, rx, gnd = self.connect('2', '2', wire_set='1', set_type='Twisted'), self.connect('3', '3', wire_set='1', set_type='Twisted'), self.connect('5', '5')
+        versions.save(self.harness, self.ada)
+        drawing = self.client.post(url, {'action': 'group', 'wire': tx.pk, 'group': ' Channel  1 '}).json()
+        self.assertEqual({w.pk: w.wire_group for w in Wire.objects.all()}, {tx.pk: 'Channel 1', rx.pk: 'Channel 1', gnd.pk: ''})   # its whole set
+        self.assertEqual({w['id']: w['group'] for w in drawing['wires']}[rx.pk], 'Channel 1')
+        self.client.post(url, {'action': 'group', 'wire': gnd.pk, 'group': 'Channel 1'})                               # in no set: just it
+        other = self.connect('6', '6')
+        self.client.post(url, {'action': 'set', 'wire': other.pk, 'set': '1'})
+        self.assertEqual(Wire.objects.get(pk=other.pk).wire_group, 'Channel 1')                                         # into the set: its group too
+        self.assertTrue(versions.changed(self.harness))
+        page = self.client.get(self.harness.get_absolute_url())
+        self.assertContains(page, 'Channel 1')
+        self.assertIn(['P1', '2', 'P2', '2', '', 'Channel 1'], [list(r[:6]) for r in views._sheets(self.harness)[0][2]])
 
     def test_the_pinout_edited_in_its_drawing(self):
         url = reverse('harnesses:pinout_draw', args=[self.harness.pk])

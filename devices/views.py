@@ -43,7 +43,7 @@ def device_list(request):
                                                  'brief': briefs.of('device', picked) if picked else None})
 
 
-PIN_HEAD = ['Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin', 'Signal', 'Set', 'Set type', 'Description']
+PIN_HEAD = ['Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin', 'Signal', 'Group', 'Set', 'Set type', 'Description']
 
 
 def _pin_rows(devices):
@@ -51,7 +51,7 @@ def _pin_rows(devices):
         for connector in device.connectors.select_related('definition', 'family').prefetch_related('pins'):
             for pin in connector.ordered_pins():
                 yield (device.number, connector.designator, connector.name, connector.used_name,
-                       pin.number, pin.signal, pin.wire_set, pin.set_type if pin.wire_set else '', pin.description)
+                       pin.number, pin.signal, pin.wire_group, pin.wire_set, pin.set_type if pin.wire_set else '', pin.description)
 
 
 @login_required
@@ -189,7 +189,7 @@ def connectors_copy(request, pk):
             for source in Connector.objects.filter(pk__in=request.POST.getlist('connector')).exclude(device=item).prefetch_related('pins'):
                 made = Connector.objects.create(device=item, designator=free_designator(item, source.designator), name=source.name,
                                                 definition=source.definition, family=source.family, branch=source.branch, position=item.connectors.count())
-                Pin.objects.bulk_create(Pin(connector=made, number=p.number, signal=p.signal, wire_set=p.wire_set, set_type=p.set_type,
+                Pin.objects.bulk_create(Pin(connector=made, number=p.number, signal=p.signal, wire_set=p.wire_set, set_type=p.set_type, wire_group=p.wire_group,
                                             description=p.description) for p in source.pins.all())
                 copied.append(made.designator if made.designator == source.designator else f'{source.designator} (as {made.designator})')
         messages.success(request, f'Copied: {", ".join(copied)}.' if copied else 'Nothing was picked.')
@@ -210,8 +210,9 @@ def connector_delete(request, pk, connector):
 
 @login_required
 def pins(request, pk, connector):
-    """A connector's pins as one form: numbers, signals, sets (from a list, or a new one), descriptions; new rows add
-    pins, ✕ takes one away. The pins of a set are all of one type: the one changed, else the one it had."""
+    """A connector's pins as one form: numbers, signals, groups (a name tag over sets: "Channel 1"), sets (from a list,
+    or a new one), descriptions; new rows add pins, ✕ takes one away. The pins of a set are all of one type and in one
+    group: the one changed, else the one it had."""
     item = get_object_or_404(Connector.objects.select_related('device'), pk=connector, device_id=pk)
     rows = item.ordered_pins()
     if request.method == 'POST':
@@ -220,36 +221,48 @@ def pins(request, pk, connector):
                 post = request.POST
                 had = {p.wire_set: p.set_type for p in rows if p.wire_set}   # each set's type before
                 typed = {}                                                   # each set's type, where it was changed
+                was = {p.wire_set: p.wire_group for p in rows if p.wire_set}  # each set's group before
+                grouped = {}                                                 # each set's group, where it was changed
                 for pin in rows:
                     if post.get(f'gone_{pin.pk}'):
                         pin.delete()
                         continue
-                    before = pin.set_type
+                    before, before_group = pin.set_type, pin.wire_group
                     pin.number = post.get(f'number_{pin.pk}', pin.number).strip() or pin.number
                     pin.signal = post.get(f'signal_{pin.pk}', '').strip()[:100]
                     pin.wire_set, pin.set_type = _set(post, pin.pk)
+                    pin.wire_group = post.get(f'group_{pin.pk}', '').strip()[:40]
                     pin.description = post.get(f'description_{pin.pk}', '').strip()[:200]
                     pin.save()
                     if pin.wire_set and pin.set_type != before:
                         typed[pin.wire_set] = pin.set_type
+                    if pin.wire_set and pin.wire_group != before_group:
+                        grouped[pin.wire_set] = pin.wire_group
                 for i in range(int(post.get('new', 0) or 0)):
                     number = post.get(f'number_new{i}', '').strip()
                     if number:
                         wire_set, set_type = _set(post, f'new{i}')
+                        group = post.get(f'group_new{i}', '').strip()[:40]
                         Pin.objects.create(connector=item, number=number[:20], signal=post.get(f'signal_new{i}', '').strip()[:100],
-                                           wire_set=wire_set, set_type=set_type, description=post.get(f'description_new{i}', '').strip()[:200])
+                                           wire_set=wire_set, set_type=set_type, wire_group=group,
+                                           description=post.get(f'description_new{i}', '').strip()[:200])
                         if wire_set and wire_set not in had:
                             typed.setdefault(wire_set, set_type)
+                            grouped.setdefault(wire_set, group)
                 for wire_set in set(item.pins.exclude(wire_set='').values_list('wire_set', flat=True)):
                     one = typed.get(wire_set) or had.get(wire_set)
                     if one:
                         item.pins.filter(wire_set=wire_set).update(set_type=one)
+                    if wire_set in grouped or wire_set in was:
+                        item.pins.filter(wire_set=wire_set).update(wire_group=grouped.get(wire_set, was.get(wire_set, '')))
         except IntegrityError:
             messages.error(request, 'Two pins have the same number: nothing was saved.')
             return redirect(request.path)
         messages.success(request, f'The pins of {item} are saved.')
         return redirect(f'{item.device.get_absolute_url()}?connector={item.pk}')
     return render(request, 'devices/pins.html', {'connector': item, 'pins': rows, 'new': range(5), 'set_types': SET_TYPES,
+                                                 'groups': sorted(set(Pin.objects.filter(connector__device=item.device).exclude(wire_group='')
+                                                                      .values_list('wire_group', flat=True)), key=pin_order),
                                                  'sets': sorted({p.wire_set for p in rows if p.wire_set}, key=pin_order)})
 
 

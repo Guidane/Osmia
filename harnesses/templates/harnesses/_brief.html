@@ -19,7 +19,7 @@
   <table class="list compact">
     {% for w in wires %}<tr><td class="nowrap">{{ w.from_end.designator }}:{{ w.from_pin }}</td><td class="nowrap">{{ w.to_end.designator }}:{{ w.to_pin }}</td>
       <td class="small">{{ w.signal }}</td>
-      <td class="small">{% if w.wire_set %}{{ w.wire_set }}{% endif %}</td>
+      <td class="small">{% if w.wire_group %}{{ w.wire_group }} · {% endif %}{% if w.wire_set %}{{ w.wire_set }}{% endif %}</td>
       <td class="small nowrap">{% if w.colour %}<span class="wire-colour" data-colour="{{ w.colour }}"></span>{{ w.colour }}{% endif %}</td></tr>
     {% empty %}<tr><td class="empty small">No wires yet.</td></tr>{% endfor %}
   </table>

@@ -74,7 +74,8 @@ class Harness(models.Model):
                 'ends': [{'designator': e.designator, 'definition': e.used_name} for e in self.ends.select_related('definition', 'family')],
                 'wires': [{'from': w.from_end.designator, 'from_pin': w.from_pin, 'to': w.to_end.designator, 'to_pin': w.to_pin,
                            'signal': w.signal, 'to_signal': w.to_signal, 'set': w.wire_set, 'set_type': w.set_type, 'colour': w.colour, 'gauge': w.gauge,
-                           'length': str(w.length) if w.length is not None else None, 'definition': w.used_name}
+                           'length': str(w.length) if w.length is not None else None, 'definition': w.used_name,
+                           **({'group': w.wire_group} if w.wire_group else {})}   # (only when there is one: older versions have none)
                           for w in self.ordered_wires()],
                 'items': [{'definition': i.used_name, 'quantity': str(i.quantity), 'note': i.note}
                           for i in self.items.select_related('definition', 'family')]}
@@ -94,7 +95,7 @@ class Harness(models.Model):
         for w in data.get('wires', []):
             wire = Wire(harness=self, from_end=ends[w['from']], from_pin=w['from_pin'], to_end=ends[w['to']], to_pin=w['to_pin'],
                         signal=w.get('signal', ''), to_signal=w.get('to_signal', ''), wire_set=w.get('set', ''), set_type=w.get('set_type', 'Straight'),
-                        colour=w.get('colour', ''), gauge=w.get('gauge', ''), length=Decimal(w['length']) if w.get('length') else None)
+                        wire_group=w.get('group', ''), colour=w.get('colour', ''), gauge=w.get('gauge', ''), length=Decimal(w['length']) if w.get('length') else None)
             wire.used = definition_or_family(w.get('definition'))
             wire.save()
         for i in data.get('items', []):
@@ -146,6 +147,7 @@ class Wire(DefinitionOrFamily):
     to_pin = models.CharField(max_length=20)
     signal = models.CharField(max_length=100, blank=True)
     to_signal = models.CharField('signal at its other end', max_length=100, blank=True)   # a loopback's (TX: RX)
+    wire_group = models.CharField('group', max_length=40, blank=True)   # a name tag over sets: "Channel 1"
     wire_set = models.CharField('set', max_length=20, blank=True)
     set_type = models.CharField(max_length=20, default='Straight', choices=[(t, t) for t in SET_TYPES])
     colour = models.CharField(max_length=20, blank=True, choices=[(c, c) for c in COLOURS])

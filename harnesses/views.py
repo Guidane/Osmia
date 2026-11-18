@@ -94,8 +94,8 @@ def harness_form(request, pk=None):
 
 def _sheets(harness):
     wires = harness.ordered_wires()
-    return [('Pinout', ['From', 'Pin', 'To', 'Pin', 'Signal', 'Set', 'Set type', 'Colour', 'Gauge', 'Length (mm)', 'Wire item definition'],
-             [(w.from_end.designator, w.from_pin, w.to_end.designator, w.to_pin, w.signal, w.wire_set, w.set_type, w.colour,
+    return [('Pinout', ['From', 'Pin', 'To', 'Pin', 'Signal', 'Group', 'Set', 'Set type', 'Colour', 'Gauge', 'Length (mm)', 'Wire item definition'],
+             [(w.from_end.designator, w.from_pin, w.to_end.designator, w.to_pin, w.signal, w.wire_group, w.wire_set, w.set_type, w.colour,
                w.gauge, w.length, w.used_name) for w in wires]),
             ('Connectors', ['Connector', 'Item definition'],
              [(e.designator, e.used_name) for e in harness.ends.select_related('definition', 'family')]),
@@ -150,7 +150,7 @@ def _drawing(harness, wires):
         out.append({'id': end.pk, 'designator': end.designator, 'what': end.used_name,
                     'side': end.side, 'used': _picked_as(end.used), 'face': drawn(end.used, numbers), 'pins': [[n, pins[n]] for n in numbers]})
     return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
-                                    'to_signal': w.to_signal, 'set': w.wire_set, 'type': w.set_type, 'colour': w.colour, 'gauge': w.gauge, 'length': qty(w.length)} for w in wires]}
+                                    'to_signal': w.to_signal, 'group': w.wire_group, 'set': w.wire_set, 'type': w.set_type, 'colour': w.colour, 'gauge': w.gauge, 'length': qty(w.length)} for w in wires]}
 
 
 @login_required
@@ -158,7 +158,8 @@ def _drawing(harness, wires):
 def pinout_draw(request, pk):
     """The pinout edited in its drawing: a wire added between two pins (its signal and set from the device's pin), a
     wire put in a set (an existing one, a new one, or as a shielded set's shield), a set's type changed (all its
-    wires; or a wire made its shield), coloured, labelled, its gauge given, or taken away; connectors added on a side, changed, taken away.
+    wires; or a wire made its shield), a set put in a group (a name tag over sets: "Channel 1"; a wire in no set on its
+    own), coloured, labelled, its gauge given, or taken away; connectors added on a side, changed, taken away.
     Answers with the drawing as it is now."""
     item = get_object_or_404(Harness, pk=pk)
     post, action = request.POST, request.POST.get('action')
@@ -195,7 +196,8 @@ def pinout_draw(request, pk):
             if shield:
                 shield.delete()
         else:
-            shield = shield or Wire(harness=item, wire_set=name, set_type='Shield', signal='Shield', colour='grey')
+            group = item.wires.filter(wire_set=name).exclude(set_type='Shield').values_list('wire_group', flat=True).first() or ''
+            shield = shield or Wire(harness=item, wire_set=name, set_type='Shield', signal='Shield', colour='grey', wire_group=group)
             shield.from_end, shield.from_pin, shield.to_end, shield.to_pin = a, a_pin, b, b_pin
             shield.save()
         return JsonResponse(_drawing(item, item.ordered_wires()))
@@ -243,9 +245,17 @@ def pinout_draw(request, pk):
             elif value:
                 mate = item.wires.filter(wire_set=value).exclude(pk=wire.pk).exclude(set_type='Shield').first()
                 wire.wire_set, wire.set_type = value[:20], mate.set_type if mate else 'Straight'
+                if mate:   # into the set's group too
+                    wire.wire_group = mate.wire_group
             else:
                 wire.wire_set, wire.set_type = '', 'Straight'
             wire.save()
+        elif action == 'group':   # a name tag over sets: the wire's whole set goes into it (a wire in no set: just it)
+            value = ' '.join(post.get('group', '').split())[:40]
+            if wire.wire_set:
+                item.wires.filter(wire_set=wire.wire_set).update(wire_group=value)
+            else:
+                Wire.objects.filter(pk=wire.pk).update(wire_group=value)
         elif action == 'set_type':   # the whole set goes together so now; or this wire is the set's shield
             kind = post.get('type', '')
             if not wire.wire_set or kind not in SET_TYPES:
@@ -337,7 +347,8 @@ def pinout(request, pk):
     choices = [(e.pk, e.designator) for e in end_list]
     columns = [rows.Column('from_end', 'From', 'select', choices), rows.Column('from_pin', 'Pin', width='60px'),
                rows.Column('to_end', 'To', 'select', choices), rows.Column('to_pin', 'Pin', width='60px'),
-               rows.Column('signal', 'Signal', width='120px'), rows.Column('wire_set', 'Set', width='60px'),
+               rows.Column('signal', 'Signal', width='120px'), rows.Column('wire_group', 'Group', width='100px'),
+               rows.Column('wire_set', 'Set', width='60px'),
                rows.Column('set_type', 'Set type', 'select', [(t, t) for t in SET_TYPES]),
                rows.Column('colour', 'Colour', 'select', [(c, c) for c in COLOURS]), rows.Column('gauge', 'Gauge', width='80px'),
                rows.Column('length', 'Length (mm)', 'number', width='80px'), rows.Column('definition', 'Wire item definition or family', datalist='definitions', width='160px')]
@@ -353,12 +364,13 @@ def pinout(request, pk):
         wire = wire or Wire(harness=item)
         wire.from_end, wire.from_pin, wire.to_end, wire.to_pin = a, cells['from_pin'][:20], b, cells['to_pin'][:20]
         wire.signal, wire.wire_set, wire.gauge, wire.set_type = signal[:100], wire_set[:20], cells['gauge'][:20], set_type
+        wire.wire_group = ' '.join(cells['wire_group'].split())[:40]
         wire.colour = cells['colour'] if cells['colour'] in COLOURS else ''
         wire.length, wire.used = _number(cells['length'], row, 'length'), _definition(cells['definition'], row)
         wire.save()
     return _edit(request, item, 'The pinout', columns, records, lambda w: {
         'from_end': w.from_end_id, 'from_pin': w.from_pin, 'to_end': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
-        'wire_set': w.wire_set, 'set_type': w.set_type, 'colour': w.colour, 'gauge': w.gauge,
+        'wire_group': w.wire_group, 'wire_set': w.wire_set, 'set_type': w.set_type, 'colour': w.colour, 'gauge': w.gauge,
         'length': f'{w.length.normalize():f}' if w.length is not None else '', 'definition': w.used_name}, apply)
 
 

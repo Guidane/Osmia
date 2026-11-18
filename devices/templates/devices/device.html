@@ -24,9 +24,9 @@
         <a class="btn small ghost" href="{% url 'devices:connector_edit' device.pk picked.pk %}">Change</a>
         <form method="post" action="{% url 'devices:connector_delete' device.pk picked.pk %}" data-confirm="Take {{ picked.designator }} away, with its pins?">{% csrf_token %}<button class="btn small ghost" title="Take it away">✕</button></form></div>
       <table class="list compact" data-pins>
-        <tr><th>Pin</th><th>Signal</th><th>Set</th><th>Description</th></tr>
-        {% for p in pins %}<tr data-pin="{{ p.number }}" tabindex="0"><td>{{ p.number }}</td><td>{{ p.signal }}</td><td class="small">{% if p.wire_set %}{{ p.wire_set }} · {{ p.set_type|lower }}{% endif %}</td><td class="small muted">{{ p.description }}</td></tr>
-        {% empty %}<tr><td colspan="4" class="empty small">No pins yet.</td></tr>{% endfor %}
+        <tr><th>Pin</th><th>Signal</th><th>Group</th><th>Set</th><th>Description</th></tr>
+        {% for p in pins %}<tr data-pin="{{ p.number }}" tabindex="0"><td>{{ p.number }}</td><td>{{ p.signal }}</td><td class="small">{{ p.wire_group }}</td><td class="small">{% if p.wire_set %}{{ p.wire_set }} · {{ p.set_type|lower }}{% endif %}</td><td class="small muted">{{ p.description }}</td></tr>
+        {% empty %}<tr><td colspan="5" class="empty small">No pins yet.</td></tr>{% endfor %}
       </table>
     </section>
   {% elif show == 'assets' %}
