@@ -312,7 +312,6 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-group-tag rect { fill: var(--panel); stroke: var(--border-strong); }
 .pinout-drawing .pd-group-tag.lit rect { stroke: var(--brand); fill: var(--brand-soft, var(--panel-2)); }
 .pinout-drawing .pd-tools .pd-group-input { font-size: 11px; padding: 1px 4px; height: 22px; width: 92px; min-width: 0; }
-.set-chips .chip-group { font-weight: 600; }
 .pinout-drawing .pd-area:hover { fill: rgba(59, 130, 246, .05); }
 .pinout-drawing .pd-area.lit { fill: rgba(59, 130, 246, .07); }
 .pinout-drawing.editing .pd-pin { cursor: pointer; }

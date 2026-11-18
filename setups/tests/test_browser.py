@@ -122,10 +122,10 @@ class DiagramTests(BrowserTestCase):
         call_command('demo', stdout=open('nul', 'w'))
         page = self.go(Harness.objects.get(name='Controller to load board').get_absolute_url())
         expect(page.locator('#pinout-drawing .pd-pin')).to_have_count(18)               # two D-sub 9 faces, every position
-        page.locator('#set-chips button', has_text='CAN').click()
+        page.locator('#pinout-drawing .pd-area[data-set="CAN"]').click()               # where the set's wires run
         expect(page.locator('#pinout-drawing .pd-contact.lit')).to_have_count(6)        # CAN H, CAN L and the shield, both ends
         expect(page.locator('#pinout-drawing .pd-pin.lit')).to_have_count(6)
-        page.locator('#set-chips button', has_text='CAN').click()                        # again: none
+        page.locator('#pinout-drawing .pd-area[data-set="CAN"]').click()               # again: none
         expect(page.locator('#pinout-drawing .lit')).to_have_count(0)
         page.locator('#pinout-drawing .pd-area[data-set="PWR"]').click()                 # where the set's wires run
         expect(page.locator('#pinout-drawing .pd-contact.lit')).to_have_count(4)

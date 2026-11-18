@@ -27,7 +27,8 @@ class PinoutDrawingTests(BrowserTestCase):
         harness.wires.filter(wire_set='CAN').update(wire_group='Channel 2')
         page = self.go(harness.get_absolute_url())
         page.locator('#pinout-drawing g.pd-group-tag', has_text='Channel 2').click()
-        expect(page.locator('.set-chips button[data-set].on')).to_have_text('Channel 2')
+        expect(page.locator('#set-chips button[data-set]')).to_have_count(0)            # no set chips above the drawing
+        expect(page.locator('#pinout-drawing g.pd-group-tag.lit')).to_contain_text('Channel 2')
         lit = page.locator('#pinout-drawing g.pd-wire.lit').count()   # (a shield is drawn in pieces)
         self.assertGreaterEqual(lit, harness.wires.filter(wire_group='Channel 2').count())
         self.assertLess(lit, page.locator('#pinout-drawing g.pd-wire').count())                  # not the other wires

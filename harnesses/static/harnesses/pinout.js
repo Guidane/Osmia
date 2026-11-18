@@ -813,18 +813,6 @@
           });
         });
       }
-      if (!editing) {   // a chip for each group, then for each set (in its group)
-        groupOrder.forEach(function (g) {
-          var b = html('button', { type: 'button', class: 'btn small chip-group', 'data-set': 'group:' + g.name }, bar);
-          b.textContent = g.name;
-          b.addEventListener('click', function () { show('group:' + g.name); });
-        });
-        setOrder.forEach(function (s) {
-          var b = html('button', { type: 'button', class: 'btn small', 'data-set': s.name }, bar);
-          b.textContent = (s.group ? s.group + ' · set ' : 'Set ') + s.name + ' · ' + s.type.toLowerCase();
-          b.addEventListener('click', function () { show(s.name); });
-        });
-      }
       var picked = state.picked;
       state.picked = null;
       svg.classList.remove('picking');
