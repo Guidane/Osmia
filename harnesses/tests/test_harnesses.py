@@ -147,6 +147,31 @@ class PinoutTests(HarnessBase):
         self.assertContains(page, 'Channel 1')
         self.assertIn(['P1', '2', 'P2', '2', '', 'Channel 1'], [list(r[:6]) for r in views._sheets(self.harness)[0][2]])
 
+    def test_a_group_s_lengths_and_where_its_bundle_ends(self):
+        from harnesses.models import HarnessGroup
+        self.connect('2', '2', wire_set='1', set_type='Twisted', wire_group='Channel 1')
+        self.connect('3', '3', wire_set='1', set_type='Twisted', wire_group='Channel 1')
+        self.connect('5', '5', wire_group='Channel 2')
+        url = reverse('harnesses:groups', args=[self.harness.pk])
+        self.client.post(url, {'length_0': '1200', 'bundled_0': '400', 'length_1': '1000', 'bundled_1': '500'})
+        one, two = HarnessGroup.objects.get(name='Channel 1'), HarnessGroup.objects.get(name='Channel 2')
+        self.assertEqual((one.length, one.bundled, one.breakout, two.breakout), (1200, 400, '1/3', '1/2'))
+        self.assertEqual(HarnessGroup(length=1000, bundled=600).breakout, '2/3')
+        self.assertIsNone(HarnessGroup(length=1000).breakout)
+        drawing = self.client.get(self.harness.get_absolute_url()).context['drawing']
+        self.assertEqual(drawing['groups']['Channel 1'], {'length': '1200', 'bundled': '400', 'breakout': '1/3'})
+        response = self.client.post(url, {'length_0': '100', 'bundled_0': '400'}, follow=True)
+        self.assertContains(response, 'bundled for longer than it is')
+        self.assertEqual(HarnessGroup.objects.get(name='Channel 1').length, 1200)        # nothing saved
+        self.client.post(url, {'length_0': '1200', 'bundled_0': '400', 'length_1': '1000', 'bundled_1': ''})   # no bundle: fine
+        two.refresh_from_db()
+        self.assertEqual((two.length, two.bundled, two.breakout), (1000, None, None))                       # (no line drawn)
+        saved = versions.save(self.harness, self.ada)
+        HarnessGroup.objects.all().delete()
+        self.assertTrue(versions.changed(self.harness))
+        self.harness.restore(saved.data)
+        self.assertEqual(HarnessGroup.objects.get(name='Channel 2').length, 1000)
+
     def test_the_pinout_edited_in_its_drawing(self):
         url = reverse('harnesses:pinout_draw', args=[self.harness.pk])
         drawing = self.client.post(url, {'action': 'add', 'from_end': self.p1.pk, 'from_pin': '6', 'to_end': self.p2.pk, 'to_pin': '2'}).json()

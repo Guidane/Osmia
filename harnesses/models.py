@@ -78,7 +78,10 @@ class Harness(models.Model):
                            **({'group': w.wire_group} if w.wire_group else {})}   # (only when there is one: older versions have none)
                           for w in self.ordered_wires()],
                 'items': [{'definition': i.used_name, 'quantity': str(i.quantity), 'note': i.note}
-                          for i in self.items.select_related('definition', 'family')]}
+                          for i in self.items.select_related('definition', 'family')],
+                **({'groups': [{'name': g.name, 'length': str(g.length) if g.length is not None else None,
+                                'bundled': str(g.bundled) if g.bundled is not None else None} for g in self.groups.all()]}
+                   if self.groups.exists() else {})}   # (only when there are: older versions have none)
 
     def restore(self, data):
         self.name, self.description, self.notes = data.get('name', ''), data.get('description', ''), data.get('notes', '')
@@ -98,6 +101,10 @@ class Harness(models.Model):
                         wire_group=w.get('group', ''), colour=w.get('colour', ''), gauge=w.get('gauge', ''), length=Decimal(w['length']) if w.get('length') else None)
             wire.used = definition_or_family(w.get('definition'))
             wire.save()
+        self.groups.all().delete()
+        for g in data.get('groups', []):
+            HarnessGroup.objects.create(harness=self, name=g['name'], length=Decimal(g['length']) if g.get('length') else None,
+                                        bundled=Decimal(g['bundled']) if g.get('bundled') else None)
         for i in data.get('items', []):
             found = definition_or_family(i['definition'])
             if found:
@@ -171,6 +178,31 @@ class HarnessItem(DefinitionOrFamily):
 
     class Meta:
         ordering = ['pk']
+
+
+class HarnessGroup(models.Model):
+    """A group of a harness (the name tag over sets its wires carry: "Channel 1"): how long it is in all, and how much of
+    that, from its left-hand connector, it runs bundled together with the other sets."""
+    harness = models.ForeignKey(Harness, on_delete=models.CASCADE, related_name='groups')
+    name = models.CharField(max_length=40)
+    length = models.DecimalField('total length (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
+    bundled = models.DecimalField('bundled together (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
+
+    class Meta:
+        ordering = ['name']
+        constraints = [models.UniqueConstraint(fields=['harness', 'name'], name='unique_harness_group')]
+
+    def __str__(self):
+        return f'{self.harness.number} {self.name}'
+
+    @property
+    def breakout(self):
+        """Where, along the wires, the bundle ends, as drawn: 1/3 when bundled for less than half the total length, 1/2 at
+        half, 2/3 past half; None without both lengths."""
+        if not self.length or self.bundled is None:
+            return None
+        half = self.length / 2
+        return '1/3' if self.bundled < half else '2/3' if self.bundled > half else '1/2'
 
 
 class HarnessVersion(Version):

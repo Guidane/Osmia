@@ -19,6 +19,7 @@
   <nav class="card browser-tree" aria-label="{{ harness.number }}">
     <a href="#pinout" data-section="pinout" class="tree-head"><span>{{ harness.number }} · pinout</span><span class="muted small">{{ wire_count }}</span></a>
     <a href="#wires" data-section="wires" style="--depth: 1"><span>Wire list</span><span class="muted small">{{ wire_count }}</span></a>
+    <a href="#groups" data-section="groups" style="--depth: 1"><span>Groups</span><span class="muted small">{{ wire_groups|length }}</span></a>
     <a href="#connectors" data-section="connectors" style="--depth: 1"><span>Connectors</span><span class="muted small">{{ ends|length }}</span></a>
     <a href="#items" data-section="items" style="--depth: 1"><span>Other items</span><span class="muted small">{{ items|length }}</span></a>
     <a href="#definitions" data-section="definitions" style="--depth: 1"><span>Parts list</span><span class="muted small">{{ definitions|length }}</span></a>
@@ -46,6 +47,23 @@
               <td class="small">{{ w.gauge }}</td><td class="num">{{ w.length|qty }}</td><td class="small">{{ w.used|link|default:"" }}</td></tr>{% endfor %}
           {% empty %}<tr><td colspan="12" class="empty small">No wires yet.</td></tr>{% endfor %}
         </table></div>
+      </section>
+    </div>
+
+    <div data-panel="groups" hidden>
+      <section class="card flush">
+        <div class="card-head"><h3>Groups</h3></div>
+        <form method="post" action="{% url 'harnesses:groups' harness.pk %}">{% csrf_token %}
+        <table class="list">
+          <tr><th>Group</th><th class="num">Total length (mm)</th><th class="num">Bundled together (mm)</th><th>Bundle ends</th></tr>
+          {% for g in wire_groups %}<tr><td><b>{{ g.name }}</b></td>
+            <td class="num"><input type="text" name="length_{{ forloop.counter0 }}" value="{{ g.length|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="Total length of {{ g.name }}"></td>
+            <td class="num"><input type="text" name="bundled_{{ forloop.counter0 }}" value="{{ g.bundled|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="Bundled length of {{ g.name }}"></td>
+            <td class="small muted">{% if g.breakout %}at {{ g.breakout }}{% endif %}</td></tr>
+          {% empty %}<tr><td colspan="4" class="empty small">None.</td></tr>{% endfor %}
+        </table>
+        {% if wire_groups %}<div class="actions pad"><button class="btn primary">Save</button></div>{% endif %}
+        </form>
       </section>
     </div>
 

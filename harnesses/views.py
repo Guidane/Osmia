@@ -13,7 +13,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from devices.models import SET_TYPES as PIN_SET_TYPES, Connector
+from devices.models import SET_TYPES as PIN_SET_TYPES, Connector, pin_order
 from inventory import stock
 from inventory.faces import drawn, face_of
 from inventory.models import Location, ItemDefinition, DefinitionGroup, choices_of_definitions, definition_or_family
@@ -97,6 +97,8 @@ def _sheets(harness):
     return [('Pinout', ['From', 'Pin', 'To', 'Pin', 'Signal', 'Group', 'Set', 'Set type', 'Colour', 'Gauge', 'Length (mm)', 'Wire item definition'],
              [(w.from_end.designator, w.from_pin, w.to_end.designator, w.to_pin, w.signal, w.wire_group, w.wire_set, w.set_type, w.colour,
                w.gauge, w.length, w.used_name) for w in wires]),
+            ('Groups', ['Group', 'Total length (mm)', 'Bundled together (mm)'],
+             [(g.name, g.length, g.bundled) for g in _groups(harness, wires)]),
             ('Connectors', ['Connector', 'Item definition'],
              [(e.designator, e.used_name) for e in harness.ends.select_related('definition', 'family')]),
             ('Parts list', ['Item definition', 'Description', 'Quantity', 'Unit'],
@@ -118,11 +120,43 @@ def harness(request, pk):
     found = item.problems()
     from inventory import picker
     return render(request, 'harnesses/harness.html', {'drawing': _drawing(item, wires), 'family_picker': picker.dialog(),
+        'wire_groups': _groups(item, wires),
         'harness': item, 'ends': item.ends.select_related('definition', 'family', 'branch'), 'groups': groups, 'wire_count': len(wires),
         'items': item.items.select_related('definition'), 'definitions': item.parts_list(),
         'problems': [text for _, text in found], 'bad_wires': {thing.pk for thing, _ in found if isinstance(thing, Wire)},
         'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item),
         'units': item.records.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number)})
+
+
+def _groups(harness, wires):
+    """The groups its wires are in (natural order), each with its lengths: [HarnessGroup, saved or not]."""
+    from .models import HarnessGroup
+    kept = {g.name: g for g in harness.groups.all()}
+    names = sorted({w.wire_group for w in wires if w.wire_group}, key=pin_order)
+    return [kept.get(n) or HarnessGroup(harness=harness, name=n) for n in names]
+
+
+@login_required
+@require_POST
+def group_lengths(request, pk):
+    """Each group's total length and how much of it runs bundled together with the other sets (from the form of the
+    harness's Groups); a group no wire is in any more goes."""
+    from .models import HarnessGroup
+    item = get_object_or_404(Harness, pk=pk)
+    groups = _groups(item, item.ordered_wires())
+    try:
+        with transaction.atomic():
+            for i, g in enumerate(groups):
+                g.length = _number(request.POST.get(f'length_{i}', '').strip(), i + 1, 'total length')
+                g.bundled = _number(request.POST.get(f'bundled_{i}', '').strip(), i + 1, 'bundled length')
+                if g.length is not None and g.bundled is not None and g.bundled > g.length:
+                    raise ValidationError(f'{g.name}: it can\'t run bundled for longer than it is.')
+                g.save()
+            item.groups.exclude(name__in=[g.name for g in groups]).delete()
+        messages.success(request, 'The lengths of the groups are saved.')
+    except ValidationError as exc:
+        errors(request, exc)
+    return redirect(item.get_absolute_url() + '#groups')
 
 
 def _picked_as(found):
@@ -149,7 +183,8 @@ def _drawing(harness, wires):
         numbers = sorted(pins, key=pin_order)
         out.append({'id': end.pk, 'designator': end.designator, 'what': end.used_name,
                     'side': end.side, 'used': _picked_as(end.used), 'face': drawn(end.used, numbers), 'pins': [[n, pins[n]] for n in numbers]})
-    return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
+    lengths = {g.name: {'length': qty(g.length), 'bundled': qty(g.bundled), 'breakout': g.breakout} for g in harness.groups.all()}
+    return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'groups': lengths, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
                                     'to_signal': w.to_signal, 'group': w.wire_group, 'set': w.wire_set, 'type': w.set_type, 'colour': w.colour, 'gauge': w.gauge, 'length': qty(w.length)} for w in wires]}
 
 

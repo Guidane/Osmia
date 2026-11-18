@@ -14,6 +14,7 @@ urlpatterns = [
     path('<int:pk>/pinout/', views.pinout, name='pinout'),
     path('<int:pk>/pinout/draw/', views.pinout_draw, name='pinout_draw'),
     path('<int:pk>/items/', views.items, name='items'),
+    path('<int:pk>/groups/', views.group_lengths, name='groups'),
     path('<int:pk>/versions/', views.save_version, name='save_version'),
     path('<int:pk>/versions/<int:number>/', views.version, name='version'),
     path('<int:pk>/versions/<int:number>/restore/', views.restore, name='restore'),

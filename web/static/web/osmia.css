@@ -306,6 +306,8 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-group { fill: none; stroke: var(--border-strong); stroke-width: 1.2; stroke-dasharray: 6 4; }
 .pinout-drawing .pd-group.lit { stroke: var(--brand); stroke-width: 2; }
 .pinout-drawing .pd-group-tag { cursor: pointer; }
+.pinout-drawing .pd-bundle { stroke: #9ca3af; stroke-width: 5; stroke-linecap: round; opacity: .85; }
+.pinout-drawing .pd-bundle.lit { stroke: #6b7280; }
 .pinout-drawing .pd-group-tag .pd-tag-text { font-size: 12px; }
 .pinout-drawing .pd-group-tag rect { fill: var(--panel); stroke: var(--border-strong); }
 .pinout-drawing .pd-group-tag.lit rect { stroke: var(--brand); fill: var(--brand-soft, var(--panel-2)); }
