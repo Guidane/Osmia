@@ -329,7 +329,10 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-tools select { font-size: 11px; padding: 1px 4px; height: 22px; min-width: 0; width: auto; }
 .pinout-drawing .pd-tools .pd-gauge-input { font-size: 11px; padding: 1px 4px; height: 22px; width: 72px; min-width: 0; }
 .pinout-drawing .pd-tools select[data-wire] { width: 80px; }
-.pinout-drawing .pd-tools select.pd-type { width: 118px; }
+.pinout-drawing .pd-tools select.pd-type { width: 88px; }
+.pinout-drawing .pd-tools .pd-shielded { display: inline-flex; align-items: center; gap: 3px; background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; height: 22px; font-size: 11px; white-space: nowrap; cursor: pointer; }
+.pinout-drawing .pd-tools .pd-shielded input { margin: 0; }
+.pinout-drawing .pd-tools .pd-shielded.off { color: var(--muted); cursor: default; }
 .pinout-drawing .pd-tools select.pd-colour { width: 98px; }
 .pinout-drawing .pd-tag rect { fill: var(--panel); stroke: var(--muted); stroke-width: 1; }
 .pinout-drawing .pd-length rect { stroke-dasharray: 3 2; }

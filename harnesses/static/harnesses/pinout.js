@@ -433,7 +433,7 @@
         reach[on] = Math.max(reach[on], far);
       });
       var EL = Math.max(70, reach.left + 28), ER = Math.max(70, reach.right + 28);
-      var least = EL + ER + (editing ? 20 + 316 + 130 + 10 : 120);   // the middle wide enough for what is by the contacts
+      var least = EL + ER + (editing ? 20 + 350 + 130 + 10 : 120);   // the middle wide enough for what is by the contacts
       if (x.right - x.left < least) {
         x.right = x.left + least;
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
@@ -580,7 +580,7 @@
           r.slots = { dir: dir, gauge: at, purpose: at + dir * BOX };
           r.tagEnd[L ? 'left' : 'right'] = at + dir * 2 * BOX;
           r.slots.set = own ? (L ? x.left + EL + 20 : x.right - ER - 20) : at + dir * (2 * BOX + 10);
-          r.slots.rest = r.slots.set + dir * 316;
+          r.slots.rest = r.slots.set + dir * 350;
           return;
         }
         var w = r.w, spliced = !r.loop && (spliceOf(r, true) || spliceOf(r, false));
@@ -802,7 +802,7 @@
           }
           // over the twist: the group its set is in, the set it is in, and how the set's wires go together (or this wire
           // as the set's shield)
-          var box = spot(at.set, r.y, 312);
+          var box = spot(at.set, r.y, 346);
           var pickGroup = html('input', { type: 'text', 'aria-label': 'Group', placeholder: 'Group', list: 'pd-groups', class: 'pd-group-input',
                                           'data-wire-group': w.id }, box);
           pickGroup.value = groupOf(r);
@@ -814,11 +814,25 @@
           add(pickSet, 'new:Straight', '＋ New set');
           pickSet.value = w.set || '';
           pickSet.addEventListener('change', function () { post({ action: 'set', wire: w.id, set: pickSet.value }); });
+          // how the set's wires go: straight or twisted (or this wire is the set's shield), and on its own whether the set
+          // is shielded
+          var kindNow = w.set ? sets[w.set].type : 'Straight', isShield = w.type === 'Shield';
           var pickType = html('select', { 'aria-label': 'Set type', 'data-wire-type': w.id, class: 'pd-type' }, box);
-          data.set_types.concat(['Shield']).forEach(function (t) { add(pickType, t, t === 'Shield' ? 'Shield wire' : t); });
-          pickType.value = w.type || 'Straight';
+          [['Straight', 'Straight'], ['Twisted', 'Twisted'], ['Shield', 'Shield wire']].forEach(function (t) { add(pickType, t[0], t[1]); });
+          pickType.value = isShield ? 'Shield' : twisted(kindNow) ? 'Twisted' : 'Straight';
           pickType.disabled = !w.set;
-          pickType.addEventListener('change', function () { post({ action: 'set_type', wire: w.id, type: pickType.value }); });
+          var shieldBox = html('label', { class: 'pd-shielded' + (w.set ? '' : ' off'), title: 'Shielded' }, box);
+          var pickShield = html('input', { type: 'checkbox', 'aria-label': 'Shielded', 'data-wire-shielded': w.id }, shieldBox);
+          shieldBox.appendChild(document.createTextNode('Shielded'));
+          pickShield.checked = shielded(kindNow);
+          pickShield.disabled = !w.set || isShield;
+          function kindPicked() {
+            if (pickType.value === 'Shield') return 'Shield';
+            var tw = pickType.value === 'Twisted';
+            return pickShield.checked ? (tw ? 'Shielded twisted' : 'Shielded') : (tw ? 'Twisted' : 'Straight');
+          }
+          pickType.addEventListener('change', function () { post({ action: 'set_type', wire: w.id, type: kindPicked() }); });
+          pickShield.addEventListener('change', function () { post({ action: 'set_type', wire: w.id, type: kindPicked() }); });
           var rest = spot(at.rest, r.y, 130);
           var pickColour = html('select', { 'aria-label': 'Colour', class: 'pd-colour' }, rest);
           [''].concat(data.colours).forEach(function (c) { var o = html('option', { value: c }, pickColour); o.textContent = c || 'colour'; });
