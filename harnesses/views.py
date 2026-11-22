@@ -27,7 +27,7 @@ from web.templatetags.osmia import qty
 from . import purposes
 from web.forms import initial_for
 
-from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessItem, HarnessVersion, Wire, parts_of
+from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessItem, HarnessMark, HarnessVersion, Wire, parts_of
 
 
 class HarnessForm(forms.ModelForm):
@@ -135,7 +135,130 @@ def harness(request, pk):
         'items': item.items.select_related('definition'), 'definitions': item.parts_list(),
         'problems': [text for _, text in found], 'bad_wires': {thing.pk for thing, _ in found if isinstance(thing, Wire)},
         'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item),
-        'units': item.records.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number)})
+        'units': item.records.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number),
+        **_bundle(item, wires)})
+
+
+def _splices(wires):
+    """The contacts with several wires (splices), as "P1:1", in the order of the wires."""
+    seen = {}
+    for w in wires:
+        for end, pin in ((w.from_end, w.from_pin), (w.to_end, w.to_pin)):
+            if pin:
+                key = f'{end.designator}:{pin}'
+                seen[key] = seen.get(key, 0) + 1
+    return [k for k, n in seen.items() if n > 1]
+
+
+def _path(a, b):
+    """How long a wire between ends ``a`` and ``b`` is along the bundle: down a's branch, along the trunk, up b's (None
+    when either has no place on the trunk, or it is a loopback)."""
+    if a.pk == b.pk or a.along is None or b.along is None:
+        return None
+    return (a.reach or 0) + abs(a.along - b.along) + (b.reach or 0)
+
+
+def _bundle(harness, wires):
+    """What the Bundle tab shows: the drawing's data, the marks to edit (and blank rows for new ones), and how long each
+    pair of connectors' wires are along the bundle."""
+    ends = list(harness.ends.all())
+    marks = list(harness.marks.select_related('on', 'definition', 'family', 'branch'))
+    sets = {}
+    for w in wires:
+        if w.wire_set and 'shielded' in w.set_type.lower():
+            sets[w.wire_set] = True
+    pairs = {}
+    for w in wires:
+        key = (w.from_end_id, w.to_end_id) if w.from_end.position <= w.to_end.position else (w.to_end_id, w.from_end_id)
+        if key not in pairs:
+            pairs[key] = {'between': f'{w.from_end.designator} – {w.to_end.designator}', 'length': _path(w.from_end, w.to_end), 'wires': 0}
+        pairs[key]['wires'] += 1
+    drawing = {'trunk': qty(harness.trunk), 'ends': [{'id': e.pk, 'designator': e.designator, 'what': e.used_name, 'along': qty(e.along),
+                                                       'reach': qty(e.reach)} for e in ends],
+               'marks': [{'kind': m.kind, 'label': m.get_kind_display(), 'on': m.on_id, 'start': qty(m.start), 'end': qty(m.end),
+                          'text': m.text, 'set': m.wire_set, 'what': m.used_name} for m in marks]}
+    return {'bundle': drawing, 'bundle_ends': ends, 'marks': marks + [None] * 4, 'mark_kinds': HarnessMark.Kind.choices,
+            'splice_contacts': _splices(wires), 'shielded_sets': sorted(sets, key=pin_order), 'paths': list(pairs.values()),
+            'definition_numbers': choices_of_definitions()}
+
+
+def _mm(text, who, what):
+    """A length in mm typed in (None when empty)."""
+    try:
+        return _number(str(text or '').strip(), 0, what)
+    except ValidationError as exc:
+        raise ValidationError(exc.messages[0].replace('Row 0', who))
+
+
+@login_required
+@require_POST
+def bundle_save(request, pk):
+    """The bundle as filled in on the Bundle tab: the trunk's length, where each connector breaks out and its branch's
+    length, and the marks along it (a row emptied of its position, or ticked to go, is taken away)."""
+    item = get_object_or_404(Harness, pk=pk)
+    post = request.POST
+    ends = {e.pk: e for e in item.ends.all()}
+    try:
+        with transaction.atomic():
+            item.trunk = _mm(post.get('trunk', ''), 'The trunk', 'length')
+            item.save(update_fields=['trunk'])
+            for e in ends.values():
+                e.along = _mm(post.get(f'along_{e.pk}', ''), e.designator, 'breakout')
+                e.reach = _mm(post.get(f'reach_{e.pk}', ''), e.designator, 'branch length')
+                if e.along is not None and item.trunk is not None and e.along > item.trunk:
+                    raise ValidationError(f'{e.designator}: it breaks out past the end of the trunk ({qty(item.trunk)} mm).')
+                e.save(update_fields=['along', 'reach'])
+            kept = {m.pk: m for m in item.marks.all()}
+            kinds = dict(HarnessMark.Kind.choices)
+            splices = {s.lower() for s in _splices(item.ordered_wires())}
+            for i in range(int(post.get('mark_rows') or 0)):
+                f = lambda name: post.get(f'm{i}_{name}', '').strip()   # noqa: E731
+                mark = kept.get(int(f('id') or 0)) if f('id').isdigit() else None
+                start = _mm(f('start'), f'Mark {i + 1}', 'position')
+                if f('gone') or start is None:
+                    if mark:
+                        mark.delete()
+                    continue
+                kind = f('kind') if f('kind') in kinds else ''
+                if not kind:
+                    raise ValidationError(f'Mark {i + 1}: what is it?')
+                on = ends.get(int(f('on'))) if f('on').isdigit() else None
+                end = _mm(f('end'), f'Mark {i + 1}', 'end') if kind in HarnessMark.STRETCHES else None
+                if kind in HarnessMark.STRETCHES and (end is None or end <= start):
+                    raise ValidationError(f'Mark {i + 1}: a {kinds[kind].lower()} goes from one place to a further one.')
+                longest = (on.reach if on else item.trunk)
+                where = f"{on.designator}'s branch" if on else 'the trunk'
+                if longest is not None and max(start, end or start) > longest:
+                    raise ValidationError(f'Mark {i + 1}: past the end of {where} ({qty(longest)} mm).')
+                if kind == 'strip' and on is None:
+                    raise ValidationError(f'Mark {i + 1}: a shield is stripped back from a connector: pick its branch.')
+                text = ' '.join(f('text').split())[:100]
+                if kind == 'splice' and text.lower() not in splices:
+                    raise ValidationError(f'Mark {i + 1}: pick which splice.')
+                mark = mark or HarnessMark(harness=item)
+                mark.kind, mark.on, mark.start, mark.end, mark.text = kind, on, start, end, text
+                mark.wire_set = f('set')[:20] if kind == 'strip' else ''
+                mark.used = _definition(f('definition'), i + 1) if kind in ('tie', 'sleeve', 'shrink') else None
+                mark.save()
+        messages.success(request, 'The bundle is saved.')
+    except ValidationError as exc:
+        errors(request, exc)
+    return redirect(item.get_absolute_url() + '#bundle')
+
+
+@login_required
+@require_POST
+def bundle_lengths(request, pk):
+    """Each wire's length set from the bundle: down its connectors' branches and along the trunk between them."""
+    item = get_object_or_404(Harness, pk=pk)
+    done = 0
+    for w in item.ordered_wires():
+        length = _path(w.from_end, w.to_end)
+        if length is not None and w.length != length:
+            Wire.objects.filter(pk=w.pk).update(length=length)
+            done += 1
+    messages.success(request, f'{done} wire{"" if done == 1 else "s"} given {"its" if done == 1 else "their"} length from the bundle.')
+    return redirect(item.get_absolute_url() + '#bundle')
 
 
 def _safe(name):

@@ -286,6 +286,52 @@ class TransferTests(HarnessBase):
         self.assertContains(self.client.get(reverse('harnesses:format')), 'from_pin')
 
 
+class BundleTests(HarnessBase):
+    def save(self, **fields):
+        return self.client.post(reverse('harnesses:bundle', args=[self.harness.pk]), fields, follow=True)
+
+    def test_the_bundle_its_marks_and_the_wires_lengths_from_it(self):
+        from harnesses.models import HarnessMark
+        self.connect('1', '1')
+        self.connect('2', '2', wire_set='A', set_type='Shielded twisted')
+        self.connect('3', '2')                                                    # P2:2 a splice
+        p1, p2 = self.p1.pk, self.p2.pk
+        response = self.save(**{'trunk': '1000', f'along_{p1}': '0', f'reach_{p1}': '', f'along_{p2}': '1000', f'reach_{p2}': '150',
+                                'mark_rows': 4,
+                                'm0_kind': 'tie', 'm0_on': '', 'm0_start': '250',
+                                'm1_kind': 'sleeve', 'm1_on': '', 'm1_start': '100', 'm1_end': '600', 'm1_definition': 'WIRE-22-RED',
+                                'm2_kind': 'strip', 'm2_on': p2, 'm2_start': '30', 'm2_set': 'A',
+                                'm3_kind': 'splice', 'm3_on': '', 'm3_start': '900', 'm3_text': 'p2:2'})
+        self.assertContains(response, 'The bundle is saved.')
+        self.assertEqual([m.kind for m in self.harness.marks.all()], ['sleeve', 'tie', 'splice', 'strip'])
+        self.assertContains(response, 'data-section="bundle"')
+        self.assertIn(Decimal('0.5'), [q for d, q in self.harness.parts_list() if d == self.wire])   # the sleeve's 500 mm
+        self.client.post(reverse('harnesses:bundle_lengths', args=[self.harness.pk]))
+        self.assertEqual(set(self.harness.wires.values_list('length', flat=True)), {Decimal('1150')})
+        # kept in a version, and back as it was
+        versions.save(self.harness, None)
+        self.harness.marks.all().delete()
+        self.assertTrue(versions.changed(self.harness))
+        versions.restore(self.harness, self.harness.versions.get())
+        self.assertEqual(self.harness.marks.count(), 4)
+        self.assertEqual(HarnessEnd.objects.get(pk=p2).reach, Decimal('150'))
+        # in a harness file and back
+        from harnesses.transfer import import_harness
+        out = self.client.get(self.harness.get_absolute_url() + '?json=1').json()
+        again, _ = import_harness(out, None)
+        self.assertEqual(again.snapshot()['bundle'], self.harness.snapshot()['bundle'])
+
+    def test_marks_that_can_t_be(self):
+        p2 = self.p2.pk
+        self.save(trunk='500', mark_rows=1, m0_kind='sleeve', m0_on='', m0_start='100', m0_end='50')       # backwards
+        self.save(trunk='500', mark_rows=1, m0_kind='tie', m0_on='', m0_start='600')                      # past the trunk
+        self.save(trunk='500', mark_rows=1, m0_kind='strip', m0_on='', m0_start='20')                     # not on a branch
+        self.save(trunk='500', mark_rows=1, m0_kind='splice', m0_on='', m0_start='20', m0_text='P9:9')    # no such splice
+        response = self.save(**{'trunk': '500', f'along_{p2}': '700'})                                    # past the trunk
+        self.assertContains(response, 'past the end of the trunk')
+        self.assertFalse(self.harness.marks.exists())
+
+
 class BuildTests(HarnessBase):
     def test_built_with_a_checklist_and_its_definitions_from_stock(self):
         self.connect('1', '1', length=Decimal(500), definition=self.wire)

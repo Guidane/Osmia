@@ -28,6 +28,7 @@ class Harness(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=Status, default=Status.DRAFT)
     notes = models.TextField(blank=True)
+    trunk = models.DecimalField('trunk length (mm)', max_digits=9, decimal_places=1, null=True, blank=True)   # the bundle
     version = models.PositiveIntegerField(default=0, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -82,7 +83,23 @@ class Harness(models.Model):
                           for i in self.items.select_related('definition', 'family')],
                 **({'groups': [{'name': g.name, 'length': str(g.length) if g.length is not None else None,
                                 'bundled': str(g.bundled) if g.bundled is not None else None} for g in self.groups.all()]}
-                   if self.groups.exists() else {})}   # (only when there are: older versions have none)
+                   if self.groups.exists() else {}),   # (only when there are: older versions have none)
+                **({'bundle': self.bundle()} if self.has_bundle() else {})}
+
+    def has_bundle(self):
+        return (self.trunk is not None or self.marks.exists()
+                or self.ends.filter(models.Q(along__isnull=False) | models.Q(reach__isnull=False)).exists())
+
+    def bundle(self):
+        """Its bundle as data: the trunk's length, where each connector breaks out of it and how long its branch is, and
+        what is put along it (ties, sleeves, shrink, where shields are stripped, splices, labels)."""
+        def num(v):
+            return str(v) if v is not None else None
+        return {'trunk': num(self.trunk),
+                'ends': {e.designator: [num(e.along), num(e.reach)] for e in self.ends.all() if e.along is not None or e.reach is not None},
+                'marks': [{'kind': m.kind, 'on': m.on.designator if m.on else '', 'start': num(m.start), 'end': num(m.end),
+                           'definition': m.used_name, 'text': m.text, 'set': m.wire_set}
+                          for m in self.marks.select_related('on', 'definition', 'family')]}
 
     def restore(self, data):
         self.name, self.description, self.notes = data.get('name', ''), data.get('description', ''), data.get('notes', '')
@@ -102,6 +119,19 @@ class Harness(models.Model):
                         wire_group=w.get('group', ''), colour=w.get('colour', ''), gauge=w.get('gauge', ''), length=Decimal(w['length']) if w.get('length') else None)
             wire.used = definition_or_family(w.get('definition'))
             wire.save()
+        bundle = data.get('bundle') or {}
+        self.trunk = Decimal(bundle['trunk']) if bundle.get('trunk') else None
+        self.save(update_fields=['trunk'])
+        for designator, end in ends.items():
+            along, reach = (bundle.get('ends') or {}).get(designator) or [None, None]
+            end.along, end.reach = Decimal(along) if along else None, Decimal(reach) if reach else None
+            end.save(update_fields=['along', 'reach'])
+        self.marks.all().delete()
+        for m in bundle.get('marks', []):
+            mark = HarnessMark(harness=self, kind=m['kind'], on=ends.get(m.get('on') or ''), start=Decimal(m['start']),
+                               end=Decimal(m['end']) if m.get('end') else None, text=m.get('text', ''), wire_set=m.get('set', ''))
+            mark.used = definition_or_family(m.get('definition'))
+            mark.save()
         self.groups.all().delete()
         for g in data.get('groups', []):
             HarnessGroup.objects.create(harness=self, name=g['name'], length=Decimal(g['length']) if g.get('length') else None,
@@ -120,13 +150,17 @@ def parts_of(data):
     wanted = [(e['definition'], Decimal(1), None) for e in data.get('ends', []) if e.get('definition')]
     wanted += [(w['definition'], None, Decimal(w['length'] or 0)) for w in data.get('wires', []) if w.get('definition')]
     wanted += [(i['definition'], Decimal(i['quantity']), None) for i in data.get('items', [])]
+    for m in (data.get('bundle') or {}).get('marks', []):   # ties one each; a sleeve or shrink its length
+        if m.get('definition'):
+            stretch = Decimal(m['end']) - Decimal(m['start']) if m.get('end') else None
+            wanted.append((m['definition'], None if stretch is not None else Decimal(1), abs(stretch) if stretch is not None else None))
     definitions = {n.lower(): definition_or_family(n) for n in {n for n, _, _ in wanted}}
     need = OrderedDict()
     for number, quantity, length in wanted:
         definition = definitions.get(number.lower())
         if definition is None:
             continue
-        if quantity is None:   # a wire
+        if quantity is None:   # a wire (or a sleeve: its length)
             quantity = length / 1000 if definition.unit == ItemDefinition.Unit.M else Decimal(1)
         need[definition] = need.get(definition, Decimal(0)) + quantity
     return list(need.items())
@@ -138,6 +172,8 @@ class HarnessEnd(DefinitionOrFamily):
     definition = models.ForeignKey(ItemDefinition, null=True, blank=True, on_delete=models.SET_NULL, related_name='harness_ends')
     position = models.PositiveIntegerField(default=0)
     side = models.CharField(max_length=5, blank=True, choices=[('left', 'Left'), ('right', 'Right')])   # in the drawing: where it was added
+    along = models.DecimalField('breaks out at (mm)', max_digits=9, decimal_places=1, null=True, blank=True)   # along the trunk
+    reach = models.DecimalField('branch (mm)', max_digits=9, decimal_places=1, null=True, blank=True)   # from there to it
 
     class Meta:
         ordering = ['position', 'designator']
@@ -204,6 +240,34 @@ class HarnessGroup(models.Model):
             return None
         half = self.length / 2
         return '1/3' if self.bundled < half else '2/3' if self.bundled > half else '1/2'
+
+
+class HarnessMark(DefinitionOrFamily):
+    """Something put along a harness's bundle: on its trunk (``start`` mm along it, from its start) or on a connector's
+    branch (``start`` mm from the connector); a stretch (a sleeve, shrink) to ``end``."""
+    class Kind(models.TextChoices):
+        TIE = 'tie', 'Cable tie'
+        SLEEVE = 'sleeve', 'Sleeve / loom'
+        SHRINK = 'shrink', 'Shrink sleeve'
+        STRIP = 'strip', 'Shield stripped'
+        SPLICE = 'splice', 'Splice'
+        LABEL = 'label', 'Label'
+
+    STRETCHES = ('sleeve', 'shrink')
+    harness = models.ForeignKey(Harness, on_delete=models.CASCADE, related_name='marks')
+    kind = models.CharField(max_length=10, choices=Kind)
+    on = models.ForeignKey(HarnessEnd, null=True, blank=True, on_delete=models.CASCADE, related_name='marks')   # None: the trunk
+    start = models.DecimalField('from (mm)', max_digits=9, decimal_places=1)
+    end = models.DecimalField('to (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
+    definition = models.ForeignKey(ItemDefinition, null=True, blank=True, on_delete=models.SET_NULL, related_name='harness_marks')
+    text = models.CharField(max_length=100, blank=True)   # a label's; a splice's contact (P1:1)
+    wire_set = models.CharField('set', max_length=20, blank=True)   # a shield stripped: its set's
+
+    class Meta:
+        ordering = ['on__position', 'start', 'pk']
+
+    def __str__(self):
+        return f'{self.get_kind_display()} at {self.start}'
 
 
 class HarnessVersion(Version):

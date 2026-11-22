@@ -9,7 +9,7 @@ from django.db import transaction
 from inventory.models import Family, definition_or_family
 from inventory.picker import with_gender
 
-from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessGroup, HarnessItem, Wire
+from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessGroup, HarnessItem, HarnessMark, Wire
 
 KIND = 'osmia harness'   # what a file of a harness says it is
 
@@ -78,6 +78,34 @@ from its left-hand connector, runs bundled together with the other sets, mm).
 ## items
 
 Other things the harness is made of: `definition` (an item number Osmia knows), `quantity`, `note`.
+
+## bundle
+
+How the harness is laid out, all in mm: one trunk, each connector at the end of a branch that leaves the trunk somewhere
+along it, and what is put along it.
+
+```json
+"bundle": {
+  "trunk": 1200,
+  "connectors": {"P1": {"at": 0, "branch": 0}, "P2": {"at": 1200, "branch": 0}, "P3": {"at": 300, "branch": 250}},
+  "marks": [
+    {"kind": "tie", "from": 100},
+    {"kind": "sleeve", "from": 50, "to": 1150, "definition": "SLEEVE-12", "text": "Braided sleeve"},
+    {"kind": "shrink", "on": "P3", "from": 0, "to": 40},
+    {"kind": "strip", "on": "P3", "from": 30, "set": "DATA1"},
+    {"kind": "splice", "from": 1100, "text": "P1:1"},
+    {"kind": "label", "on": "P3", "from": 60, "text": "X-P3"}
+  ]
+}
+```
+
+- `trunk`: the trunk's length.
+- `connectors`: for each connector (by designator): `at`, where along the trunk its branch leaves it (0 to `trunk`),
+  and `branch`, how long its branch is (0: right on the trunk, at one of its ends).
+- `marks`: each with `kind` (one of KINDS_HERE), `on` (a connector's designator: on its branch, measured from the
+  connector; left out: on the trunk, measured from its start), `from`, and for `sleeve` and `shrink` `to`.
+  `definition`: the item number of the tie, sleeve or shrink, when known (the parts list counts it). `text`: a label's
+  text; for a splice, its contact ("P1:1"). `set`: for `strip`, the shielded set whose shield is stripped back.
 """
 
 
@@ -85,6 +113,7 @@ def describe():
     """``FORMAT`` with this Osmia's colours, set types and connector families filled in."""
     text = FORMAT.replace('COLOURS_HERE', ', '.join(f'`{c}`' for c in COLOURS))
     text = text.replace('SET_TYPES_HERE', ', '.join(f'`{t}`' for t in SET_TYPES))
+    text = text.replace('KINDS_HERE', ', '.join(f'`{k}`' for k in HarnessMark.Kind.values))
     lines = ['', '## The connector families of this Osmia', '']
     for family in Family.objects.prefetch_related('branches').order_by('name'):
         genders = [b.name for b in family.branches.all()]
@@ -111,7 +140,51 @@ def export_harness(harness):
             'groups': [{k: v for k, v in (('name', g['name']), ('length', _plain(g['length'])), ('bundled', _plain(g['bundled'])))
                         if v is not None} for g in data.get('groups', [])],
             'items': [{'definition': i['definition'], 'quantity': _plain(i['quantity']), **({'note': i['note']} if i['note'] else {})}
-                      for i in data['items']]}
+                      for i in data['items']],
+            **({'bundle': _bundle_out(data['bundle'])} if 'bundle' in data else {})}
+
+
+def _bundle_out(b):
+    return {**({'trunk': _plain(b['trunk'])} if b.get('trunk') else {}),
+            'connectors': {d: {k: v for k, v in (('at', _plain(a)), ('branch', _plain(r))) if v is not None} for d, (a, r) in b['ends'].items()},
+            'marks': [{k: v for k, v in (('kind', m['kind']), ('on', m['on']), ('from', _plain(m['start'])), ('to', _plain(m['end'])),
+                                         ('definition', m['definition']), ('text', m['text']), ('set', m['set'])) if v not in ('', None)}
+                      for m in b['marks']]}
+
+
+def _bundle_in(harness, bundle, ends, used):
+    """The file's bundle given to the harness just made (``ends``: its connectors by designator, lower case)."""
+    if not isinstance(bundle, dict):
+        return
+    harness.trunk = _number(bundle.get('trunk'), 'The bundle', 'trunk length')
+    harness.save(update_fields=['trunk'])
+    for designator, spot in (bundle.get('connectors') or {}).items():
+        end = ends.get(str(designator).strip().lower())
+        if end is None or not isinstance(spot, dict):
+            raise ValidationError(f'The bundle: there is no connector {designator}.')
+        end.along = _number(spot.get('at'), f'The bundle, {end}', 'place on the trunk')
+        end.reach = _number(spot.get('branch'), f'The bundle, {end}', 'branch length')
+        if end.along is not None and harness.trunk is not None and end.along > harness.trunk:
+            raise ValidationError(f'The bundle, {end}: it leaves the trunk past its end.')
+        end.save(update_fields=['along', 'reach'])
+    for i, m in enumerate(bundle.get('marks') or [], 1):
+        where = f'Bundle mark {i}'
+        kind = str((m or {}).get('kind') or '').strip().lower()
+        if kind not in HarnessMark.Kind.values:
+            raise ValidationError(f'{where}: "{kind}" is not one of {", ".join(HarnessMark.Kind.values)}.')
+        on = ends.get(str(m.get('on') or '').strip().lower()) if m.get('on') else None
+        if m.get('on') and on is None:
+            raise ValidationError(f'{where}: there is no connector {m.get("on")}.')
+        start = _number(m.get('from'), where, 'place')
+        if start is None:
+            raise ValidationError(f'{where}: give where it is ("from").')
+        end = _number(m.get('to'), where, 'end') if kind in HarnessMark.STRETCHES else None
+        if kind in HarnessMark.STRETCHES and (end is None or end <= start):
+            raise ValidationError(f'{where}: a {kind} goes from one place ("from") to a further one ("to").')
+        mark = HarnessMark(harness=harness, kind=kind, on=on, start=start, end=end, text=_text(m.get('text'), 100),
+                           wire_set=_text(m.get('set'), 20) if kind == 'strip' else '')
+        mark.used = used(m.get('definition'), f'bundle mark {i}') if kind in ('tie', 'sleeve', 'shrink') else None
+        mark.save()
 
 
 def _plain(text):
@@ -265,6 +338,8 @@ def import_harness(data, setup):
             line = HarnessItem(harness=harness, quantity=quantity, note=_text(it.get('note'), 200))
             line.used = found
             line.save()
+        if data.get('bundle'):
+            _bundle_in(harness, data['bundle'], ends, used)
     for name, where in unknown.items():
         notes.append(f'"{name}" ({where}) is no family or item number Osmia knows; left out.')
     return harness, notes

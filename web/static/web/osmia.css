@@ -608,3 +608,30 @@ tr.muted > td > a { color: var(--muted); }
 .tree-twist { display: inline-block; width: 16px; flex: none; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; text-align: center; }
 .tree-twist:empty { cursor: default; }
 .tree-twist:hover, .tree-twist:focus-visible { color: var(--brand); }
+
+/* A harness's bundle drawn (harnesses/static/harnesses/bundle.js) */
+.bundle-draw { padding: 8px 12px; overflow-x: auto; }
+.bundle-drawing { display: block; }
+.bundle-drawing .bd-line { stroke: #6b7280; stroke-width: 9; stroke-linecap: round; }
+.bundle-drawing .bd-branch { stroke-width: 6; }
+.bundle-drawing .bd-end rect { fill: var(--panel); stroke: #9ca3af; stroke-width: 1.5; }
+.bundle-drawing .bd-name { font: 700 12px system-ui, sans-serif; fill: var(--text); }
+.bundle-drawing .bd-what { font: 10px system-ui, sans-serif; fill: var(--muted); }
+.bundle-drawing .bd-dim { stroke: var(--text); stroke-width: 1; }
+.bundle-drawing .bd-guide { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; }
+.bundle-drawing .bd-dim-text { font: 600 11px system-ui, sans-serif; fill: var(--text); }
+.bundle-drawing .bd-span { fill: var(--muted); }
+.bundle-drawing .bd-stretch { stroke-width: 15; stroke-linecap: butt; opacity: .55; }
+.bundle-drawing .bd-sleeve .bd-stretch { stroke: #3b82f6; }
+.bundle-drawing .bd-shrink .bd-stretch { stroke: #111827; }
+.bundle-drawing .bd-tick { stroke: #111827; stroke-width: 4; stroke-linecap: round; }
+.bundle-drawing .bd-cut { fill: none; stroke: #b45309; stroke-width: 2; stroke-dasharray: 5 3; }
+.bundle-drawing .bd-diamond { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; }
+.bundle-drawing .bd-dot { fill: var(--brand); }
+.bundle-drawing .bd-leader { stroke: var(--muted); stroke-width: 1; }
+.bundle-drawing .bd-mark-box { fill: var(--panel); stroke: var(--border); }
+.bundle-drawing .bd-mark-text { font: 11px system-ui, sans-serif; fill: var(--text); }
+.bundle-form { margin-top: 10px; }
+.bundle-form .columns > .card { margin: 0 0 10px; }
+.bundle-marks input[type=text]:not(.qty) { width: 140px; }
+.bundle-marks tr.new select, .bundle-marks tr.new input { opacity: .8; }

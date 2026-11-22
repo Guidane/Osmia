@@ -19,6 +19,7 @@
 <div class="browser top-tabs" data-sections>
   <nav class="card browser-tree" aria-label="{{ harness.number }}">
     <a href="#pinout" data-section="pinout"><span>Pinout</span><span class="muted small">{{ wire_count }}</span></a>
+    <a href="#bundle" data-section="bundle"><span>Bundle</span><span class="muted small">{{ bundle.marks|length }}</span></a>
     <a href="#wires" data-section="wires"><span>Wire list</span><span class="muted small">{{ wire_count }}</span></a>
     <a href="#groups" data-section="groups"><span>Groups</span><span class="muted small">{{ wire_groups|length }}</span></a>
     <a href="#connectors" data-section="connectors"><span>Connectors</span><span class="muted small">{{ ends|length }}</span></a>
@@ -34,6 +35,59 @@
         <div class="pinout-draw" id="pinout-draw" data-url="{% url 'harnesses:pinout_draw' harness.pk %}" data-csrf="{{ csrf_token }}"><div class="set-chips" id="set-chips"></div><svg id="pinout-drawing" class="pinout-drawing" role="img" aria-label="The pinout drawn"></svg></div>
         {{ drawing|json_script:"pinout-data" }}{{ family_picker }}
       </section>
+    </div>
+
+    <div data-panel="bundle" data-wide hidden>
+      <section class="card flush">
+        <div class="bundle-draw" id="bundle-draw"><svg id="bundle-drawing" class="bundle-drawing" role="img" aria-label="The bundle drawn"></svg></div>
+        {{ bundle|json_script:"bundle-data" }}
+      </section>
+      <form method="post" action="{% url 'harnesses:bundle' harness.pk %}" class="bundle-form">{% csrf_token %}
+        <datalist id="definitions">{% for number, description in definition_numbers %}<option value="{{ number }}">{{ description }}</option>{% endfor %}</datalist>
+        <datalist id="splices">{% for s in splice_contacts %}<option value="{{ s }}"></option>{% endfor %}</datalist>
+        <div class="columns">
+          <section class="card flush">
+            <div class="card-head"><h3>Trunk and branches</h3></div>
+            <table class="list">
+              <tr><th>Trunk</th><td></td><td class="num"><input type="text" name="trunk" value="{{ harness.trunk|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="Trunk length (mm)"> mm</td></tr>
+              <tr><th>Connector</th><th class="num">Breaks out at (mm)</th><th class="num">Branch (mm)</th></tr>
+              {% for e in bundle_ends %}<tr><td><b>{{ e.designator }}</b> <span class="muted small">{{ e.used_name }}</span></td>
+                <td class="num"><input type="text" name="along_{{ e.pk }}" value="{{ e.along|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="Where {{ e.designator }} breaks out (mm)"></td>
+                <td class="num"><input type="text" name="reach_{{ e.pk }}" value="{{ e.reach|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="{{ e.designator }}'s branch (mm)"></td></tr>
+              {% empty %}<tr><td colspan="3" class="empty small">No connectors yet.</td></tr>{% endfor %}
+            </table>
+          </section>
+          <section class="card flush">
+            <div class="card-head"><h3>Wire lengths along the bundle</h3><span class="spacer"></span>
+              {% if paths %}<button class="btn small" form="bundle-lengths">Set the wires' lengths</button>{% endif %}</div>
+            <table class="list">
+              <tr><th>Between</th><th class="num">Wires</th><th class="num">Length (mm)</th></tr>
+              {% for p in paths %}<tr><td>{{ p.between }}</td><td class="num">{{ p.wires }}</td><td class="num">{% if p.length is not None %}{{ p.length|qty }}{% else %}<span class="muted">–</span>{% endif %}</td></tr>
+              {% empty %}<tr><td colspan="3" class="empty small">No wires yet.</td></tr>{% endfor %}
+            </table>
+          </section>
+        </div>
+        <section class="card flush">
+          <div class="card-head"><h3>Along the bundle</h3></div>
+          <input type="hidden" name="mark_rows" value="{{ marks|length }}">
+          <div style="overflow-x:auto"><table class="list bundle-marks">
+            <tr><th>What</th><th>On</th><th class="num">From (mm)</th><th class="num">To (mm)</th><th>Item definition</th><th>Text / splice</th><th>Set</th><th></th></tr>
+            {% for m in marks %}<tr{% if not m %} class="new"{% endif %}>
+              <td>{% if m %}<input type="hidden" name="m{{ forloop.counter0 }}_id" value="{{ m.pk }}">{% endif %}
+                <select name="m{{ forloop.counter0 }}_kind" aria-label="What">{% if not m %}<option value=""></option>{% endif %}{% for value, label in mark_kinds %}<option value="{{ value }}"{% if m.kind == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></td>
+              <td><select name="m{{ forloop.counter0 }}_on" aria-label="On"><option value="">Trunk</option>{% for e in bundle_ends %}<option value="{{ e.pk }}"{% if m.on_id == e.pk %} selected{% endif %}>{{ e.designator }}</option>{% endfor %}</select></td>
+              <td class="num"><input type="text" name="m{{ forloop.counter0 }}_start" value="{{ m.start|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="From (mm)"></td>
+              <td class="num"><input type="text" name="m{{ forloop.counter0 }}_end" value="{{ m.end|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="To (mm)"></td>
+              <td><input type="text" name="m{{ forloop.counter0 }}_definition" value="{{ m.used_name|default:'' }}" list="definitions" autocomplete="off" aria-label="Item definition"></td>
+              <td><input type="text" name="m{{ forloop.counter0 }}_text" value="{{ m.text|default:'' }}" list="splices" autocomplete="off" maxlength="100" aria-label="Text or splice"></td>
+              <td><select name="m{{ forloop.counter0 }}_set" aria-label="Set"><option value=""></option>{% for s in shielded_sets %}<option value="{{ s }}"{% if m.wire_set == s %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></td>
+              <td>{% if m %}<label class="small"><input type="checkbox" name="m{{ forloop.counter0 }}_gone" value="1" aria-label="Take it away"> ✕</label>{% endif %}</td>
+            </tr>{% endfor %}
+          </table></div>
+        </section>
+        <div class="actions"><button class="btn primary">Save</button></div>
+      </form>
+      <form method="post" action="{% url 'harnesses:bundle_lengths' harness.pk %}" id="bundle-lengths">{% csrf_token %}</form>
     </div>
 
     <div data-panel="wires" hidden>
@@ -147,10 +201,12 @@
   </aside>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% fresh 'harnesses/pinout.js' %}"></script><script>
+{% block scripts %}<script src="{% fresh 'harnesses/pinout.js' %}"></script><script src="{% fresh 'harnesses/bundle.js' %}"></script><script>
   var COLOURS = {black: '#1f2937', brown: '#92400e', red: '#ef4444', orange: '#f97316', yellow: '#facc15', green: '#22c55e', blue: '#3b82f6',
                  violet: '#8b5cf6', grey: '#9ca3af', white: '#f3f4f6', 'green/yellow': 'linear-gradient(90deg,#22c55e 50%,#facc15 50%)'};
   document.querySelectorAll('.wire-colour').forEach(function (s) { s.style.background = COLOURS[s.dataset.colour] || 'transparent'; });
   var drawn = document.getElementById('pinout-data');
   if (drawn) Pinout.mount(document.getElementById('pinout-draw'), JSON.parse(drawn.textContent), COLOURS);
+  var bundled = document.getElementById('bundle-data');
+  if (bundled && window.Bundle) Bundle.mount(document.getElementById('bundle-draw'), JSON.parse(bundled.textContent));
 </script><script src="{% fresh 'web/sections.js' %}"></script>{% endblock %}
