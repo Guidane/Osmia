@@ -569,6 +569,14 @@ tr.muted > td > a { color: var(--muted); }
 .browser-detail > .details { margin-top: 8px; }
 @media (max-width: 1100px) { .browser.wide { grid-template-columns: 200px minmax(0, 1fr); } }
 .browser-detail [data-home] > .card, .browser-detail [data-home] > section.card { margin: 12px 0 0; }
+/* the tree as tabs across the top (a harness): the panel takes the width the tree had */
+.browser.top-tabs, .browser.top-tabs.wide { grid-template-columns: minmax(0, 1fr) 360px; }
+.browser.top-tabs.wide { grid-template-columns: minmax(0, 1fr); }
+.browser.top-tabs > .browser-tree { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; position: static;
+  max-height: none; overflow: visible; }
+.browser.top-tabs > .browser-tree a { padding: 5px 12px; border-left: 0; border-radius: var(--radius); gap: 6px; }
+@media (max-width: 1100px) { .browser.top-tabs, .browser.top-tabs.wide { grid-template-columns: minmax(0, 1fr); } }
+.page-head .back-link { font-size: 13px; margin-right: 6px; }
 
 /* The trees on the left (.browser-tree) as nested boxes, like tabs with sub-tabs: each node a box ruled off from the one
    above; each level in a column further right, the columns to its left left empty, ruled down their side. */
@@ -586,6 +594,9 @@ tr.muted > td > a { color: var(--muted); }
 .browser-tree .tree-sep { margin: 0; border-top: 3px solid var(--border); }
 .browser-tree .tree-sep + a::before { border-top: 0; }
 .browser-tree a[hidden] { display: none; }
+.browser.top-tabs > .browser-tree a { background: none; padding: 7px 14px; }
+.browser.top-tabs > .browser-tree a::before { left: 0; border-top: 0; border-radius: var(--radius); }
+.browser.top-tabs > .browser-tree a.on::before { box-shadow: inset 0 -3px 0 var(--brand); }
 .tree-twist { display: inline-block; width: 16px; flex: none; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; text-align: center; }
 .tree-twist:empty { cursor: default; }
 .tree-twist:hover, .tree-twist:focus-visible { color: var(--brand); }

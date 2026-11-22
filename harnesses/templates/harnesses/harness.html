@@ -2,30 +2,30 @@
 {% block title %}{{ harness.number }} · Osmia{% endblock %}
 {% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'harnesses:list' %}?setup={{ harness.setup_id|default:'none' }}&amp;harness={{ harness.pk }}">← Harnesses</a></p>
 <div class="page-head">
+  <a class="back-link" href="{% url 'harnesses:list' %}?setup={{ harness.setup_id|default:'none' }}&amp;harness={{ harness.pk }}">← Harnesses</a>
   <h1>{{ harness.number }}</h1><span class="muted">{{ harness.name }}</span>
   <span class="badge{% if harness.status == 'released' %} ok{% elif harness.status == 'obsolete' %} failed{% endif %}">{{ harness.get_status_display }}</span>
   {% if harness.version %}<span class="badge{% if not changed %} ok{% endif %}">v{{ harness.version }}{% if changed %} + changes{% endif %}</span>{% endif %}
+  {% if harness.setup %}<span class="small muted">· used in setup {{ harness.setup|link }}</span>{% endif %}
   <span class="spacer"></span>
   <a class="btn" href="?export=1">⬇ Excel</a>
   <a class="btn" href="?json=1">⬇ JSON</a>
   <a class="btn" href="{% url 'harnesses:edit' harness.pk %}">Change</a>
 </div>
-{% if harness.setup %}<p class="small used-in">Used in setup {{ harness.setup|link }}</p>{% endif %}
 
 {% if problems %}<div class="flash warning"><b>To look at:</b><ul class="tight">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
 
-<div class="browser" data-sections>
+<div class="browser top-tabs" data-sections>
   <nav class="card browser-tree" aria-label="{{ harness.number }}">
-    <a href="#pinout" data-section="pinout" class="tree-head"><span>{{ harness.number }} · pinout</span><span class="muted small">{{ wire_count }}</span></a>
-    <a href="#wires" data-section="wires" style="--depth: 1"><span>Wire list</span><span class="muted small">{{ wire_count }}</span></a>
-    <a href="#groups" data-section="groups" style="--depth: 1"><span>Groups</span><span class="muted small">{{ wire_groups|length }}</span></a>
-    <a href="#connectors" data-section="connectors" style="--depth: 1"><span>Connectors</span><span class="muted small">{{ ends|length }}</span></a>
-    <a href="#items" data-section="items" style="--depth: 1"><span>Other items</span><span class="muted small">{{ items|length }}</span></a>
-    <a href="#definitions" data-section="definitions" style="--depth: 1"><span>Parts list</span><span class="muted small">{{ definitions|length }}</span></a>
-    <a href="#versions" data-section="versions" style="--depth: 1"><span>Versions</span><span class="muted small">{{ versions|length }}</span></a>
-    <a href="#built" data-section="built" style="--depth: 1"><span>Built</span><span class="muted small">{{ units|length }}</span></a>
+    <a href="#pinout" data-section="pinout"><span>Pinout</span><span class="muted small">{{ wire_count }}</span></a>
+    <a href="#wires" data-section="wires"><span>Wire list</span><span class="muted small">{{ wire_count }}</span></a>
+    <a href="#groups" data-section="groups"><span>Groups</span><span class="muted small">{{ wire_groups|length }}</span></a>
+    <a href="#connectors" data-section="connectors"><span>Connectors</span><span class="muted small">{{ ends|length }}</span></a>
+    <a href="#items" data-section="items"><span>Other items</span><span class="muted small">{{ items|length }}</span></a>
+    <a href="#definitions" data-section="definitions"><span>Parts list</span><span class="muted small">{{ definitions|length }}</span></a>
+    <a href="#versions" data-section="versions"><span>Versions</span><span class="muted small">{{ versions|length }}</span></a>
+    <a href="#built" data-section="built"><span>Built</span><span class="muted small">{{ units|length }}</span></a>
   </nav>
 
   <div class="browser-middle">
