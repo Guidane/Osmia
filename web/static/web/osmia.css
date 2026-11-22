@@ -631,33 +631,38 @@ tr.muted > td > a { color: var(--muted); }
 .bundle-drawing .bd-leader { stroke: var(--muted); stroke-width: 1; }
 .bundle-drawing .bd-mark-box { fill: var(--panel); stroke: var(--border); }
 .bundle-drawing .bd-mark-text { font: 11px system-ui, sans-serif; fill: var(--text); }
-.bundle-form { margin-top: 10px; }
-.bundle-form .columns > .card { margin: 0 0 10px; }
+.bundle-view { position: relative; padding: 8px 12px; overflow-x: auto; }
+.bundle-view .bundle-draw { padding: 0; margin-top: 8px; border-top: 1px solid var(--border); }
+.bundle-view .bd-trunk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.bundle-view .bd-said { color: var(--muted); }
+.bundle-lines { display: block; }
+.bundle-lines .bd-tag { cursor: pointer; }
+.bundle-lines .bd-tag rect { fill: var(--panel); stroke: #9ca3af; stroke-width: 1.5; }
+.bundle-lines .bd-tag:hover rect { stroke: var(--brand); }
+.bundle-lines .bd-tag-unplaced rect { stroke-dasharray: 4 3; }
+.bundle-lines .bd-tag-name { font: 700 13px system-ui, sans-serif; fill: var(--text); }
+.bundle-lines .pd-bline-unknown .pd-bline-core { stroke: #d1d5db; stroke-dasharray: 10 6; }
+.bundle-drawing .bd-end { cursor: pointer; }
 .bundle-marks input[type=text]:not(.qty) { width: 140px; }
 .bundle-marks tr.new select, .bundle-marks tr.new input { opacity: .8; }
 
 /* The pinout drawing's bundle mode: the wires between two connectors one line, what is put along it on it */
 .pinout-draw { position: relative; }
-.pinout-drawing.bundling .pd-contact, .pinout-drawing.bundling .pd-stub, .pinout-drawing.bundling .pd-tag,
-.pinout-drawing.bundling .pd-wire, .pinout-drawing.bundling .pd-splice, .pinout-drawing.bundling .pd-splice-line,
-.pinout-drawing.bundling .pd-shield, .pinout-drawing.bundling .pd-shield-line, .pinout-drawing.bundling .pd-area,
-.pinout-drawing.bundling .pd-group, .pinout-drawing.bundling .pd-group-tag, .pinout-drawing.bundling .pd-bundle,
-.pinout-drawing.bundling .pd-drain { display: none; }
-.pinout-drawing .pd-bline-core { stroke: #6b7280; stroke-width: 10; stroke-linecap: butt; }
-.pinout-drawing .pd-bline-hit { fill: transparent; cursor: crosshair; }
-.pinout-drawing .pd-bline:hover .pd-bline-core { stroke: #4b5563; }
-.pinout-drawing .pd-bline-length { font: 600 11px system-ui, sans-serif; fill: var(--muted); pointer-events: none; }
-.pinout-drawing .pd-bmark { cursor: pointer; }
-.pinout-drawing .pd-bmark-band { stroke-width: 16; opacity: .6; pointer-events: none; }
-.pinout-drawing .pd-bmark-sleeve .pd-bmark-band { stroke: #3b82f6; }
-.pinout-drawing .pd-bmark-shrink .pd-bmark-band { stroke: #111827; }
-.pinout-drawing .pd-bmark-tick { stroke: #111827; stroke-width: 4; stroke-linecap: round; }
-.pinout-drawing .pd-bmark-cut { fill: none; stroke: #b45309; stroke-width: 2; stroke-dasharray: 5 3; }
-.pinout-drawing .pd-bmark-diamond { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; }
-.pinout-drawing .pd-bmark-dot { fill: var(--brand); }
-.pinout-drawing .pd-bmark-box { fill: var(--panel); stroke: var(--border); }
-.pinout-drawing .pd-bmark-text { font: 11px system-ui, sans-serif; fill: var(--text); }
-.pinout-drawing .pd-bmark:hover .pd-bmark-box { stroke: var(--brand); }
+.bundle-lines .pd-bline-core { stroke: #6b7280; stroke-width: 10; stroke-linecap: butt; }
+.bundle-lines .pd-bline-hit { fill: transparent; cursor: crosshair; }
+.bundle-lines .pd-bline:hover .pd-bline-core { stroke: #4b5563; }
+.bundle-lines .pd-bline-length { font: 600 11px system-ui, sans-serif; fill: var(--muted); pointer-events: none; }
+.bundle-lines .pd-bmark { cursor: pointer; }
+.bundle-lines .pd-bmark-band { stroke-width: 16; opacity: .6; pointer-events: none; }
+.bundle-lines .pd-bmark-sleeve .pd-bmark-band { stroke: #3b82f6; }
+.bundle-lines .pd-bmark-shrink .pd-bmark-band { stroke: #111827; }
+.bundle-lines .pd-bmark-tick { stroke: #111827; stroke-width: 4; stroke-linecap: round; }
+.bundle-lines .pd-bmark-cut { fill: none; stroke: #b45309; stroke-width: 2; stroke-dasharray: 5 3; }
+.bundle-lines .pd-bmark-diamond { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; }
+.bundle-lines .pd-bmark-dot { fill: var(--brand); }
+.bundle-lines .pd-bmark-box { fill: var(--panel); stroke: var(--border); }
+.bundle-lines .pd-bmark-text { font: 11px system-ui, sans-serif; fill: var(--text); }
+.bundle-lines .pd-bmark:hover .pd-bmark-box { stroke: var(--brand); }
 .pd-mark-pop { position: absolute; z-index: 5; width: 290px; padding: 10px; margin: 0; display: grid; gap: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 .pd-mark-pop .pd-pop-row { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 6px; font-size: 12px; }
 .pd-mark-pop .pd-pop-row[hidden] { display: none; }
@@ -665,4 +670,4 @@ tr.muted > td > a { color: var(--muted); }
 .pd-mark-pop .pd-pop-error { margin: 0; color: var(--danger, #b91c1c); font-size: 12px; }
 .pd-mark-pop .pd-pop-error:empty { display: none; }
 .pd-mark-pop .pd-pop-actions { display: flex; gap: 6px; }
-.pinout-drawing .pd-bmark-leader { stroke: var(--muted); stroke-width: 1; }
+.bundle-lines .pd-bmark-leader { stroke: var(--muted); stroke-width: 1; }

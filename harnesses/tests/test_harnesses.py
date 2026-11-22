@@ -287,8 +287,8 @@ class TransferTests(HarnessBase):
 
 
 class BundleTests(HarnessBase):
-    def save(self, **fields):
-        return self.client.post(reverse('harnesses:bundle', args=[self.harness.pk]), fields, follow=True)
+    def draw(self, **fields):
+        return self.client.post(reverse('harnesses:pinout_draw', args=[self.harness.pk]), fields)
 
     def test_the_bundle_its_marks_and_the_wires_lengths_from_it(self):
         from harnesses.models import HarnessMark
@@ -296,17 +296,20 @@ class BundleTests(HarnessBase):
         self.connect('2', '2', wire_set='A', set_type='Shielded twisted')
         self.connect('3', '2')                                                    # P2:2 a splice
         p1, p2 = self.p1.pk, self.p2.pk
-        response = self.save(**{'trunk': '1000', f'along_{p1}': '0', f'reach_{p1}': '', f'along_{p2}': '1000', f'reach_{p2}': '150',
-                                'mark_rows': 4,
-                                'm0_kind': 'tie', 'm0_on': '', 'm0_start': '250',
-                                'm1_kind': 'sleeve', 'm1_on': '', 'm1_start': '100', 'm1_end': '600', 'm1_definition': 'WIRE-22-RED',
-                                'm2_kind': 'strip', 'm2_on': p2, 'm2_start': '30', 'm2_set': 'A',
-                                'm3_kind': 'splice', 'm3_on': '', 'm3_start': '900', 'm3_text': 'p2:2'})
-        self.assertContains(response, 'The bundle is saved.')
+        self.assertEqual(self.draw(action='trunk', trunk='1000').json()['bundle']['trunk'], '1000')
+        self.draw(action='end_place', end=p1, along='0', reach='')
+        drawn = self.draw(action='end_place', end=p2, along='1000', reach='150').json()
+        self.assertEqual([(e['along'], e['reach']) for e in drawn['ends']], [('0', ''), ('1000', '150')])
+        line = {'a_end': p1, 'b_end': p2}                                         # P1 to P2: 1150 mm
+        self.draw(action='mark_add', kind='tie', **{'from': '250'}, **line)
+        self.draw(action='mark_add', kind='sleeve', definition='WIRE-22-RED', **{'from': '100', 'to': '600'}, **line)
+        self.draw(action='mark_add', kind='strip', set='A', **{'from': '1120'}, **line)
+        self.draw(action='mark_add', kind='splice', text='p2:2', **{'from': '900'}, **line)
         self.assertEqual([m.kind for m in self.harness.marks.all()], ['sleeve', 'tie', 'splice', 'strip'])
-        self.assertContains(response, 'data-section="bundle"')
+        self.assertEqual(self.harness.marks.get(kind='strip').start, Decimal('30'))   # 30 mm from P2, on its branch
+        self.assertContains(self.client.get(self.harness.get_absolute_url()), 'id="bundle-view"')
         self.assertIn(Decimal('0.5'), [q for d, q in self.harness.parts_list() if d == self.wire])   # the sleeve's 500 mm
-        self.client.post(reverse('harnesses:bundle_lengths', args=[self.harness.pk]))
+        self.assertIn('3 wires', self.draw(action='lengths').json()['said'])
         self.assertEqual(set(self.harness.wires.values_list('length', flat=True)), {Decimal('1150')})
         # kept in a version, and back as it was
         versions.save(self.harness, None)
@@ -343,13 +346,20 @@ class BundleTests(HarnessBase):
         self.assertFalse(self.harness.marks.filter(kind__in=['tie', 'label']).exists())
 
     def test_marks_that_can_t_be(self):
-        p2 = self.p2.pk
-        self.save(trunk='500', mark_rows=1, m0_kind='sleeve', m0_on='', m0_start='100', m0_end='50')       # backwards
-        self.save(trunk='500', mark_rows=1, m0_kind='tie', m0_on='', m0_start='600')                      # past the trunk
-        self.save(trunk='500', mark_rows=1, m0_kind='strip', m0_on='', m0_start='20')                     # not on a branch
-        self.save(trunk='500', mark_rows=1, m0_kind='splice', m0_on='', m0_start='20', m0_text='P9:9')    # no such splice
-        response = self.save(**{'trunk': '500', f'along_{p2}': '700'})                                    # past the trunk
-        self.assertContains(response, 'past the end of the trunk')
+        self.connect('1', '1')
+        p1, p2 = self.p1.pk, self.p2.pk
+        self.draw(action='trunk', trunk='500')
+        self.assertEqual(self.draw(action='end_place', end=p2, along='700').status_code, 400)            # past the trunk
+        self.draw(action='end_place', end=p1, along='0')
+        self.draw(action='end_place', end=p2, along='500')
+        self.assertIn('break', self.draw(action='trunk', trunk='400').json()['error'])                    # P2 past it
+        self.assertEqual(self.draw(action='trunk', trunk='x').status_code, 400)
+        line = {'a_end': p1, 'b_end': p2}
+        for bad in ({'kind': 'sleeve', 'from': '100', 'to': '50'},                                          # backwards
+                    {'kind': 'tie', 'from': '600'},                                                         # past the end
+                    {'kind': 'strip', 'from': '20'},                                                        # not on a branch
+                    {'kind': 'splice', 'from': '20', 'text': 'P9:9'}):                                      # no such splice
+            self.assertEqual(self.draw(action='mark_add', **bad, **line).status_code, 400)
         self.assertFalse(self.harness.marks.exists())
 
 
