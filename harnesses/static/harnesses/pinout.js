@@ -34,13 +34,31 @@
 
   // a connector's face (inventory.faces: as you look at it, from its family), stood upright when it is wider than tall:
   // {w, h, shape, box: [x, y, w, h] its outline, turned, at: [[number, x, y]]}
+  // Contact 1 (else the first one) is always in its upper half: a face with it lower down is drawn half a turn round
+  // (as the connector turned over), so where each wire goes reads from the top.
   function face(end, flat) {
     var F = end.face, high = F.below || F.h, turned = !flat && F.w > F.h;
-    var corners = F.outline || [];
-    if (!turned) return { w: F.w, h: F.h, shape: F.shape, box: [0, 0, F.w, high], turned: false, at: F.contacts, outline: corners };
-    return { w: F.h, h: F.w, shape: F.shape, box: [F.h - high, 0, high, F.w], turned: true,
-             at: F.contacts.map(function (c) { return [c[0], F.h - c[2], c[1]]; }),
-             outline: corners.map(function (p) { return [F.h - p[1], p[0]]; }) };
+    var corners = F.outline || [], f;
+    if (!turned) f = { w: F.w, h: F.h, shape: F.shape, box: [0, 0, F.w, high], turned: false, at: F.contacts, outline: corners };
+    else f = { w: F.h, h: F.w, shape: F.shape, box: [F.h - high, 0, high, F.w], turned: true,
+               at: F.contacts.map(function (c) { return [c[0], F.h - c[2], c[1]]; }),
+               outline: corners.map(function (p) { return [F.h - p[1], p[0]]; }) };
+    return upright(f);
+  }
+  function upright(f) {
+    var main = f.at.filter(function (c) { return c[2] <= f.box[1] + f.box[3]; });   // (not the row of pins it has not, below it)
+    var one = main.filter(function (c) { return String(c[0]) === '1'; })[0] ||
+              main.slice().sort(function (a, b) { return natural(a[0], b[0]); })[0];
+    if (!one || one[2] <= f.box[1] + f.box[3] / 2) return f;
+    var bx = f.box[0], by = f.box[1], bw = f.box[2], bh = f.box[3];
+    var turn = function (x, y) { return [2 * bx + bw - x, 2 * by + bh - y]; };   // half a turn round the outline's middle
+    return { w: f.w, h: f.h, shape: f.shape, box: f.box, turned: f.turned, round: true,
+             at: f.at.map(function (c) {
+               if (c[2] > by + bh) return c;   // the extra row below stays below
+               var xy = turn(c[1], c[2]);
+               return [c[0], xy[0], xy[1]];
+             }),
+             outline: f.outline.map(function (q) { return turn(q[0], q[1]); }) };
   }
   function outline(parent, f, fx, fy) {   // its outline: its own corners, round, a D-sub (the wide side up, or right when stood up), a box
     var x = fx + f.box[0], y = fy + f.box[1], w = f.box[2], h = f.box[3], k = 14;
@@ -49,9 +67,12 @@
                           class: 'pd-face', 'stroke-linejoin': 'round' }, parent);
     }
     if (f.shape === 'circle') return el('circle', { cx: x + w / 2, cy: y + h / 2, r: Math.min(w, h) / 2, class: 'pd-face' }, parent);
-    if (f.shape === 'dsub') {
-      var d = f.turned ? 'M' + x + ',' + (y + k) + ' L' + (x + w) + ',' + y + ' V' + (y + h) + ' L' + x + ',' + (y + h - k) + ' Z'
-                       : 'M' + x + ',' + y + ' H' + (x + w) + ' L' + (x + w - k) + ',' + (y + h) + ' H' + (x + k) + ' Z';
+    if (f.shape === 'dsub') {   // turned round: the wide side down (or left)
+      var d = f.turned
+        ? (f.round ? 'M' + x + ',' + y + ' L' + (x + w) + ',' + (y + k) + ' V' + (y + h - k) + ' L' + x + ',' + (y + h) + ' Z'
+                   : 'M' + x + ',' + (y + k) + ' L' + (x + w) + ',' + y + ' V' + (y + h) + ' L' + x + ',' + (y + h - k) + ' Z')
+        : (f.round ? 'M' + (x + k) + ',' + y + ' H' + (x + w - k) + ' L' + (x + w) + ',' + (y + h) + ' H' + x + ' Z'
+                   : 'M' + x + ',' + y + ' H' + (x + w) + ' L' + (x + w - k) + ',' + (y + h) + ' H' + (x + k) + ' Z');
       return el('path', { d: d, class: 'pd-face', 'stroke-linejoin': 'round' }, parent);
     }
     return el('rect', { x: x, y: y, width: w, height: h, rx: 6, class: 'pd-face' }, parent);
@@ -781,10 +802,36 @@
         });
       }
 
+      // the contacts, by the wires and on the faces, in the colour of their wire (a splice: its first wire's)
+      function light(hex) {   // a light colour: dark numbers on it
+        var m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+        if (!m) return false;
+        var n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+        return 0.299 * r + 0.587 * g + 0.114 * b > 150;
+      }
+      var tinted = {};
+      rows.forEach(function (r) {
+        if (!r.w.colour) return;
+        var c = colourOf(r.w);
+        [[r.w.from, r.w.from_pin], [r.w.to, r.w.to_pin]].forEach(function (p) {
+          var key = p[0] + ':' + p[1];
+          if (!p[1] || tinted[key]) return;
+          tinted[key] = true;
+          (lit[key] || []).forEach(function (n) {
+            n.classList.add('wired');
+            n.style.setProperty('--wire', c);
+            n.style.setProperty('--wire-text', light(c) ? '#1f2937' : '#fff');
+          });
+        });
+      });
+
       var tall = Math.max(y - 50, 120);
       svg.setAttribute('viewBox', '0 0 ' + width + ' ' + tall);
-      svg.style.width = width + 'px';
-      svg.style.height = tall + 'px';
+      var box0 = getComputedStyle(svg.parentNode), room0 = (svg.parentNode.clientWidth - parseFloat(box0.paddingLeft || 0)
+                                                            - parseFloat(box0.paddingRight || 0)) || width;
+      var k = width > room0 ? room0 / width : 1;   // never wider than the page: drawn smaller
+      svg.style.width = (width * k) + 'px';
+      svg.style.height = (tall * k) + 'px';
 
       function show(set) {   // light up one set (or none)
         state.picked = state.picked === set ? null : set;

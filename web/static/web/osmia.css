@@ -278,7 +278,7 @@ form.pad { padding: 6px 10px; border-top: 1px solid var(--border); }
 ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 .dot.big { width: 14px; height: 14px; }
-.pinout-draw { padding: 8px 10px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.pinout-draw { padding: 8px 10px; border-bottom: 1px solid var(--border); overflow-x: hidden; }
 .set-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
 .set-chips .spacer { flex: 1; }
 .set-chips .segmented { display: inline-flex; gap: 0; }
@@ -347,7 +347,12 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing.picking .pd-wire:not(.lit) { opacity: .2; }
 .pinout-drawing.picking .pd-wire.lit .pd-wire-edge { stroke: #b45309; stroke-width: 7; opacity: .45; }
 .pinout-drawing.picking .pd-wire.lit .pd-wire-core { stroke-width: 3.5; }
+.pinout-drawing .pd-pin.wired circle, .pinout-drawing .pd-contact.wired circle { fill: var(--wire); }
+.pinout-drawing .pd-pin.wired .pd-num, .pinout-drawing .pd-contact.wired .pd-num { fill: var(--wire-text); }
+.pinout-drawing .pd-pin.lit .pd-num, .pinout-drawing .pd-contact.lit .pd-num { fill: #1f2937; }
 .pinout-drawing .pd-pin.lit circle, .pinout-drawing .pd-contact.lit circle { fill: #fde047; stroke: #b45309; stroke-width: 2; }
+.pinout-drawing .pd-pin.wired.chosen circle, .pinout-drawing .pd-contact.wired.chosen circle { fill: var(--brand); stroke: var(--brand); }
+.pinout-drawing .pd-pin.wired.chosen .pd-num, .pinout-drawing .pd-contact.wired.chosen .pd-num { fill: #fff; }
 .wire-colour { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border-strong); margin-right: 4px; vertical-align: middle; }
 .wire-colour[data-colour="black"] { background: #1f2937; } .wire-colour[data-colour="brown"] { background: #92400e; }
 .wire-colour[data-colour="red"] { background: #ef4444; } .wire-colour[data-colour="orange"] { background: #f97316; }
