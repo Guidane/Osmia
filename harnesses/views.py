@@ -246,6 +246,63 @@ def bundle_save(request, pk):
     return redirect(item.get_absolute_url() + '#bundle')
 
 
+def _marks_on_line(item, a, b, post):
+    """A mark put on the bundle between connectors ``a`` and ``b``, ``from`` (and ``to``) mm from ``a``: on a's branch,
+    the trunk or b's branch, as far along as that is (a stretch over more than one of them: a piece on each)."""
+    kinds = dict(HarnessMark.Kind.choices)
+    kind = post.get('kind', '')
+    if kind not in kinds:
+        raise ValidationError('What is it?')
+    length = _path(a, b)
+    if length is None:
+        raise ValidationError(f'Give {a.designator} and {b.designator} their places along the trunk first (the Bundle tab).')
+    start = _mm(post.get('from'), 'It', 'place')
+    if start is None:
+        raise ValidationError('How far along is it?')
+    stretch = kind in HarnessMark.STRETCHES
+    end = _mm(post.get('to'), 'It', 'end') if stretch else None
+    if stretch and (end is None or end <= start):
+        raise ValidationError(f'A {kinds[kind].lower()} goes from one place to a further one.')
+    if max(start, end or start) > length:
+        raise ValidationError(f'{a.designator} to {b.designator} is {qty(length)} mm long.')
+    ra, rb, span = a.reach or 0, b.reach or 0, abs(b.along - a.along)
+    sign = 1 if b.along >= a.along else -1
+
+    def at(d):   # (on, place) of the point ``d`` mm from a
+        if d < ra:
+            return a, d
+        if d <= ra + span:
+            return None, a.along + sign * (d - ra)
+        return b, length - d
+    if stretch:   # cut where the line goes from one part to the next
+        cuts = sorted({start, end} | {c for c in (ra, ra + span) if start < c < end})
+        pieces = []
+        for lo, hi in zip(cuts, cuts[1:]):
+            on, p0 = at(lo + (hi - lo) / 2)   # (the piece's part: by its middle)
+            q0, q1 = (lo, hi)
+            if on is a:
+                pieces.append((on, q0, q1))
+            elif on is b:
+                pieces.append((on, length - q1, length - q0))
+            else:
+                t0, t1 = a.along + sign * (q0 - ra), a.along + sign * (q1 - ra)
+                pieces.append((None, min(t0, t1), max(t0, t1)))
+    else:
+        on, place = at(start)
+        pieces = [(on, place, None)]
+    text = ' '.join(post.get('text', '').split())[:100]
+    if kind == 'splice' and text.lower() not in {x.lower() for x in _splices(item.ordered_wires())}:
+        raise ValidationError('Which splice?')
+    if kind == 'strip' and pieces[0][0] is None:
+        raise ValidationError('A shield is stripped back on a connector\'s branch, from the connector.')
+    found = _definition(post.get('definition', '').strip(), 1) if kind in ('tie', 'sleeve', 'shrink') else None
+    for on, p0, p1 in pieces:
+        mark = HarnessMark(harness=item, kind=kind, on=on, start=p0, end=p1, text=text,
+                           wire_set=post.get('set', '')[:20] if kind == 'strip' else '')
+        mark.used = found
+        mark.save()
+
+
 @login_required
 @require_POST
 def bundle_lengths(request, pk):
@@ -355,10 +412,13 @@ def _drawing(harness, wires):
                 if at == end.pk and pin:   # (a shield joined on one side only has no pin on the other)
                     pins.setdefault(pin, '')
         numbers = sorted(pins, key=pin_order)
-        out.append({'id': end.pk, 'designator': end.designator, 'what': end.used_name,
+        out.append({'id': end.pk, 'designator': end.designator, 'what': end.used_name, 'along': qty(end.along), 'reach': qty(end.reach),
                     'side': end.side, 'used': _picked_as(end.used), 'face': drawn(end.used, numbers), 'pins': [[n, pins[n]] for n in numbers]})
     lengths = {g.name: {'length': qty(g.length), 'bundled': qty(g.bundled), 'breakout': g.breakout} for g in harness.groups.all()}
-    return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'groups': lengths, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
+    bundle = {'kinds': HarnessMark.Kind.choices, 'splices': _splices(wires),   # the bundle mode: what is along it
+              'marks': [{'id': m.pk, 'kind': m.kind, 'label': m.get_kind_display(), 'on': m.on_id, 'start': qty(m.start), 'end': qty(m.end),
+                         'text': m.text, 'set': m.wire_set, 'what': m.used_name} for m in harness.marks.select_related('definition', 'family', 'branch')]}
+    return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'groups': lengths, 'bundle': bundle, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
                                     'to_signal': w.to_signal, 'group': w.wire_group, 'set': w.wire_set, 'type': w.set_type, 'colour': w.colour, 'gauge': w.gauge, 'length': qty(w.length)} for w in wires]}
 
 
@@ -409,6 +469,18 @@ def pinout_draw(request, pk):
             shield = shield or Wire(harness=item, wire_set=name, set_type='Shield', signal='Shield', colour='grey', wire_group=group)
             shield.from_end, shield.from_pin, shield.to_end, shield.to_pin = a, a_pin, b, b_pin
             shield.save()
+        return JsonResponse(_drawing(item, item.ordered_wires()))
+    if action in ('mark_add', 'mark_set', 'mark_delete'):   # the bundle mode: put along the bundle between two connectors
+        try:
+            with transaction.atomic():
+                if action != 'mark_add':
+                    get_object_or_404(HarnessMark, pk=post.get('mark') or 0, harness=item).delete()
+                if action != 'mark_delete':
+                    a = get_object_or_404(HarnessEnd, pk=post.get('a_end') or 0, harness=item)
+                    b = get_object_or_404(HarnessEnd, pk=post.get('b_end') or 0, harness=item)
+                    _marks_on_line(item, a, b, post)
+        except ValidationError as exc:
+            return JsonResponse({'error': ' '.join(exc.messages)}, status=400)
         return JsonResponse(_drawing(item, item.ordered_wires()))
     if action == 'add':
         a = item.ends.filter(pk=post.get('from_end') or 0).first()

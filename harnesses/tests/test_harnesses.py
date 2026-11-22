@@ -321,6 +321,27 @@ class BundleTests(HarnessBase):
         again, _ = import_harness(out, None)
         self.assertEqual(again.snapshot()['bundle'], self.harness.snapshot()['bundle'])
 
+    def test_marks_put_on_a_line_in_the_bundle_mode(self):
+        self.connect('1', '1')
+        url = reverse('harnesses:pinout_draw', args=[self.harness.pk])
+        line = {'a_end': self.p1.pk, 'b_end': self.p2.pk}
+        refused = self.client.post(url, {'action': 'mark_add', 'kind': 'tie', 'from': '10', **line})
+        self.assertIn('places along the trunk', refused.json()['error'])           # no bundle yet
+        HarnessEnd.objects.filter(pk=self.p1.pk).update(along=0, reach=100)
+        HarnessEnd.objects.filter(pk=self.p2.pk).update(along=1000, reach=50)     # P1 to P2: 1150 mm
+        drawn = self.client.post(url, {'action': 'mark_add', 'kind': 'tie', 'from': '600', **line}).json()
+        self.assertEqual([(m['on'], m['start']) for m in drawn['bundle']['marks']], [(None, '500')])   # on the trunk
+        self.client.post(url, {'action': 'mark_add', 'kind': 'sleeve', 'from': '50', 'to': '1120', **line})
+        self.assertEqual(sorted((m.on_id or 0, m.start, m.end) for m in self.harness.marks.filter(kind='sleeve')),
+                         sorted([(self.p1.pk, Decimal('50'), Decimal('100')), (0, Decimal('0'), Decimal('1000')),
+                                 (self.p2.pk, Decimal('30'), Decimal('50'))]))                     # a piece on each part
+        self.assertEqual(self.client.post(url, {'action': 'mark_add', 'kind': 'tie', 'from': '1200', **line}).status_code, 400)
+        tie = self.harness.marks.get(kind='tie')
+        self.client.post(url, {'action': 'mark_set', 'mark': tie.pk, 'kind': 'label', 'from': '20', 'text': 'X1', **line})
+        self.assertEqual(list(self.harness.marks.filter(kind='label').values_list('on', 'start', 'text')), [(self.p1.pk, Decimal('20'), 'X1')])
+        self.client.post(url, {'action': 'mark_delete', 'mark': self.harness.marks.get(kind='label').pk})
+        self.assertFalse(self.harness.marks.filter(kind__in=['tie', 'label']).exists())
+
     def test_marks_that_can_t_be(self):
         p2 = self.p2.pk
         self.save(trunk='500', mark_rows=1, m0_kind='sleeve', m0_on='', m0_start='100', m0_end='50')       # backwards

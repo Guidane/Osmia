@@ -108,7 +108,7 @@
 
   function mount(root, data, colours) {
     var svg = root.querySelector('svg'), bar = root.querySelector('.set-chips');
-    var state = { data: data, editing: false, changed: false, from: null, picked: null, drain: null };
+    var state = { data: data, editing: false, bundling: false, changed: false, from: null, picked: null, drain: null };
 
     function post(fields) {
       var body = new FormData();
@@ -168,12 +168,96 @@
       q.select();
     }
 
+    function markPop(m, g, d, ev, L, shieldedSets, d1) {   // the bundle mode: put something on a line, or change it
+      var old = root.querySelector('.pd-mark-pop');
+      if (old) old.remove();
+      var B = state.data.bundle, names = {};
+      state.data.ends.forEach(function (e) { names[e.id] = e.designator; });
+      var pop = html('form', { class: 'pd-mark-pop card' }, root), box = root.getBoundingClientRect();
+      pop.style.left = Math.max(4, Math.min(ev.clientX - box.left - 20, box.width - 300)) + 'px';
+      pop.style.top = (ev.clientY - box.top + 14) + 'px';
+      function row(label, field) {
+        var r = html('label', { class: 'pd-pop-row' }, pop), sp = html('span', {}, r);
+        sp.textContent = label;
+        r.appendChild(field);
+        return r;
+      }
+      var kind = html('select', { name: 'kind', 'aria-label': 'What' });
+      B.kinds.forEach(function (k) { var o = html('option', { value: k[0] }, kind); o.textContent = k[1]; });
+      kind.value = m ? m.kind : 'tie';
+      row('What', kind);
+      var from = html('input', { type: 'text', name: 'from', inputmode: 'decimal', class: 'qty' });
+      from.value = d === '' || d === null || d === undefined ? '' : Math.round(d * 10) / 10;
+      row('mm from ' + names[g.left], from);
+      var to = html('input', { type: 'text', name: 'to', inputmode: 'decimal', class: 'qty' });
+      to.value = d1 !== null && d1 !== undefined ? Math.round(d1 * 10) / 10 : '';
+      var toRow = row('to (mm)', to);
+      var words = html('input', { type: 'text', name: 'text', maxlength: 100 });
+      words.value = m && m.kind !== 'splice' ? m.text : '';
+      var textRow = row('Text', words);
+      var splice = html('select', { name: 'splice', 'aria-label': 'Splice' });
+      B.splices.forEach(function (sp) { var o = html('option', { value: sp }, splice); o.textContent = sp; });
+      if (m && m.kind === 'splice') splice.value = m.text;
+      var spliceRow = row('Splice', splice);
+      var set = html('select', { name: 'set', 'aria-label': 'Set' });
+      [''].concat(shieldedSets).forEach(function (sn) { var o = html('option', { value: sn }, set); o.textContent = sn; });
+      if (m) set.value = m.set || '';
+      var setRow = row('Set', set);
+      var what = html('input', { type: 'text', name: 'definition', list: 'definitions', autocomplete: 'off' });
+      what.value = m ? m.what || '' : '';
+      var whatRow = row('Item definition', what);
+      var said = html('p', { class: 'pd-pop-error' }, pop);
+      var acts = html('div', { class: 'pd-pop-actions' }, pop);
+      var ok = html('button', { type: 'submit', class: 'btn small primary' }, acts);
+      ok.textContent = m ? 'Save' : 'Put it there';
+      if (m) {
+        var gone = html('button', { type: 'button', class: 'btn small' }, acts);
+        gone.textContent = 'Take away';
+        gone.addEventListener('click', function () { send({ action: 'mark_delete', mark: m.id }); });
+      }
+      var shut = html('button', { type: 'button', class: 'btn small ghost', title: 'Close' }, acts);
+      shut.textContent = '✕';
+      shut.addEventListener('click', function () { pop.remove(); });
+      function fit() {   // what goes with which
+        var k = kind.value;
+        toRow.hidden = k !== 'sleeve' && k !== 'shrink';
+        textRow.hidden = k === 'splice' || k === 'strip';
+        spliceRow.hidden = k !== 'splice';
+        setRow.hidden = k !== 'strip';
+        whatRow.hidden = ['tie', 'sleeve', 'shrink'].indexOf(k) === -1;
+      }
+      kind.addEventListener('change', fit);
+      fit();
+      function send(fields) {
+        var body = new FormData();
+        Object.keys(fields).forEach(function (k2) { body.append(k2, fields[k2]); });
+        fetch(root.dataset.url, { method: 'POST', body: body, credentials: 'same-origin', headers: { 'X-CSRFToken': root.dataset.csrf } })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { said.textContent = res.j.error || 'That can\'t be put there.'; return; }
+            pop.remove();
+            state.data = res.j; state.changed = true;
+            render();
+          });
+      }
+      pop.addEventListener('submit', function (e) {
+        e.preventDefault();
+        send({ action: m ? 'mark_set' : 'mark_add', mark: m ? m.id : '', a_end: g.left, b_end: g.right, kind: kind.value,
+               from: from.value, to: to.value, text: kind.value === 'splice' ? splice.value : words.value, set: set.value,
+               definition: what.value });
+      });
+      (kind.value === 'tie' && from.value !== '' ? ok : from).focus();
+    }
+
     function render() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
+      var stale = root.querySelector('.pd-mark-pop');
+      if (stale) stale.remove();
       bar.textContent = '';
       var data = state.data, editing = state.editing;
       ROW = editing ? 30 : 24;   // rows close together (editing: room for the boxes)
       svg.classList.toggle('editing', editing);
+      svg.classList.toggle('bundling', state.bundling);   // the bundle mode: the view, its wires one bundle line a pair of connectors
       var side = sides(data), faces = {}, widest = { left: 0, right: 0 }, byId = {}, index = {};
       data.ends.forEach(function (e, i) {
         byId[e.id] = e; index[e.id] = i;
@@ -912,6 +996,113 @@
         });
       });
 
+      if (state.bundling) bundleLines();
+
+      // The bundle mode: each pair of connectors' wires one line, as long as the way between them along the bundle (down
+      // one's branch, along the trunk, up the other's); on it what is put along the bundle there. Clicking the line
+      // puts something there (its place typed in mm from the left-hand connector); clicking one changes or removes it.
+      function bundleLines() {
+        var B = data.bundle || { marks: [], splices: [], kinds: [] }, layer = el('g', { class: 'pd-bundle-layer' }, svg);
+        var spot = {};
+        data.ends.forEach(function (e) { spot[e.id] = { along: parseFloat(e.along), reach: parseFloat(e.reach) || 0 }; });
+        var shieldedSets = setOrder.filter(function (st) { return shielded(st.type); }).map(function (st) { return st.name; });
+        list.forEach(function (g) {
+          if (g.loop || g.same || g.left === undefined || g.right === undefined || !g.rows.length) return;
+          var ys = g.rows.map(function (r) { return r.y; }).filter(function (v) { return v !== undefined; });
+          if (!ys.length) return;
+          var ly = (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2, x0 = x.leftBar + 12, x1 = x.rightBar;
+          var A = spot[g.left], Z = spot[g.right];
+          var known = A && Z && isFinite(A.along) && isFinite(Z.along);
+          var L = known ? A.reach + Math.abs(Z.along - A.along) + Z.reach : null;
+          var lineG = el('g', { class: 'pd-bline', 'data-between': byId[g.left].designator + '-' + byId[g.right].designator }, layer);
+          el('line', { x1: x0, y1: ly, x2: x1, y2: ly, class: 'pd-bline-core' }, lineG);
+          var hit = el('rect', { x: x0, y: ly - 13, width: x1 - x0, height: 26, class: 'pd-bline-hit' }, lineG);
+          el('title', {}, hit).textContent = byId[g.left].designator + ' – ' + byId[g.right].designator + (L ? ' · ' + L + ' mm' : '');
+
+          function px(d) { return x0 + (L ? d / L : 0) * (x1 - x0); }
+          hit.addEventListener('click', function (ev) {
+            var pt = svg.createSVGPoint();
+            pt.x = ev.clientX; pt.y = ev.clientY;
+            var at = pt.matrixTransform(svg.getScreenCTM().inverse());
+            var d = L ? Math.max(0, Math.min(L, Math.round((at.x - x0) / (x1 - x0) * L / 5) * 5)) : '';
+            markPop(null, g, d, ev, L, shieldedSets);
+          });
+          // what is on this line: a mark on a's branch, the trunk between them, or b's branch, as far from a as it is
+          function dist(m, v) {
+            if (m.on === g.left) return v <= A.reach ? v : null;
+            if (m.on === g.right) return v <= Z.reach ? L - v : null;
+            if (m.on !== null && m.on !== undefined) return null;
+            var lo = Math.min(A.along, Z.along), hi = Math.max(A.along, Z.along);
+            if (v < lo - 0.01 || v > hi + 0.01) return null;
+            return A.reach + Math.abs(v - A.along);
+          }
+          if (!L) return;
+          var tags = [];   // the marks' texts (and the line's length), laid out once all are drawn
+          var lt = text(lineG, (x0 + x1) / 2, 0, L + ' mm', 'pd-bline-length');
+          lt.setAttribute('text-anchor', 'middle');
+          tags.push({ mg: lineG, t: lt, x: (x0 + x1) / 2, w: (L + ' mm').length * 7 + 8, bare: true });
+          B.marks.forEach(function (m) {
+            if (m.kind === 'splice') {   // only on the lines of its own connector
+              var own = String(m.text).split(':')[0].toLowerCase();
+              if (byId[g.left].designator.toLowerCase() !== own && byId[g.right].designator.toLowerCase() !== own) return;
+            }
+            var v0 = parseFloat(m.start), v1 = m.end !== '' ? parseFloat(m.end) : null, d0, d1;
+            if (v1 !== null && m.on === null) {   // a stretch on the trunk: the part of it between them
+              var lo = Math.min(A.along, Z.along), hi = Math.max(A.along, Z.along);
+              if (v1 < lo || v0 > hi) return;
+              d0 = dist(m, Math.max(v0, lo)); d1 = dist(m, Math.min(v1, hi));
+            } else {
+              d0 = dist(m, v0); d1 = v1 !== null ? dist(m, v1) : null;
+              if (d0 === null || (v1 !== null && d1 === null)) return;
+            }
+            if (d1 !== null && d1 < d0) { var t0 = d0; d0 = d1; d1 = t0; }
+            var mg = el('g', { class: 'pd-bmark pd-bmark-' + m.kind, 'data-mark': m.id }, layer), xa = px(d0), words;
+            var place = d1 !== null ? Math.round(d0) + '–' + Math.round(d1) : String(Math.round(d0));
+            if (d1 !== null) {
+              el('line', { x1: xa, y1: ly, x2: px(d1), y2: ly, class: 'pd-bmark-band' }, mg);
+              xa = (xa + px(d1)) / 2;
+              words = (m.text || m.what || m.label) + ' ' + place;
+            } else if (m.kind === 'tie') {
+              el('line', { x1: xa, y1: ly - 9, x2: xa, y2: ly + 9, class: 'pd-bmark-tick' }, mg);
+              words = 'Tie ' + place;
+            } else if (m.kind === 'strip') {
+              var from = m.on === g.left ? x0 : x1;
+              el('path', { d: 'M' + from + ',' + (ly - 9) + ' H' + xa + ' M' + xa + ',' + (ly - 14) + ' V' + (ly + 6), class: 'pd-bmark-cut' }, mg);
+              words = 'Strip' + (m.set ? ' ' + m.set : '') + ' ' + place;
+            } else if (m.kind === 'splice') {
+              el('polygon', { points: [[xa, ly - 8], [xa + 8, ly], [xa, ly + 8], [xa - 8, ly]].join(' '), class: 'pd-bmark-diamond' }, mg);
+              words = 'Splice ' + m.text + ' ' + place;
+            } else {
+              el('circle', { cx: xa, cy: ly, r: 5, class: 'pd-bmark-dot' }, mg);
+              words = (m.text || m.label) + ' ' + place;
+            }
+            var t = text(mg, xa, 0, words, 'pd-bmark-text');
+            t.setAttribute('text-anchor', 'middle');
+            var w = 0;
+            try { w = t.getComputedTextLength(); } catch (err) { w = words.length * 6.2; }
+            tags.push({ mg: mg, t: t, x: xa, w: w + 8 });
+            el('title', {}, mg).textContent = m.label + (m.what ? ' · ' + m.what : '') + ' · ' + place + ' mm from ' + byId[g.left].designator;
+            mg.addEventListener('click', function (ev) { markPop(m, g, d0, ev, L, shieldedSets, d1); });
+          });
+          // each text above or below the line, the first row free of the ones before it (left to right), else further out
+          var rows = { up: [], down: [] };
+          tags.sort(function (p, q) { return p.x - q.x; }).forEach(function (tg) {
+            var left = tg.x - tg.w / 2, placed = null;
+            for (var k = 0; !placed; k++) {
+              ['up', 'down'].some(function (sd) {
+                if (rows[sd][k] === undefined || rows[sd][k] < left - 6) { placed = { sd: sd, k: k }; return true; }
+                return false;
+              });
+            }
+            rows[placed.sd][placed.k] = tg.x + tg.w / 2;
+            var ty = placed.sd === 'up' ? ly - 16 - placed.k * 17 : ly + 26 + placed.k * 17;
+            tg.t.setAttribute('y', ty);
+            if (!tg.bare) tg.mg.insertBefore(el('rect', { x: tg.x - tg.w / 2, y: ty - 11, width: tg.w, height: 15, rx: 3, class: 'pd-bmark-box' }), tg.t);
+            if (placed.k) el('line', { x1: tg.x, y1: placed.sd === 'up' ? ty + 4 : ty - 11, x2: tg.x, y2: placed.sd === 'up' ? ly - 8 : ly + 8, class: 'pd-bmark-leader' }, tg.mg);
+          });
+        });
+      }
+
       var tall = Math.max(y - 50, 120);
       svg.setAttribute('viewBox', '0 0 ' + width + ' ' + tall);
       var box0 = getComputedStyle(svg.parentNode), room0 = (svg.parentNode.clientWidth - parseFloat(box0.paddingLeft || 0)
@@ -954,13 +1145,15 @@
 
       html('span', { class: 'spacer' }, bar);
       var modes = html('span', { class: 'segmented' }, bar);
-      [['View', false], ['Edit', true]].forEach(function (m) {
-        var b = html('button', { type: 'button', class: 'btn small' + (editing === m[1] ? ' on' : ''), 'data-mode': m[0].toLowerCase() }, modes);
+      var mode = editing ? 'edit' : state.bundling ? 'bundle' : 'view';
+      [['View', 'view'], ['Edit', 'edit'], ['Bundle', 'bundle']].forEach(function (m) {
+        var b = html('button', { type: 'button', class: 'btn small' + (mode === m[1] ? ' on' : ''), 'data-mode': m[1] }, modes);
         b.textContent = m[0];
         b.addEventListener('click', function () {
-          if (state.editing === m[1]) return;
-          if (!m[1] && state.changed) { window.location.reload(); return; }   // the table below shows the changes too
-          state.editing = m[1];
+          if (mode === m[1]) return;
+          if (m[1] === 'view' && state.changed) { window.location.reload(); return; }   // the tables below show the changes too
+          state.editing = m[1] === 'edit';
+          state.bundling = m[1] === 'bundle';
           state.from = null;
           render();
         });
