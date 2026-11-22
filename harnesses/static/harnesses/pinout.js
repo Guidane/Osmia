@@ -284,7 +284,7 @@
       state.width = svg.parentNode.clientWidth;
       x.right = x.left + Math.max(editing ? 740 : 420, room - fixed);
       x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
-      var width = x.rightFace + widest.right + 10, mid = (x.left + x.right) / 2, TWIST = 25;   // half the twist's width
+      var width = x.rightFace + widest.right + 12, mid = (x.left + x.right) / 2, TWIST = 25;   // half the twist's width
 
       var under = el('g', {}, svg), wiresG = el('g', {}, svg), over = el('g', {}, svg), areas = el('g', {}, svg), tools = el('g', {}, svg);
       var lit = {};
@@ -293,6 +293,7 @@
       function drawFace(e, y0) {
         var left = side[e.id] === 'left', f = faces[e.id];
         var fx = left ? x.leftFace + widest.left - f.w : x.rightFace, fy = y0 - 10;
+        faceBox[e.id] = { top: fy - 8, low: fy + f.h + 8 };   // the connector's outline goes round it
         text(over, left ? x.leftFace : width - 10, y0 - 34, e.designator + (e.what ? ' · ' + e.what : ''), 'pd-title' + (left ? '' : ' end'));
         outline(under, f, fx, fy);
         if (editing) {   // its family (and gender) changed in the family popup, or taken away with its wires
@@ -429,7 +430,7 @@
       if (x.right - x.left < least) {
         x.right = x.left + least;
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
-        width = x.rightFace + widest.right + 10; mid = (x.left + x.right) / 2;
+        width = x.rightFace + widest.right + 12; mid = (x.left + x.right) / 2;
       }
       Object.keys(spliceAt).forEach(function (k) {
         var sp = spliceAt[k];
@@ -497,7 +498,26 @@
         });
       }
       var y = editing ? 110 : 70, GAP = editing ? 80 : 56, faced = {}, beside = { left: { id: null, until: 0 }, right: { id: null, until: 0 } };
-      var bars = { left: null, right: null };
+      // each connector outlined: round its face and down the side of its contacts, as far as its wires go; the same
+      // connector again further down (after another one): a bar of its own there
+      var bars = { left: null, right: null }, faceBox = {};
+      function fit(b) {
+        b.rect.setAttribute('x', b.x0); b.rect.setAttribute('width', b.x1 - b.x0);
+        b.rect.setAttribute('y', b.top); b.rect.setAttribute('height', b.low - b.top);
+      }
+      function frame(on, id, top, end) {
+        var last = bars[on], L = on === 'left';
+        if (last && last.id === id) { last.low = Math.max(last.low, end); fit(last); return; }
+        var fb = faceBox[id] && !faceBox[id].used ? faceBox[id] : null;
+        if (fb) fb.used = true;
+        var x0 = fb ? (L ? x.leftFace - 6 : x.rightBar) : (L ? x.leftBar : x.rightBar);
+        var x1 = fb ? (L ? x.leftBar + 12 : x.rightFace + widest.right + 6) : x0 + 12;
+        var rect = el('rect', { rx: fb ? 12 : 3, class: fb ? 'pd-bar pd-around' : 'pd-bar', 'data-connector': byId[id].designator });
+        under.insertBefore(rect, under.firstChild);   // (under its face)
+        var b = bars[on] = { id: id, x0: x0, x1: x1, rect: rect, top: fb ? Math.min(top, fb.top) : top, low: fb ? Math.max(end, fb.low) : end };
+        fit(b);
+        if (!fb) text(over, x0 + 6, b.top - 6, byId[id].designator, 'pd-bar-label');
+      }
       list.forEach(function (g) {
         var y0 = y, n = g.loop ? loopRows(g) : g.rows.length, bottom = n ? (n - 1) * ROW + C : 0;
         var here = g.loop ? [[side[g.left], g.left]] :
@@ -513,12 +533,7 @@
         if (g.loop) {   // out from the connector and back into it
           var L = side[g.left] !== 'right';
           loopPlace(g, y0, L);
-          [[L ? 'left' : 'right', g.left, L ? x.leftBar : x.rightBar]].forEach(function (b) {
-            var top = y0 - C - 6, end = y0 + (n - 1) * ROW + C + 6, last = bars[b[0]];
-            if (last && last.id === b[1]) { last.rect.setAttribute('height', end - last.top); return; }
-            bars[b[0]] = { id: b[1], top: top, rect: el('rect', { x: b[2], y: top, width: 12, height: end - top, rx: 3, class: 'pd-bar' }, under) };
-            text(over, b[2] + 6, top - 6, byId[b[1]].designator, 'pd-bar-label');
-          });
+          frame(L ? 'left' : 'right', g.left, y0 - C - 6, y0 + (n - 1) * ROW + C + 6);
           y = y0 + bottom + GAP;
           return;
         }
@@ -530,12 +545,8 @@
           if (r.bx === x.right && !(r.via && r.via.right)) own.right = true;
         });
         // the connector's bar; one after another of the same connector on that side make one longer bar
-        [['left', g.left, x.leftBar, own.left]].concat(g.same ? [] : [['right', g.right, x.rightBar, own.right]]).forEach(function (b) {
-          if (!b[3]) return;
-          var top = y0 - C - 6, end = y0 + (n - 1) * ROW + C + 6, last = bars[b[0]];
-          if (last && last.id === b[1]) { last.rect.setAttribute('height', end - last.top); return; }
-          bars[b[0]] = { id: b[1], top: top, rect: el('rect', { x: b[2], y: top, width: 12, height: end - top, rx: 3, class: 'pd-bar' }, under) };
-          text(over, b[2] + 6, top - 6, byId[b[1]].designator, 'pd-bar-label');
+        [['left', g.left, own.left]].concat(g.same ? [] : [['right', g.right, own.right]]).forEach(function (b) {
+          if (b[2]) frame(b[0], b[1], y0 - C - 6, y0 + (n - 1) * ROW + C + 6);
         });
         y = y0 + bottom + GAP;
       });
