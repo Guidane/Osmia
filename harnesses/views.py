@@ -9,8 +9,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from devices.models import SET_TYPES as PIN_SET_TYPES, Connector, pin_order
@@ -67,7 +68,7 @@ def harness_list(request):
     tree += [('setup', d, 0, counts.get(d.pk, 0)) for d in setups if d.in_project_id is None]
     picked = Harness.objects.filter(pk=request.GET.get('harness') or 0).first()
     return render(request, 'harnesses/list.html', {
-        'harnesses': found, 'setup': setup, 'work': work, 'tree': tree, 'q': q, 'status': status,
+        'setups': setups, 'harnesses': found, 'setup': setup, 'work': work, 'tree': tree, 'q': q, 'status': status,
         'statuses': Harness.Status.choices, 'every': Harness.objects.count(), 'picked': picked,
         'brief': _brief(picked) if picked else None})
 
@@ -110,6 +111,11 @@ def harness(request, pk):
     item = get_object_or_404(Harness.objects.select_related('setup'), pk=pk)
     if request.GET.get('export'):
         return excel.download(f'{item.number} {item.name}', _sheets(item))
+    if request.GET.get('json'):   # as a file to take in again (here, or into another Osmia)
+        from .transfer import export_harness
+        response = JsonResponse(export_harness(item), json_dumps_params={'indent': 1, 'ensure_ascii': False})
+        response['Content-Disposition'] = f'attachment; filename="{item.number} {_safe(item.name)}.json"'
+        return response
     wires = item.ordered_wires()
     groups = []
     for w in wires:
@@ -126,6 +132,46 @@ def harness(request, pk):
         'problems': [text for _, text in found], 'bad_wires': {thing.pk for thing, _ in found if isinstance(thing, Wire)},
         'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item),
         'units': item.records.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number)})
+
+
+def _safe(name):
+    """``name`` as part of a file's name."""
+    return ''.join(c for c in name if c not in '\\/:*?"<>|').strip()[:80]
+
+
+@login_required
+@require_POST
+def harness_import(request):
+    """A harness made from a file (``transfer.FORMAT``: from ⬇ JSON, by hand, by another program) in the setup picked."""
+    import json
+
+    from .transfer import import_harness
+    setup = Setup.objects.filter(pk=request.POST.get('setup') or 0).first()
+    sent = request.FILES.get('file')
+    try:
+        if sent is None:
+            raise ValidationError('Pick a harness file.')
+        try:
+            data = json.loads(sent.read().decode('utf-8-sig'))
+        except (ValueError, UnicodeDecodeError):
+            raise ValidationError('That is not a harness file (JSON).')
+        harness, notes = import_harness(data, setup)
+    except ValidationError as exc:
+        errors(request, exc)
+        return redirect(reverse('harnesses:list') + (f'?setup={setup.pk}' if setup else ''))
+    messages.success(request, f'{harness.number} {harness.name} is made from {sent.name}.')
+    for note in notes:
+        messages.warning(request, note)
+    return redirect(harness)
+
+
+@login_required
+def harness_format(request):
+    """What a harness file holds (to give to whoever, or whatever, makes one), with this Osmia's families."""
+    from .transfer import describe
+    response = HttpResponse(describe(), content_type='text/markdown; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="osmia harness format.md"'
+    return response
 
 
 def _groups(harness, wires):

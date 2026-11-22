@@ -229,6 +229,50 @@ class PinoutTests(HarnessBase):
         self.assertIn('P1:1 → P2:1 is there 2 times.', [t for _, t in self.harness.problems()])
 
 
+class TransferTests(HarnessBase):
+    def file(self, data, name='loom.json'):
+        import json
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return SimpleUploadedFile(name, json.dumps(data).encode('utf-8'), content_type='application/json')
+
+    def test_a_harness_file_made_elsewhere_taken_in(self):
+        from inventory.models import Family
+        Family.objects.create(name='D-sub 9')
+        data = {'kind': 'osmia harness', 'name': 'From a drawing',
+                'connectors': [{'designator': 'J1', 'family': 'D-sub 9 / pin', 'side': 'left'}, {'designator': 'J2', 'family': 'Nope 3'}],
+                'wires': [{'from': 'J1', 'from_pin': 1, 'to': 'J2', 'to_pin': '1', 'signal': '+24 V', 'colour': 'Red', 'gauge': '22',
+                           'length': '450 mm', 'group': 'Power', 'set': 'P', 'set_type': 'twisted'},
+                          {'from': 'J1', 'from_pin': '2', 'to': 'J2', 'to_pin': '2', 'colour': 'gray', 'set': 'P', 'set_type': 'Twisted'},
+                          {'from': 'J1', 'from_pin': '1', 'to': 'J3', 'to_pin': '1', 'colour': 'pink'}],   # a splice, to a connector not listed
+                'groups': [{'name': 'Power', 'length': 450, 'bundled': 100}]}
+        response = self.client.post(reverse('harnesses:import'), {'setup': self.setup.pk, 'file': self.file(data)}, follow=True)
+        made = Harness.objects.get(name='From a drawing')
+        self.assertEqual(made.setup, self.setup)
+        self.assertEqual([(e.designator, e.used_name, e.side) for e in made.ends.all()],
+                         [('J1', 'D-sub 9 / pin', 'left'), ('J2', '', ''), ('J3', '', '')])
+        first = made.wires.get(from_pin='1', to_end__designator='J2')
+        self.assertEqual((first.colour, first.gauge, first.length, first.wire_group, first.set_type), ('red', '22 AWG', Decimal('450'), 'Power', 'Twisted'))
+        self.assertEqual(made.wires.get(from_pin='2').wire_group, 'Power')   # with its set
+        self.assertEqual(made.groups.get().bundled, Decimal('100'))
+        self.assertContains(response, 'Nope 3')
+        self.assertContains(response, 'pink')
+        # out again and back in: the same harness
+        out = self.client.get(made.get_absolute_url() + '?json=1').json()
+        again, _ = __import__('harnesses.transfer', fromlist=['x']).import_harness(out, self.setup)
+        self.assertEqual(again.snapshot()['wires'], made.snapshot()['wires'])
+
+    def test_a_file_that_can_t_be_read_makes_nothing(self):
+        before = Harness.objects.count()
+        for data in ({'wires': [{'from': 'J1', 'from_pin': '1', 'to': 'J2'}]},   # no contact on one end
+                     {'wires': [{'from': 'J1', 'from_pin': '1', 'to': 'J2', 'to_pin': '1', 'set': 'A', 'set_type': 'Coiled'}]},
+                     {'something': 'else'}):
+            self.client.post(reverse('harnesses:import'), {'setup': self.setup.pk, 'file': self.file(data)})
+        self.client.post(reverse('harnesses:import'), {'file': self.file({'wires': []})})   # no setup
+        self.assertEqual(Harness.objects.count(), before)
+        self.assertContains(self.client.get(reverse('harnesses:format')), 'from_pin')
+
+
 class BuildTests(HarnessBase):
     def test_built_with_a_checklist_and_its_definitions_from_stock(self):
         self.connect('1', '1', length=Decimal(500), definition=self.wire)

@@ -239,6 +239,33 @@
           return kp - kq || (p.w.type === 'Shield') - (q.w.type === 'Shield') || natural(p.a.pin, q.a.pin);
         });
       });
+      // a contact with several wires on its side (a splice): its contact drawn once, at its first row, with a diamond
+      // (S1, S2, …) beside it saying how many wires and to which connectors; each of its other rows starts at a
+      // diamond of its own, in the column of the contacts
+      var spliceAt = {}, spliceNames = 0;
+      list.forEach(function (g) {
+        if (g.loop) return;
+        g.rows.forEach(function (r) {
+          [['L', r.a, r.b], ['R', r.b, r.a]].forEach(function (q) {
+            if (!q[1].pin) return;
+            var key = q[0] + q[1].end + ':' + q[1].pin;
+            var sp = spliceAt[key] = spliceAt[key] || { left: q[0] === 'L', at: q[1], rows: [], to: [] };
+            sp.rows.push(r);
+            if (sp.to.indexOf(q[2].end) === -1) sp.to.push(q[2].end);
+          });
+        });
+      });
+      Object.keys(spliceAt).forEach(function (key) {
+        var sp = spliceAt[key];
+        if (sp.rows.length < 2) { delete spliceAt[key]; return; }
+        sp.name = 'S' + (++spliceNames);
+        sp.label = sp.rows.length + ' wires · ' + sp.to.map(function (id) { return byId[id] ? byId[id].designator : '?'; }).join(', ');
+      });
+      function spliceOf(r, left) {   // the splice a row's end is in on that side: {s, first} (else null)
+        var at = left ? r.a : r.b, sp = at.pin && spliceAt[(left ? 'L' : 'R') + at.end + ':' + at.pin];
+        return sp ? { s: sp, first: sp.rows[0] === r } : null;
+      }
+      var DIA = 11, PAST = 2 * DIA + 10;   // a diamond's half width; how far past the contact the first row's tags start
       var seen = {};
       list.forEach(function (g) { seen[g.left] = true; if (!g.same) seen[g.right] = true; });
       var spare = { left: [], right: [] };   // ends no wire joins yet
@@ -331,21 +358,29 @@
         else g.addEventListener('click', function () { show('pin:' + at.end + ':' + at.pin); });   // its wires lit
         return left ? x.left : x.right;
       }
-      // a contact with several wires (a splice): drawn once, at its first row; its other rows branch off beside it
-      var splices = {}, lanes = { left: 0, right: 0 };   // each splice on a side its own lane
+      function diamond(sp, cx, cy) {   // a splice's diamond: picked like its contact (its wires lit)
+        var at = sp.at, g = el('g', { class: 'pd-splice', 'data-splice': sp.name }, tools);   // (over the sets' areas)
+        el('title', {}, g).textContent = sp.name + ' · ' + byId[at.end].designator + ':' + at.pin + ' · ' + sp.label;
+        el('polygon', { points: [[cx, cy - DIA], [cx + DIA, cy], [cx, cy + DIA], [cx - DIA, cy]].join(' ') }, g);
+        text(g, cx, cy + 3.5, sp.name, 'pd-num');
+        remember(at.end + ':' + at.pin, g);
+        if (state.from && state.from.end === at.end && state.from.pin === at.pin) g.classList.add('chosen');
+        if (editing) g.addEventListener('click', function () { pick(at.end, at.pin, g); });
+        else g.addEventListener('click', function () { show('pin:' + at.end + ':' + at.pin); });
+        return g;
+      }
       function place(r, at, left, named) {
         if (at.pin === '') return left ? x.left + EL : x.right - ER;   // a shield not joined on this side: from its ellipse
-        var key = (left ? 'L' : 'R') + at.end + ':' + at.pin, s = splices[key];
-        if (!s) {
-          splices[key] = { left: left, rows: [r] };
-          return contact(at, left, r.y, named);
+        var sp = spliceOf(r, left);
+        if (!sp || sp.first) {
+          var edge = contact(at, left, r.y, named);
+          if (sp) diamond(sp.s, edge + (left ? 1 : -1) * (DIA + 5), r.y);   // on the wire, just past the contact
+          return edge;
         }
-        if (s.x === undefined) {   // viewing: in the middle, between the twists; editing: by the contacts
-          var lane = lanes[left ? 'left' : 'right']++, off = editing ? x.right - mid - 12 : -12;
-          s.x = left ? mid - off + lane * 20 : mid + off - lane * 20;   // lanes well apart
-        }
-        s.rows.push(r);
-        return s.x;
+        r.via = r.via || {};
+        r.via[left ? 'left' : 'right'] = true;   // not a contact of the connector: no bar of its own
+        diamond(sp.s, left ? x.leftNum : x.rightNum, r.y);
+        return left ? x.left : x.right;
       }
 
       // the shields' ellipses (and past them the twists) stand clear of the tags by the contacts: gauge, purpose
@@ -356,9 +391,20 @@
         return Math.max((long || label.length * 6.6) + 10, 24) + 4;
       }
       var reach = { left: 0, right: 0 }, BOX = 76;   // editing: a box's width (and its gap)
-      if (editing) rows.forEach(function (r) { reach[r.loopback && side[r.w.from] === 'right' ? 'right' : 'left'] = 2 * BOX; });
+      function lead(r, left) {   // a splice's first row: its diamond (and, viewing, how many wires to where) first
+        var sp = !r.loopback && spliceOf(r, left);
+        return sp && sp.first ? PAST + (editing ? 0 : measure(sp.s.label, 'pd-splice-tag')) : 0;
+      }
+      if (editing) rows.forEach(function (r) {
+        var on = r.loopback && side[r.w.from] === 'right' ? 'right' : 'left';
+        reach[on] = Math.max(reach[on], 2 * BOX + lead(r, true));
+      });
       else rows.forEach(function (r) {
         var w = r.w, g = w.gauge ? measure(w.gauge, 'pd-gauge') : 0;
+        if (!r.loopback) {
+          reach.left = Math.max(reach.left, lead(r, true) + g + (w.signal ? measure(w.signal, 'pd-label') : 0));
+          reach.right = Math.max(reach.right, lead(r, false) + g);
+        }
         if (r.loopback) {
           var at = side[w.from] === 'right' ? 'right' : 'left';
           reach[at] = Math.max(reach[at], g + (w.signal ? measure(w.signal, 'pd-label') : 0), g + (w.to_signal ? measure(w.to_signal, 'pd-label') : 0));
@@ -457,8 +503,8 @@
           r.y = y0 + i * ROW;
           r.ax = place(r, r.a, true);
           r.bx = place(r, r.b, false, g.same);
-          if (r.ax === x.left) own.left = true;
-          if (r.bx === x.right) own.right = true;
+          if (r.ax === x.left && !(r.via && r.via.left)) own.left = true;
+          if (r.bx === x.right && !(r.via && r.via.right)) own.right = true;
         });
         // the connector's bar; one after another of the same connector on that side make one longer bar
         [['left', g.left, x.leftBar, own.left]].concat(g.same ? [] : [['right', g.right, x.rightBar, own.right]]).forEach(function (b) {
@@ -472,27 +518,8 @@
       });
       y = Math.max(y, beside.left.until + GAP, beside.right.until + GAP);
 
-      Object.keys(splices).forEach(function (key) {   // a splice's rows (each but the contact's own): from past their corner
-        var s = splices[key];
-        s.rows.slice(1).forEach(function (r) {
-          var k = Math.min(14, (r.y - s.rows[0].y) / 2);
-          if (s.left) r.ax = s.x + k; else r.bx = s.x - k;
-        });
-      });
-
       // the tags by a wire's ends: its gauge by the connector (before any shield and twist); a spliced wire's gauge
-      // on both sides, and its length by where it joins the splice
-      var spliceOf = {};
-      Object.keys(splices).forEach(function (key) {
-        var s = splices[key];
-        if (s.rows.length > 1) s.rows.forEach(function (r, i) { spliceOf[(s.left ? 'L' : 'R') + r.w.id] = { s: s, first: i === 0 }; });
-      });
-      var outer = { left: -Infinity, right: Infinity };   // the splices' outermost lanes on each side
-      Object.keys(splices).forEach(function (key) {
-        var s = splices[key];
-        if (s.x === undefined) return;
-        if (s.left) outer.left = Math.max(outer.left, s.x); else outer.right = Math.min(outer.right, s.x);
-      });
+      // and length on both sides; a splice's first row: past its diamond, how many wires to which connectors
       function tag(at, y, label, dir, cls, id) {   // a tag from ``at`` going ``dir``; where it ends
         var g = el('g', { class: 'pd-tag ' + cls, 'data-tag-of': id }, over), t = text(g, 0, y + 4, label, 'pd-tag-text'), long = 0;
         try { long = t.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
@@ -506,22 +533,22 @@
         if (r.y === undefined) return;
         if (editing) {   // its boxes where what they set shows: gauge, purpose by the contact; set over the twist; then the rest
           var L = r.loop ? r.loop.L : true, dir = L ? 1 : -1, start = L ? r.ax : r.bx, own = start === (L ? x.left : x.right);
-          var sp = spliceOf[(L ? 'L' : 'R') + r.w.id], at = start + dir * (sp && !sp.first ? 8 : 6);
+          var sp = !r.loop && spliceOf(r, L), at = start + dir * (6 + (sp && sp.first ? PAST : 0));
           r.slots = { dir: dir, gauge: at, purpose: at + dir * BOX };
           r.tagEnd[L ? 'left' : 'right'] = at + dir * 2 * BOX;
           r.slots.set = own ? (L ? x.left + EL + 20 : x.right - ER - 20) : at + dir * (2 * BOX + 10);
           r.slots.rest = r.slots.set + dir * 316;
           return;
         }
-        var w = r.w, spliced = spliceOf['L' + w.id] || spliceOf['R' + w.id];
+        var w = r.w, spliced = !r.loop && (spliceOf(r, true) || spliceOf(r, false));
         [['left', 1, r.ax, x.left], ['right', -1, r.bx, x.right]].forEach(function (s) {
-          var sp = spliceOf[(s[0] === 'left' ? 'L' : 'R') + w.id], dir = s[1], at = s[2] + dir * (sp && !sp.first ? 8 : 6);
-          var gauge = w.gauge && (s[0] === 'left' || spliced || r.loop) && (s[2] === s[3] || sp), length = sp && w.length;
+          var sp = !r.loop && spliceOf(r, s[0] === 'left'), dir = s[1], at = s[2] + dir * 6;
+          if (sp && sp.first) r.tagEnd[s[0]] = at = tag(at + dir * PAST, r.y, sp.s.label, dir, 'pd-splice-tag', w.id);
+          var gauge = w.gauge && (s[0] === 'left' || spliced || r.loop) && s[2] === s[3], length = sp && w.length;
           if (gauge) at = tag(at, r.y, w.gauge, dir, 'pd-gauge', w.id);
           if (gauge) r.tagEnd[s[0]] = at;
           if (w.signal && s[0] === (r.loop ? (r.loop.L ? 'left' : 'right') : 'left')) r.tagEnd[s[0]] = at = tag(at, r.y, w.signal, dir, 'pd-label', w.id);
-          if (length && sp.first) tag(dir > 0 ? Math.max(at, outer.left + 20) : Math.min(at, outer.right - 20), r.y, w.length + ' mm', dir, 'pd-length', w.id);   // past the lanes
-          else if (length) r.tagEnd[s[0]] = tag(at, r.y, w.length + ' mm', dir, 'pd-length', w.id);
+          if (length) r.tagEnd[s[0]] = tag(at, r.y, w.length + ' mm', dir, 'pd-length', w.id);
         });
         if (r.loop && r.b.pin) {   // a loopback coming back: its gauge, its own purpose (TX going out, RX coming back)
           var back = r.loop.edge + r.loop.dir * 6;
@@ -683,16 +710,6 @@
         }
         wire(r, 'M' + r.ax + ',' + y + ' H' + r.bx);
       });
-      Object.keys(splices).forEach(function (key) {   // the splice: each wire leaves the contact's row round a corner,
-        var s = splices[key];                          // down, and round a corner into its own row
-        if (s.rows.length < 2) return;
-        var sx = s.x, top = s.rows[0].y, dir = s.left ? 1 : -1;
-        s.rows.slice(1).forEach(function (r) {
-          var k = Math.min(14, (r.y - top) / 2);
-          wire(s.rows[0], 'M' + (sx - dir * k) + ',' + top + ' Q' + sx + ',' + top + ' ' + sx + ',' + (top + k) +
-                          ' V' + (r.y - k) + ' Q' + sx + ',' + r.y + ' ' + (sx + dir * k) + ',' + r.y);
-        });
-      });
 
       if (editing) {   // each row: its tools where what they set shows (its set drawn as it is: twisted, shielded)
         var groupList = document.getElementById('pd-groups') || html('datalist', { id: 'pd-groups' }, document.body);
@@ -818,6 +835,7 @@
           if (!p[1] || tinted[key]) return;
           tinted[key] = true;
           (lit[key] || []).forEach(function (n) {
+            if (n.classList.contains('pd-splice')) return;
             n.classList.add('wired');
             n.style.setProperty('--wire', c);
             n.style.setProperty('--wire-text', light(c) ? '#1f2937' : '#fff');

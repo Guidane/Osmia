@@ -3,6 +3,10 @@
 {% block content_class %}wide{% endblock %}
 {% block content %}
 <div class="page-head"><h1>Harnesses</h1><span class="spacer"></span>
+  <form method="post" action="{% url 'harnesses:import' %}" enctype="multipart/form-data" class="inline-form" data-harness-import>{% csrf_token %}
+    <select name="setup" aria-label="Setup" required><option value="">Setup…</option>{% for s in setups %}<option value="{{ s.pk }}"{% if setup.pk == s.pk %} selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    <label class="btn">⬆ Import<input type="file" name="file" accept=".json,application/json" hidden data-import-file></label>
+    <a class="btn ghost" href="{% url 'harnesses:format' %}">⬇ Format</a></form>
   <a class="btn primary" href="{% url 'harnesses:new' %}{% if setup %}?setup={{ setup.pk }}{% endif %}">＋ New harness</a></div>
 
 <div data-param="harness" class="browser harness-browser">
@@ -43,4 +47,12 @@
   </aside>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}
+{% block scripts %}<script>
+  /* Import: the file picked is sent straight away (once the setup it is for is picked). */
+  document.querySelectorAll('[data-import-file]').forEach(function (input) {
+    input.addEventListener('click', function (e) {
+      if (!input.form.reportValidity()) e.preventDefault();
+    });
+    input.addEventListener('change', function () { if (input.files.length) input.form.submit(); });
+  });
+</script><script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}

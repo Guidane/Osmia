@@ -352,6 +352,13 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing .pd-pin.wired .pd-num, .pinout-drawing .pd-contact.wired .pd-num { fill: var(--wire-text); }
 .pinout-drawing .pd-pin.lit .pd-num, .pinout-drawing .pd-contact.lit .pd-num { fill: #1f2937; }
 .pinout-drawing .pd-pin.lit circle, .pinout-drawing .pd-contact.lit circle { fill: #fde047; stroke: #b45309; stroke-width: 2; }
+.pinout-drawing .pd-splice polygon { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; stroke-linejoin: round; }
+.pinout-drawing .pd-splice { cursor: pointer; }
+.pinout-drawing .pd-splice:hover polygon { stroke: var(--brand); stroke-width: 2; }
+.pinout-drawing .pd-splice.lit polygon { fill: #fde047; stroke: #b45309; stroke-width: 2; }
+.pinout-drawing .pd-splice.chosen polygon { fill: var(--brand); stroke: var(--brand); }
+.pinout-drawing .pd-splice.chosen .pd-num { fill: #fff; }
+.pinout-drawing .pd-splice-tag rect { fill: var(--panel); stroke: var(--text); stroke-dasharray: 2 2; }
 .pinout-drawing .pd-pin.wired.chosen circle, .pinout-drawing .pd-contact.wired.chosen circle { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-pin.wired.chosen .pd-num, .pinout-drawing .pd-contact.wired.chosen .pd-num { fill: #fff; }
 .wire-colour { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border-strong); margin-right: 4px; vertical-align: middle; }
