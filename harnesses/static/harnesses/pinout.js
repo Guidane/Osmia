@@ -178,7 +178,8 @@
       data.ends.forEach(function (e, i) {
         byId[e.id] = e; index[e.id] = i;
         faces[e.id] = face(e);
-        widest[side[e.id]] = Math.max(widest[side[e.id]], faces[e.id].w);
+        var named = (e.designator + (e.what ? ' · ' + e.what : '')).length * 6.8 - 34;   // its name in its box, over the face
+        widest[side[e.id]] = Math.max(widest[side[e.id]], faces[e.id].w, named);
       });
       var signal = {};
       data.ends.forEach(function (e) { e.pins.forEach(function (p) { signal[e.id + ':' + p[0]] = p[1]; }); });
@@ -290,15 +291,22 @@
       var lit = {};
       function remember(key, node) { (lit[key] = lit[key] || []).push(node); }
 
-      function drawFace(e, y0) {
-        var left = side[e.id] === 'left', f = faces[e.id];
-        var fx = left ? x.leftFace + widest.left - f.w : x.rightFace, fy = y0 - 10;
-        faceBox[e.id] = { top: fy - 8, low: fy + f.h + 8 };   // the connector's outline goes round it
-        text(over, left ? x.leftFace : width - 10, y0 - 34, e.designator + (e.what ? ' · ' + e.what : ''), 'pd-title' + (left ? '' : ' end'));
+      var TOOLS = editing ? 34 : 0, HEAD = 24;   // below the face: its tools (editing); above it: its name
+      function drawFace(e, y0) {   // room for it here (drawn in paintFace, in its box)
+        var f = faces[e.id], fy = y0 - 10;
+        faceBox[e.id] = { top: fy - 8 - HEAD, low: fy + f.h + 8 + TOOLS, y0: y0 };
+        return f.h + TOOLS;
+      }
+      function paintFace(e) {   // in the middle of its box (one with no wires of its own: where its room was kept)
+        var left = side[e.id] === 'left', f = faces[e.id], fb = faceBox[e.id], b = fb.frame;
+        var x0 = b ? b.x0 : left ? x.leftFace - 6 : x.rightBar, x1 = b ? b.x1 : left ? x.leftBar + 12 : x.rightFace + widest.right + 6;
+        var top = b ? b.top : fb.top, low = b ? b.low : fb.low;
+        var fx = (x0 + x1 - f.w) / 2, fy = (top + HEAD + low - TOOLS - f.h) / 2;
+        text(over, x0 + 8, top + 16, e.designator + (e.what ? ' · ' + e.what : ''), 'pd-title');
         outline(under, f, fx, fy);
         if (editing) {   // its family (and gender) changed in the family popup, or taken away with its wires
-          var fo = el('foreignObject', { x: left ? x.leftFace : width - 10 - 240, y: fy + f.h + 6, width: 240, height: 28 }, tools);
-          var box = html('div', { class: 'pd-tools pd-end-tools' + (left ? '' : ' end') }, fo);
+          var fo = el('foreignObject', { x: x0 + 4, y: fy + f.h + 4, width: Math.max(x1 - x0 - 8, 150), height: 28 }, tools);
+          var box = html('div', { class: 'pd-tools pd-end-tools' }, fo);
           var fam = html('button', { type: 'button', class: 'btn small', title: 'Family' }, box);
           fam.textContent = e.used || 'Family…';
           fam.addEventListener('click', function () {
@@ -322,7 +330,6 @@
           if (editing) g.addEventListener('click', function () { pick(e.id, p[0], g); });
           else if (has[p[0]]) g.addEventListener('click', function () { show('pin:' + e.id + ':' + p[0]); });   // its wires lit
         });
-        return editing ? f.h + 26 : f.h - 10;   // editing: its tools below it
       }
       function shieldTo(set, sideOf, end, pin) {   // a shielded set's shield joined to a contact on one side (pin '': not)
         var s = sets[set], own = s.rows.filter(function (r) { return r.w.type === 'Shield'; })[0];
@@ -512,9 +519,10 @@
         if (fb) fb.used = true;
         var x0 = fb ? (L ? x.leftFace - 6 : x.rightBar) : (L ? x.leftBar : x.rightBar);
         var x1 = fb ? (L ? x.leftBar + 12 : x.rightFace + widest.right + 6) : x0 + 12;
-        var rect = el('rect', { rx: fb ? 12 : 3, class: fb ? 'pd-bar pd-around' : 'pd-bar', 'data-connector': byId[id].designator });
+        var rect = el('rect', { rx: fb ? 0 : 3, class: fb ? 'pd-bar pd-around' : 'pd-bar', 'data-connector': byId[id].designator });
         under.insertBefore(rect, under.firstChild);   // (under its face)
         var b = bars[on] = { id: id, x0: x0, x1: x1, rect: rect, top: fb ? Math.min(top, fb.top) : top, low: fb ? Math.max(end, fb.low) : end };
+        if (fb) fb.frame = b;
         fit(b);
         if (!fb) text(over, x0 + 6, b.top - 6, byId[id].designator, 'pd-bar-label');
       }
@@ -551,6 +559,7 @@
         y = y0 + bottom + GAP;
       });
       y = Math.max(y, beside.left.until + GAP, beside.right.until + GAP);
+      Object.keys(faceBox).forEach(function (id) { paintFace(byId[id]); });
 
       // the tags by a wire's ends: its gauge by the connector (before any shield and twist); a spliced wire's gauge
       // and length on both sides; a splice's first row: past its diamond, how many wires to which connectors
