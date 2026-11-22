@@ -4,6 +4,9 @@
 {% block content %}
 <div class="page-head"><h1>Devices</h1><span class="spacer"></span>
   <a class="btn" href="?export=1{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if origin %}&amp;origin={{ origin }}{% endif %}">⬇ Excel</a>
+  <form method="post" action="{% url 'devices:import' %}" enctype="multipart/form-data" class="inline-form">{% csrf_token %}
+    <label class="btn">⬆ Import<input type="file" name="file" accept=".json,application/json" hidden data-import-file></label>
+    <a class="btn ghost" href="{% url 'devices:format' %}">⬇ Format</a></form>
   <a class="btn primary" href="{% url 'devices:new' %}">＋ New device</a></div>
 
 <div class="browser" data-param="device">
@@ -34,4 +37,9 @@
   </aside>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}
+{% block scripts %}<script>
+  /* Import: the file picked is sent straight away. */
+  document.querySelectorAll('[data-import-file]').forEach(function (input) {
+    input.addEventListener('change', function () { if (input.files.length) input.form.submit(); });
+  });
+</script><script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}

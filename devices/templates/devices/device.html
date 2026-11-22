@@ -8,6 +8,7 @@
   {% if device.version %}<span class="badge{% if not changed %} ok{% endif %}">v{{ device.version }}{% if changed %} + changes{% endif %}</span>{% endif %}
   <span class="spacer"></span>
   <a class="btn" href="?export=1">⬇ Excel</a>
+  <a class="btn" href="?json=1">⬇ JSON</a>
   <a class="btn" href="{% url 'devices:edit' device.pk %}">Change</a>
 </div>
 

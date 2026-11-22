@@ -43,6 +43,42 @@ def device_list(request):
                                                  'brief': briefs.of('device', picked) if picked else None})
 
 
+@login_required
+@require_POST
+def device_import(request):
+    """A device made from a file (``transfer.FORMAT``: from ⬇ JSON, by hand, by another program)."""
+    import json
+
+    from .transfer import import_device
+    sent = request.FILES.get('file')
+    try:
+        if sent is None:
+            raise ValidationError('Pick a device file.')
+        try:
+            data = json.loads(sent.read().decode('utf-8-sig'))
+        except (ValueError, UnicodeDecodeError):
+            raise ValidationError('That is not a device file (JSON).')
+        item, notes = import_device(data)
+    except ValidationError as exc:
+        errors(request, exc)
+        return redirect('devices:list')
+    messages.success(request, f'{item} is made from {sent.name}.')
+    for note in notes:
+        messages.warning(request, note)
+    return redirect(item)
+
+
+@login_required
+def device_format(request):
+    """What a device file holds (to give to whoever, or whatever, makes one), with this Osmia's families."""
+    from django.http import HttpResponse
+
+    from .transfer import describe
+    response = HttpResponse(describe(), content_type='text/markdown; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="osmia device format.md"'
+    return response
+
+
 PIN_HEAD = ['Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin', 'Signal', 'Group', 'Set', 'Set type', 'Description']
 
 
@@ -111,6 +147,14 @@ def device(request, pk):
     item = get_object_or_404(Device.objects.select_related('definition', 'family'), pk=pk)
     if request.GET.get('export'):
         return excel.download(item.number, [('Pins', PIN_HEAD, _pin_rows([item]))])
+    if request.GET.get('json'):   # as a file to take in again (into another Osmia)
+        from django.http import JsonResponse
+
+        from .transfer import export_device
+        response = JsonResponse(export_device(item), json_dumps_params={'indent': 1, 'ensure_ascii': False})
+        name = ''.join(ch for ch in f'{item.number} {item.name}' if ch not in '\\/:*?"<>|').strip()[:100]
+        response['Content-Disposition'] = f'attachment; filename="{name}.json"'
+        return response
     connectors = list(item.connectors.select_related('definition', 'family', 'branch').prefetch_related('pins'))
     plugged = _plugged(connectors)
     pins = {c.pk: c.ordered_pins() for c in connectors}

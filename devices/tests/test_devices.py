@@ -175,3 +175,45 @@ class DeviceTests(DeviceBase):
         rows = list(book['Pins'].values)
         self.assertEqual(rows[0][:5], ('Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin'))
         self.assertIn(('CTRL-1', 'J1', 'Bus', 'DSUB-9-PLUG', '6', 'CAN H', None, None, None, None), rows)
+
+
+class DeviceTransferTests(DeviceBase):
+    def file(self, data):
+        import json
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return SimpleUploadedFile('device.json', json.dumps(data).encode('utf-8'), content_type='application/json')
+
+    def test_a_device_file_made_elsewhere_taken_in_and_out_again(self):
+        from inventory.models import Family
+        Family.objects.create(name='D-sub 9')
+        data = {'kind': 'osmia device', 'number': 'LOAD-2', 'name': 'Load board', 'origin': 'bought', 'manufacturer': 'Acme',
+                'connectors': [{'designator': 'J1', 'name': 'Bus in', 'family': 'D-sub 9 / socket', 'side': 'Left',
+                                'pins': [{'number': 1, 'signal': '+24 V'}, {'number': '2', 'signal': 'CAN H', 'set': 'CAN', 'set_type': 'twisted', 'group': 'Bus'},
+                                         {'number': '7', 'signal': 'CAN L', 'set': 'CAN', 'set_type': 'Twisted', 'group': 'Bus'}]},
+                               {'designator': 'X2', 'family': 'Nope 4', 'pins': ['1', '2']}]}
+        response = self.client.post(reverse('devices:import'), {'file': self.file(data)}, follow=True)
+        made = Device.objects.get(number='LOAD-2')
+        self.assertEqual((made.origin, made.manufacturer), ('external', 'Acme'))
+        j1, x2 = made.connectors.all()
+        self.assertEqual((j1.used_name, j1.side, x2.used_name), ('D-sub 9 / socket', 'left', ''))
+        self.assertEqual([(p.number, p.signal, p.wire_set, p.set_type, p.wire_group) for p in j1.ordered_pins()],
+                         [('1', '+24 V', '', 'Straight', ''), ('2', 'CAN H', 'CAN', 'Twisted', 'Bus'), ('7', 'CAN L', 'CAN', 'Twisted', 'Bus')])
+        self.assertEqual([p.number for p in x2.ordered_pins()], ['1', '2'])
+        self.assertContains(response, 'Nope 4')
+        out = self.client.get(made.get_absolute_url() + '?json=1').json()
+        made.delete()
+        from devices.transfer import export_device, import_device
+        again, _ = import_device(out)
+        self.assertEqual(export_device(again), out)   # the same device again
+
+    def test_a_file_that_can_t_be_read_makes_nothing(self):
+        before = Device.objects.count()
+        for data in ({'number': 'CTRL-1', 'name': 'Taken'},
+                     {'number': 'N-1', 'name': 'x', 'connectors': [{'designator': 'J1', 'pins': [{'number': '1'}, {'number': '1'}]}]},
+                     {'number': 'N-2', 'name': 'x', 'connectors': [{'designator': 'J1', 'pins': [
+                         {'number': '1', 'set': 'A', 'set_type': 'Twisted'}, {'number': '2', 'set': 'A', 'set_type': 'Shielded'}]}]},
+                     {'name': 'no number'}, ['not', 'a', 'device']):
+            self.client.post(reverse('devices:import'), {'file': self.file(data)})
+        self.assertEqual(Device.objects.count(), before)
+        self.assertContains(self.client.get(reverse('devices:format')), 'set_type')
