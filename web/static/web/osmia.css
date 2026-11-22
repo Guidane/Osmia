@@ -358,6 +358,9 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing .pd-splice.lit polygon { fill: #fde047; stroke: #b45309; stroke-width: 2; }
 .pinout-drawing .pd-splice.chosen polygon { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-splice.chosen .pd-num { fill: #fff; }
+.pinout-drawing .pd-splice-line { fill: none; stroke: var(--text); stroke-width: 1.6; stroke-dasharray: 1 4; stroke-linecap: round; }
+.pinout-drawing.picking .pd-splice-line:not(.lit) { opacity: .25; }
+.pinout-drawing.picking .pd-splice-line.lit { stroke: #b45309; stroke-width: 2.4; }
 .pinout-drawing .pd-splice-tag rect { fill: var(--panel); stroke: var(--text); stroke-dasharray: 2 2; }
 .pinout-drawing .pd-pin.wired.chosen circle, .pinout-drawing .pd-contact.wired.chosen circle { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-pin.wired.chosen .pd-num, .pinout-drawing .pd-contact.wired.chosen .pd-num { fill: #fff; }
