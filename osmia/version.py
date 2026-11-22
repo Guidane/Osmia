@@ -1,4 +1,4 @@
 """Which Osmia this is. Raise VERSION with each change people install (the update page shows it)."""
-VERSION = '5.20.1'
+VERSION = '5.21.0'
 
 RESTART = 3   # a server exiting with this is started again by serve.py (after an update)
