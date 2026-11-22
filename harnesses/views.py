@@ -121,22 +121,68 @@ def harness(request, pk):
         response['Content-Disposition'] = f'attachment; filename="{item.number} {_safe(item.name)}.json"'
         return response
     wires = item.ordered_wires()
-    groups = []
-    for w in wires:
-        between = f'{w.from_end.designator} → {w.to_end.designator}'
-        if not groups or groups[-1][0] != between:
-            groups.append((between, []))
-        groups[-1][1].append(w)
     found = item.problems()
     from inventory import picker
     return render(request, 'harnesses/harness.html', {'drawing': _drawing(item, wires), 'family_picker': picker.dialog(),
-        'wire_groups': _groups(item, wires),
-        'harness': item, 'ends': item.ends.select_related('definition', 'family', 'branch'), 'groups': groups, 'wire_count': len(wires),
-        'items': item.items.select_related('definition'), 'definitions': item.parts_list(),
+        'harness': item, 'wire_rows': _wire_rows(wires), 'bom': _bom(item), 'wire_count': len(wires),
         'problems': [text for _, text in found], 'bad_wires': {thing.pk for thing, _ in found if isinstance(thing, Wire)},
         'versions': item.versions.select_related('created_by'), 'changed': versions.changed(item),
         'units': item.records.all(), 'locations': Location.ordered(), 'next_serial': next_tag(item.number),
         'definition_numbers': choices_of_definitions()})
+
+
+def _contact(end, pin, signal=''):
+    """A wire's end in words: "P1 pin 3 (+24 V)"; with no pin: "P1, not connected"."""
+    if not pin:
+        return f'{end.designator}, not connected'
+    return f'{end.designator} pin {pin}' + (f' ({signal})' if signal else '')
+
+
+def _wire_rows(wires):
+    """Each wire with what it connects in words, and what else is on the same contacts (a splice)."""
+    on = {}
+    for w in wires:
+        for end, pin in ((w.from_end, w.from_pin), (w.to_end, w.to_pin)):
+            if pin:
+                on.setdefault((end.pk, pin.lower()), []).append(w)
+    out = []
+    for n, w in enumerate(wires, 1):
+        also = []
+        for end, pin in ((w.from_end, w.from_pin), (w.to_end, w.to_pin)):
+            others = [o for o in on.get((end.pk, pin.lower()), []) if o is not w] if pin else []
+            for o in others:
+                far = (o.to_end, o.to_pin) if (o.from_end_id, o.from_pin.lower()) == (end.pk, pin.lower()) else (o.from_end, o.from_pin)
+                also.append(f'{end.designator} pin {pin} also goes to {_contact(*far)}')
+        out.append({'n': n, 'w': w, 'from': _contact(w.from_end, w.from_pin, w.signal),
+                    'to': _contact(w.to_end, w.to_pin, w.to_signal or w.signal), 'also': also})
+    return out
+
+
+def _bom(harness):
+    """The bill of materials: each item definition (or family) it takes, how many, and what for; and what has none yet."""
+    data = harness.snapshot()
+    wanted = [(e['definition'], e['designator']) for e in data['ends'] if e.get('definition')]
+    wanted += [(w['definition'], 'Wire') for w in data['wires'] if w.get('definition')]
+    wanted += [(i['definition'], i['note'] or 'Other item') for i in data['items']]
+    kinds = dict(HarnessMark.Kind.choices)
+    wanted += [(m['definition'], kinds.get(m['kind'], m['kind'])) for m in (data.get('bundle') or {}).get('marks', []) if m.get('definition')]
+    found = {n.lower(): definition_or_family(n) for n in {n for n, _ in wanted}}
+    uses = {}
+    for number, use in wanted:
+        d = found.get(number.lower())
+        if d is not None:
+            uses.setdefault(d, {})
+            uses[d][use] = uses[d].get(use, 0) + 1
+    rows = []
+    for d, quantity in harness.parts_list():
+        used = uses.get(d, {})
+        rows.append({'what': d, 'quantity': quantity, 'for': ', '.join(u if k == 1 else f'{u} ×{k}' for u, k in used.items())})
+    missing = [e['designator'] for e in data['ends'] if not e.get('definition')]
+    bare = sum(1 for w in data['wires'] if not w.get('definition'))
+    if bare:
+        missing.append(f'{bare} wire{"" if bare == 1 else "s"}')
+    missing += sorted({number for number, _ in wanted if found.get(number.lower()) is None})
+    return {'rows': rows, 'missing': missing}
 
 
 def _splices(wires):

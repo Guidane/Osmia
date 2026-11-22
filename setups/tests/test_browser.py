@@ -165,4 +165,4 @@ class DiagramTests(BrowserTestCase):
             page.locator('#pinout-drawing .pd-pin[data-pin="6"]').nth(1).click()
         self.assertEqual(harness.wires.filter(from_pin='4').count(), 2)
         page.click('#set-chips [data-mode=view]')                                         # back: the page again, its table too
-        expect(page.locator('table.list', has_text='Signal')).to_contain_text(made.wire_set)
+        expect(page.locator('table.wire-list')).to_contain_text(made.wire_set)

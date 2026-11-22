@@ -21,10 +21,7 @@
     <a href="#pinout" data-section="pinout"><span>Pinout</span><span class="muted small">{{ wire_count }}</span></a>
     <a href="#bundle" data-section="bundle"><span>Bundle</span><span class="muted small">{{ drawing.bundle.marks|length }}</span></a>
     <a href="#wires" data-section="wires"><span>Wire list</span><span class="muted small">{{ wire_count }}</span></a>
-    <a href="#groups" data-section="groups"><span>Groups</span><span class="muted small">{{ wire_groups|length }}</span></a>
-    <a href="#connectors" data-section="connectors"><span>Connectors</span><span class="muted small">{{ ends|length }}</span></a>
-    <a href="#items" data-section="items"><span>Other items</span><span class="muted small">{{ items|length }}</span></a>
-    <a href="#definitions" data-section="definitions"><span>Parts list</span><span class="muted small">{{ definitions|length }}</span></a>
+    <a href="#bom" data-section="bom"><span>BOM</span><span class="muted small">{{ bom.rows|length }}</span></a>
     <a href="#versions" data-section="versions"><span>Versions</span><span class="muted small">{{ versions|length }}</span></a>
     <a href="#built" data-section="built"><span>Built</span><span class="muted small">{{ units|length }}</span></a>
   </nav>
@@ -48,61 +45,30 @@
     <div data-panel="wires" hidden>
       <section class="card flush">
         <div class="card-head"><h3>Wire list <span class="muted small">{{ wire_count }}</span></h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:pinout' harness.pk %}">Change</a></div>
-        <div style="overflow-x:auto"><table class="list">
-          <tr><th>From</th><th>Pin</th><th>To</th><th>Pin</th><th>Signal</th><th>Group</th><th>Set</th><th>Set type</th><th>Colour</th><th>Gauge</th><th class="num">Length</th><th>Wire</th></tr>
-          {% for between, wires in groups %}<tr class="group-row"><th colspan="12">{{ between }}</th></tr>
-            {% for w in wires %}<tr{% if w.pk in bad_wires %} class="bad"{% endif %}{% if w.used %} data-brief-url="{{ w.used|brief_url }}"{% endif %}>
-              <td>{{ w.from_end }}</td><td>{{ w.from_pin }}</td><td>{{ w.to_end }}</td><td>{{ w.to_pin }}</td><td>{{ w.signal }}</td><td class="small">{{ w.wire_group }}</td>
-              <td>{{ w.wire_set }}</td><td class="small">{{ w.set_type }}</td><td>{% if w.colour %}<span class="wire-colour" data-colour="{{ w.colour }}"></span>{{ w.colour }}{% endif %}</td>
-              <td class="small">{{ w.gauge }}</td><td class="num">{{ w.length|qty }}</td><td class="small">{{ w.used|link|default:"" }}</td></tr>{% endfor %}
-          {% empty %}<tr><td colspan="12" class="empty small">No wires yet.</td></tr>{% endfor %}
+        <div style="overflow-x:auto"><table class="list wire-list">
+          <tr><th class="num">#</th><th>Connects</th><th>Set</th><th>Colour</th><th>Gauge</th><th class="num">Length</th><th>Wire</th></tr>
+          {% for r in wire_rows %}<tr{% if r.w.pk in bad_wires %} class="bad"{% endif %}{% if r.w.used %} data-brief-url="{{ r.w.used|brief_url }}"{% endif %}>
+            <td class="num muted">{{ r.n }}</td>
+            <td><b>{{ r.from }}</b> → <b>{{ r.to }}</b>{% for a in r.also %}<div class="small muted">{{ a }}</div>{% endfor %}</td>
+            <td class="small">{{ r.w.wire_set }}{% if r.w.set_type %} <span class="muted">{{ r.w.set_type }}</span>{% endif %}{% if r.w.wire_group %}<div class="muted">{{ r.w.wire_group }}</div>{% endif %}</td>
+            <td>{% if r.w.colour %}<span class="wire-colour" data-colour="{{ r.w.colour }}"></span>{{ r.w.colour }}{% endif %}</td>
+            <td class="small">{{ r.w.gauge }}</td><td class="num">{{ r.w.length|qty }}</td><td class="small">{{ r.w.used|link|default:"" }}</td></tr>
+          {% empty %}<tr><td colspan="7" class="empty small">No wires yet.</td></tr>{% endfor %}
         </table></div>
       </section>
     </div>
 
-    <div data-panel="groups" hidden>
+    <div data-panel="bom" hidden>
       <section class="card flush">
-        <div class="card-head"><h3>Groups</h3></div>
-        <form method="post" action="{% url 'harnesses:groups' harness.pk %}">{% csrf_token %}
-        <table class="list">
-          <tr><th>Group</th><th class="num">Total length (mm)</th><th class="num">Bundled together (mm)</th><th>Bundle ends</th></tr>
-          {% for g in wire_groups %}<tr><td><b>{{ g.name }}</b></td>
-            <td class="num"><input type="text" name="length_{{ forloop.counter0 }}" value="{{ g.length|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="Total length of {{ g.name }}"></td>
-            <td class="num"><input type="text" name="bundled_{{ forloop.counter0 }}" value="{{ g.bundled|qty|default:'' }}" inputmode="decimal" class="qty" aria-label="Bundled length of {{ g.name }}"></td>
-            <td class="small muted">{% if g.breakout %}at {{ g.breakout }}{% endif %}</td></tr>
-          {% empty %}<tr><td colspan="4" class="empty small">None.</td></tr>{% endfor %}
-        </table>
-        {% if wire_groups %}<div class="actions pad"><button class="btn primary">Save</button></div>{% endif %}
-        </form>
-      </section>
-    </div>
-
-    <div data-panel="connectors" hidden>
-      <section class="card flush">
-        <div class="card-head"><h3>Connectors</h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:ends' harness.pk %}">Change</a></div>
-        <table class="list">
-          <tr><th>Connector</th><th>Item definition or family</th></tr>
-          {% for e in ends %}<tr{% if e.used %} data-brief-url="{{ e.used|brief_url }}"{% endif %}><td><b>{{ e.designator }}</b></td><td class="small">{% if e.used %}<a href="{{ e.used.get_absolute_url }}">{{ e.used }}</a>{% endif %}</td></tr>
-          {% empty %}<tr><td colspan="2" class="empty small">No connectors yet.</td></tr>{% endfor %}
-        </table>
-      </section>
-    </div>
-
-    <div data-panel="items" hidden>
-      <section class="card flush">
-        <div class="card-head"><h3>Other items</h3><span class="spacer"></span><a class="btn small" href="{% url 'harnesses:items' harness.pk %}">Change</a></div>
-        <table class="list">{% for i in items %}<tr data-brief-url="{{ i.used|brief_url }}"><td><a href="{{ i.used.get_absolute_url }}">{{ i.used }}</a> <span class="muted small">{{ i.note }}</span></td><td class="num">{{ i.quantity|qty }} {{ i.used.unit }}</td></tr>
-          {% empty %}<tr><td class="empty small">None.</td></tr>{% endfor %}</table>
-      </section>
-    </div>
-
-    <div data-panel="definitions" hidden>
-      <section class="card flush">
-        <div class="card-head"><h3>Parts list</h3><span class="muted small">for one</span></div>
-        <table class="list"><tr><th>Item definition</th><th class="num">Needed</th><th class="num">On hand</th></tr>
-          {% for p, q in definitions %}<tr data-brief-url="{{ p|brief_url }}"><td><a href="{{ p.get_absolute_url }}">{{ p.number }}</a> <span class="muted small">{{ p.description }}</span></td>
-            <td class="num">{{ q|qty }} {{ p.unit }}</td><td class="num{% if p.on_hand < q %} low{% endif %}">{{ p.on_hand|qty }}</td></tr>
-          {% empty %}<tr><td colspan="3" class="empty small">Give the connectors, wires and items their item definitions to see what it takes.</td></tr>{% endfor %}</table>
+        <div class="card-head"><h3>Bill of materials</h3><span class="muted small">for one</span></div>
+        <div style="overflow-x:auto"><table class="list">
+          <tr><th>Item definition</th><th>Description</th><th class="num">Quantity</th><th>For</th><th class="num">On hand</th></tr>
+          {% for b in bom.rows %}<tr data-brief-url="{{ b.what|brief_url }}"><td><a href="{{ b.what.get_absolute_url }}">{{ b.what.number|default:b.what }}</a></td>
+            <td class="small">{{ b.what.description }}</td><td class="num">{{ b.quantity|qty }} {{ b.what.unit }}</td><td class="small">{{ b.for }}</td>
+            <td class="num{% if b.what.on_hand < b.quantity %} low{% endif %}">{{ b.what.on_hand|qty }}</td></tr>
+          {% empty %}<tr><td colspan="5" class="empty small">Nothing yet.</td></tr>{% endfor %}
+          {% if bom.missing %}<tr class="bad"><td colspan="5" class="small">No item definition: {{ bom.missing|join:", " }}</td></tr>{% endif %}
+        </table></div>
       </section>
     </div>
 
