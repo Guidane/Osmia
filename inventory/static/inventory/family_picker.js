@@ -2,7 +2,8 @@
    (and of those under it) with their face (the pin side; a socket gender's mirrored), found by name.
    FamilyPicker.open(current, onPick): opened on the branch of ``current``; picking a family (any gender) or one of its
    genders calls onPick with its name ("D-sub 9", "D-sub 9 / socket").
-   On a form, a hidden [data-family-value] with its [data-family-open] button and [data-family-clear] is filled in. */
+   On a form, a hidden [data-family-value] with its [data-family-open] button and [data-family-clear] is filled in.
+   The tree folds: it opens on the way down to the family picked. */
 (function () {
   'use strict';
   if (window.FamilyPicker) return;
@@ -62,16 +63,48 @@
     if (!cards.children.length) cards.innerHTML = '<p class="muted small pad">No families here.</p>';
     treeNav.querySelectorAll('button').forEach(function (b, i) { b.classList.toggle('on', i === 0 ? !branch : data.tree[i - 1] === branch); });
   }
-  function treeButton(label, node, depth) {   // a branch on the left: its families (and those of the branches under it)
+  // the tree folds: a branch with branches under it has a ▸ / ▾; it opens on the way down to the family picked
+  var opened = {}, buttons = [];
+  function above(node) {   // the branches it is under
+    return data.tree.filter(function (n) { return n !== node && n.below.indexOf(node.id) !== -1; });
+  }
+  function fold() {
+    buttons.forEach(function (b) {
+      if (!b.node) return;
+      b.hidden = above(b.node).some(function (n) { return !opened[n.id]; });
+      if (b.twist) b.twist.textContent = opened[b.node.id] ? '▾' : '▸';
+    });
+  }
+  function treeButton(label, node, depth, parent) {   // a branch on the left: its families (and those of the branches under it)
     var b = document.createElement('button');
     b.type = 'button';
-    b.textContent = label;
+    b.node = node;
     b.style.paddingLeft = (0.5 + depth) + 'em';
-    b.addEventListener('click', function () { branch = node; show(); });
+    if (node && parent) {
+      b.twist = document.createElement('span');
+      b.twist.className = 'tree-twist';
+      b.twist.setAttribute('role', 'button');
+      b.twist.addEventListener('click', function (e) { e.stopPropagation(); opened[node.id] = !opened[node.id]; fold(); });
+      b.appendChild(b.twist);
+    } else if (node) {
+      b.appendChild(document.createElement('span')).className = 'tree-twist';
+    }
+    b.appendChild(document.createTextNode(label));
+    b.addEventListener('click', function () {
+      branch = node;
+      if (node && parent) opened[node.id] = true;   // picked: what is under it shows too
+      fold();
+      show();
+    });
     treeNav.appendChild(b);
+    buttons.push(b);
   }
   treeButton('All families', null, 0);
-  data.tree.forEach(function (node) { treeButton(node.name, node, node.depth + 1); });
+  data.tree.forEach(function (node, i) {
+    var next = data.tree[i + 1];
+    treeButton(node.name, node, node.depth + 1, !!(next && next.depth > node.depth));
+  });
+  fold();
   treeNav.hidden = !data.tree.length;
   search.addEventListener('input', show);
   dialog.querySelector('[data-family-close]').addEventListener('click', function () { dialog.close(); });
@@ -82,6 +115,9 @@
       picked = onPick;
       var f = families.filter(mine)[0];
       branch = f && f.branch ? data.tree.filter(function (n) { return n.id === f.branch; })[0] || null : null;
+      opened = {};
+      if (branch) above(branch).concat([branch]).forEach(function (n) { opened[n.id] = true; });
+      fold();
       search.value = '';
       show();
       dialog.showModal();

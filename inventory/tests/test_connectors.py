@@ -140,3 +140,43 @@ class ConnectorTests(Base):
         self.assertContains(brief, 'data-face')
         self.assertContains(self.client.get(url, {'new': 'family', 'group': m12.pk}), 'New connector family')   # a form of its own
         self.assertEqual([f.name for f in self.client.get(url, {'q': 'header'}).context['families']], ['Header 3'])
+
+
+class FamilyFileTests(Base):
+    """Connector families taken from one Osmia to another as a file: exported (all, or a branch's), imported (new ones
+    added, those there kept, or replaced when asked)."""
+    def test_exported_and_imported(self):
+        import json
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from inventory.faces import standard_families
+        from inventory.models import Branch, Family, FamilyBranch
+        standard_families()
+        circular = FamilyBranch.objects.get(name='Circular', parent=None)
+        response = self.client.get(reverse('inventory:families_export'), {'group': circular.pk})
+        self.assertIn('attachment', response['Content-Disposition'])
+        data = json.loads(response.content)
+        names = {f['name'] for f in data['families']}
+        self.assertIn('DIN 5', names)
+        self.assertNotIn('D-sub 9', names)                                       # just that branch's
+        din = next(f for f in data['families'] if f['name'] == 'DIN 5')
+        self.assertEqual(din['branch'][0], 'Circular')
+        Family.objects.filter(name__in=names).delete()
+        Family.objects.filter(name='D-sub 9').update(face={})
+        upload = lambda d: SimpleUploadedFile('families.json', json.dumps(d).encode('utf-8'), content_type='application/json')
+        response = self.client.post(reverse('inventory:families_import'), {'file': upload(data)}, follow=True)
+        self.assertContains(response, f'{len(names)} families added')
+        made = Family.objects.get(name='DIN 5')
+        self.assertEqual((made.group.name, made.group.parent, made.face['contacts'] != []), ('DIN', circular, True))
+        self.assertEqual(set(made.branches.values_list('contacts', flat=True)), {'pin', 'socket'})
+        response = self.client.post(reverse('inventory:families_import'), {'file': upload(data)}, follow=True)
+        self.assertContains(response, 'kept as they were')                          # again: nothing twice
+        self.assertEqual(Branch.objects.filter(family=made).count(), 2)
+        every = json.loads(self.client.get(reverse('inventory:families_export')).content)
+        dsub9 = next(f for f in every['families'] if f['name'] == 'D-sub 9')
+        dsub9['face'] = data['families'][0]['face']
+        self.client.post(reverse('inventory:families_import'), {'file': upload({**every, 'families': [dsub9]}), 'replace': '1'})
+        self.assertTrue(Family.objects.get(name='D-sub 9').face['contacts'])        # replaced, as asked
+        response = self.client.post(reverse('inventory:families_import'), {'file': upload({'nope': 1})}, follow=True)
+        self.assertContains(response, 'not a file of connector families')

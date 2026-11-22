@@ -330,6 +330,43 @@ def standard_categories(request):
 
 
 @login_required
+def families_export(request):
+    """The connector families (?group=: those of that branch and under it) as a file to take into another Osmia."""
+    from .faces import export_families
+    group = FamilyBranch.objects.filter(pk=request.GET.get('group') or 0).first()
+    response = JsonResponse(export_families(group), json_dumps_params={'indent': 1, 'ensure_ascii': False})
+    name = f'connector families{" " + group.name if group else ""}.json'
+    response['Content-Disposition'] = f'attachment; filename="{name}"'
+    return response
+
+
+@login_required
+@require_POST
+def families_import(request):
+    """The families of a file (from ⬇ Export, of this Osmia or another) taken in: new ones added; one there already
+    kept, unless the file's should take its place (``replace``)."""
+    from .faces import import_families
+    sent = request.FILES.get('file')
+    try:
+        if sent is None:
+            raise ValidationError('Pick a file of connector families.')
+        try:
+            data = json.loads(sent.read().decode('utf-8-sig'))
+        except (ValueError, UnicodeDecodeError):
+            raise ValidationError('That is not a file of connector families.')
+        made, replaced, kept = import_families(data, replace=bool(request.POST.get('replace')))
+        said = [f'{made} famil{"y" if made == 1 else "ies"} added']
+        if replaced:
+            said.append(f'{replaced} replaced')
+        if kept:
+            said.append(f'{kept} already there kept as {"it was" if kept == 1 else "they were"}')
+        messages.success(request, ', '.join(said) + '.')
+    except ValidationError as exc:
+        errors(request, exc)
+    return redirect('inventory:families')
+
+
+@login_required
 @require_POST
 def standard_families(request):
     """The connectors made often (D-sub, D-sub HD, Gecko) as families, those not there yet."""

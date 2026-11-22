@@ -237,6 +237,7 @@ dialog.finder::backdrop { background: rgba(0, 0, 0, .35); }
 .finder-tree button { text-align: left; background: none; border: 0; color: var(--text); font: inherit; padding: 3px 6px; border-radius: var(--radius); cursor: pointer; }
 .finder-tree button:hover { background: var(--hover); }
 .finder-tree button.on { background: var(--select); font-weight: 600; }
+.finder-tree button[hidden] { display: none; }
 .finder-results { flex: 1; overflow: auto; }
 tr.pick { cursor: pointer; }
 tr.pick:hover, tr.pick:focus { background: var(--hover); outline: none; }

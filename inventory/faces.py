@@ -258,6 +258,77 @@ def standard_families():
     return made
 
 
+FILE_KIND = 'osmia connector families'   # what a file of families says it is
+
+
+def export_families(group=None):
+    """The connector families (those in ``group`` and the branches under it, else all) as a file's data: each with the
+    path of its branch, its face and its genders. ``import_families`` takes it in (on another Osmia too)."""
+    from .models import Family, FamilyBranch
+
+    def path(node):
+        return [n.name for n in node.chain()] if node else []
+    found = Family.objects.select_related('group').prefetch_related('branches').order_by('name')
+    branches = FamilyBranch.ordered()
+    if group is not None:
+        below = set(group.below())
+        found = found.filter(group_id__in=below)
+        branches = [(b, d) for b, d in branches if b.pk in below]
+    return {'kind': FILE_KIND, 'version': 1,
+            'branches': [path(b) for b, _ in branches],
+            'families': [{'name': f.name, 'branch': path(f.group), 'face': f.face or {},
+                          'genders': [{'name': g.name, 'contacts': g.contacts} for g in f.branches.all()]} for f in found]}
+
+
+def import_families(data, replace=False):
+    """The families of a file (``export_families``'s data) taken in: its branches made where missing; a family not there
+    yet (by name, any case) made with its face and genders; one there already kept as it is (``replace``: given the
+    file's branch and face, and the genders it lacks). Returns (made, replaced, kept); refused when it is no such file."""
+    from django.core.exceptions import ValidationError
+    from django.db import transaction
+
+    from .models import Branch, Family
+    if not isinstance(data, dict) or data.get('kind') != FILE_KIND or not isinstance(data.get('families'), list):
+        raise ValidationError('That is not a file of connector families.')
+
+    def branch(path):
+        names = [str(n).strip()[:100] for n in (path or []) if str(n).strip()]
+        return _branch(' › '.join(names)) if names else None
+
+    def face(value):
+        if not isinstance(value, dict) or not value:
+            return {}
+        contacts = value.get('contacts')
+        if not isinstance(contacts, list) or not all(isinstance(c, list) and len(c) == 3 for c in contacts):
+            raise ValidationError('A face in the file is not one Osmia can draw.')
+        return value
+    made = replaced = kept = 0
+    with transaction.atomic():
+        for path in data.get('branches') or []:
+            branch(path)
+        for f in data['families']:
+            name = str((f or {}).get('name') or '').strip()[:100]
+            if not name:
+                continue
+            family = Family.objects.filter(name__iexact=name).first()
+            if family is not None and not replace:
+                kept += 1
+                continue
+            if family is None:
+                family = Family.objects.create(name=name, group=branch(f.get('branch')), face=face(f.get('face')))
+                made += 1
+            else:
+                family.group, family.face = branch(f.get('branch')) or family.group, face(f.get('face')) or family.face
+                family.save(update_fields=['group', 'face'])
+                replaced += 1
+            for g in f.get('genders') or []:
+                gender = str(g.get('name') or '').strip()[:100]
+                if gender and not family.branches.filter(name__iexact=gender).exists():
+                    contacts = g.get('contacts') if g.get('contacts') in ('pin', 'socket') else ''
+                    Branch.objects.create(family=family, name=gender, contacts=contacts)
+    return made, replaced, kept
+
+
 def preset_choices():
     """For the editor's list: [(group, [(key, label)])]."""
     groups = {}

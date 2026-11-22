@@ -4,6 +4,10 @@
 {% block content %}
 <div class="page-head"><h1>Connector families</h1><span class="spacer"></span>
   <form method="post" action="{% url 'inventory:families_standard' %}">{% csrf_token %}<button class="btn">＋ Standard connectors</button></form>
+  <a class="btn" href="{% url 'inventory:families_export' %}{% if group %}?group={{ group.pk }}{% endif %}">⬇ Export</a>
+  <form method="post" action="{% url 'inventory:families_import' %}" enctype="multipart/form-data" class="inline-form" data-families-import>{% csrf_token %}
+    <label class="btn">⬆ Import<input type="file" name="file" accept=".json,application/json" hidden data-import-file></label>
+    <label class="small"><input type="checkbox" name="replace" value="1"> replace those already there</label></form>
   {% if group %}<a class="btn" href="?branch={{ group.pk }}">Change {{ group.name }}</a>{% endif %}
   <a class="btn" href="?new=branch{% if group %}&amp;group={{ group.pk }}{% endif %}">＋ Branch</a>
   <a class="btn primary" href="?new=family{% if group %}&amp;group={{ group.pk }}{% endif %}">＋ New family</a></div>
@@ -38,6 +42,10 @@
 </div>
 {% endblock %}
 {% block scripts %}<script src="{% fresh 'harnesses/pinout.js' %}"></script><script>
+  /* Import: the file picked is sent straight away. */
+  document.querySelectorAll('[data-import-file]').forEach(function (input) {
+    input.addEventListener('change', function () { if (input.files.length) input.form.submit(); });
+  });
   /* The connector of the family picked, drawn in its details. */
   document.addEventListener('brief', function (e) {
     var data = e.detail.querySelector('script[data-face]'), svg = e.detail.querySelector('svg[data-face]');
