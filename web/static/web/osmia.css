@@ -636,23 +636,24 @@ tr.muted > td > a { color: var(--muted); }
 .bundle-view .bd-trunk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
 .bundle-view .bd-said { color: var(--muted); }
 .bundle-lines { display: block; }
-.bundle-lines .bd-tag { cursor: pointer; }
+.bundle-lines.editing .bd-tag { cursor: pointer; }
 .bundle-lines .bd-tag rect { fill: var(--panel); stroke: #9ca3af; stroke-width: 1.5; }
-.bundle-lines .bd-tag:hover rect { stroke: var(--brand); }
+.bundle-lines.editing .bd-tag:hover rect { stroke: var(--brand); }
 .bundle-lines .bd-tag-unplaced rect { stroke-dasharray: 4 3; }
 .bundle-lines .bd-tag-name { font: 700 13px system-ui, sans-serif; fill: var(--text); }
 .bundle-lines .pd-bline-unknown .pd-bline-core { stroke: #d1d5db; stroke-dasharray: 10 6; }
-.bundle-drawing .bd-end { cursor: pointer; }
+.bundle-drawing.editing .bd-end { cursor: pointer; }
 .bundle-marks input[type=text]:not(.qty) { width: 140px; }
 .bundle-marks tr.new select, .bundle-marks tr.new input { opacity: .8; }
 
 /* The pinout drawing's bundle mode: the wires between two connectors one line, what is put along it on it */
 .pinout-draw { position: relative; }
 .bundle-lines .pd-bline-core { stroke: #6b7280; stroke-width: 10; stroke-linecap: butt; }
-.bundle-lines .pd-bline-hit { fill: transparent; cursor: crosshair; }
-.bundle-lines .pd-bline:hover .pd-bline-core { stroke: #4b5563; }
+.bundle-lines .pd-bline-hit { fill: transparent; }
+.bundle-lines.editing .pd-bline-hit { cursor: crosshair; }
+.bundle-lines.editing .pd-bline:hover .pd-bline-core { stroke: #4b5563; }
 .bundle-lines .pd-bline-length { font: 600 11px system-ui, sans-serif; fill: var(--muted); pointer-events: none; }
-.bundle-lines .pd-bmark { cursor: pointer; }
+.bundle-lines.editing .pd-bmark { cursor: pointer; }
 .bundle-lines .pd-bmark-band { stroke-width: 16; opacity: .6; pointer-events: none; }
 .bundle-lines .pd-bmark-sleeve .pd-bmark-band { stroke: #3b82f6; }
 .bundle-lines .pd-bmark-shrink .pd-bmark-band { stroke: #111827; }
@@ -662,7 +663,7 @@ tr.muted > td > a { color: var(--muted); }
 .bundle-lines .pd-bmark-dot { fill: var(--brand); }
 .bundle-lines .pd-bmark-box { fill: var(--panel); stroke: var(--border); }
 .bundle-lines .pd-bmark-text { font: 11px system-ui, sans-serif; fill: var(--text); }
-.bundle-lines .pd-bmark:hover .pd-bmark-box { stroke: var(--brand); }
+.bundle-lines.editing .pd-bmark:hover .pd-bmark-box { stroke: var(--brand); }
 .pd-mark-pop { position: absolute; z-index: 5; width: 290px; padding: 10px; margin: 0; display: grid; gap: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 .pd-mark-pop .pd-pop-row { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 6px; font-size: 12px; }
 .pd-mark-pop .pd-pop-row[hidden] { display: none; }

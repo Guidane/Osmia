@@ -1,8 +1,8 @@
 /* A harness's Bundle tab. On top its bundle as lines: each pair of connectors (a name tag each) one line, as long as the
    way between them along the bundle (down one's branch, along the trunk, up the other's), with what is put along it
    there: cable ties, sleeves and shrink (from where to where), where a shield is stripped back, splices and labels.
-   Clicking a line puts one there (its place in mm from the left-hand connector); clicking one changes or removes it;
-   clicking a connector's tag gives where its branch leaves the trunk and how long it is. Under it the trunk drawn to
+   Edit mode: clicking a line puts one there (its place in mm from the left-hand connector); clicking one changes or
+   removes it; clicking a connector's tag gives where its branch leaves the trunk and how long it is. Under it the trunk drawn to
    scale along the page's width, each connector at the end of its branch, with the trunk's dimensions. */
 (function () {
   'use strict';
@@ -32,7 +32,7 @@
   function mount(root, data, opts) {
     var bar = root.querySelector('.set-chips'), svg = root.querySelector('svg.bundle-lines');
     var sketchRoot = root.querySelector('.bundle-draw'), sketchSvg = sketchRoot.querySelector('svg');
-    var state = { data: data, said: '' };
+    var state = { data: data, said: '', editing: false };
 
     function send(fields, said) {   // answered with the drawing as it is now (else what is wrong, in ``said``)
       var body = new FormData();
@@ -142,9 +142,31 @@
       (kind.value === 'tie' && from.value !== '' ? a.ok : from).focus();
     }
 
-    function toolbar() {   // the trunk's length; the wires' lengths set from the bundle
+    function modes() {   // View or Edit
+      if (!state.editing) html('span', { class: 'spacer' }, bar);
+      var seg = html('span', { class: 'segmented' }, bar);
+      [['View', false], ['Edit', true]].forEach(function (m) {
+        var b = html('button', { type: 'button', class: 'btn small' + (state.editing === m[1] ? ' on' : ''), 'data-mode': m[1] ? 'edit' : 'view' }, seg);
+        b.textContent = m[0];
+        b.addEventListener('click', function () {
+          if (state.editing === m[1]) return;
+          state.editing = m[1];
+          state.said = '';
+          render();
+        });
+      });
+    }
+
+    function toolbar() {   // the trunk's length; editing: it changed, the wires' lengths set from the bundle
       bar.textContent = '';
-      var d = state.data, lab = html('label', { class: 'bd-trunk' }, bar), sp = html('span', {}, lab);
+      var d = state.data;
+      if (!state.editing) {
+        var shown = html('span', { class: 'bd-trunk' }, bar);
+        shown.textContent = d.bundle.trunk ? 'Trunk ' + d.bundle.trunk + ' mm' : '';
+        modes();
+        return;
+      }
+      var lab = html('label', { class: 'bd-trunk' }, bar), sp = html('span', {}, lab);
       sp.textContent = 'Trunk';
       var trunk = input('trunk', d.bundle.trunk);
       trunk.setAttribute('aria-label', 'Trunk (mm)');
@@ -158,11 +180,13 @@
       var lengths = html('button', { type: 'button', class: 'btn small' }, bar);
       lengths.textContent = 'Set the wires\' lengths';
       lengths.addEventListener('click', function () { send({ action: 'lengths' }, said); });
+      modes();
     }
 
     function lines() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
-      var d = state.data, B = d.bundle, order = {}, byId = {};
+      svg.classList.toggle('editing', state.editing);
+      var d = state.data, B = d.bundle, order = {}, byId = {}, editing = state.editing;
       d.ends.forEach(function (e, i) { order[e.id] = i; byId[e.id] = e; });
       var pairs = {}, used = {}, shieldedOf = {};
       d.wires.forEach(function (w) {   // each pair of connectors (the one first in the harness on the left)
@@ -190,11 +214,11 @@
         var L = A.along !== null && Z.along !== null ? A.reach + Math.abs(Z.along - A.along) + Z.reach : null;
         var g = el('g', { class: 'pd-bline' + (L ? '' : ' pd-bline-unknown'), 'data-between': line.a.designator + '-' + line.b.designator }, layer);
         el('line', { x1: x0, y1: 0, x2: x1, y2: 0, class: 'pd-bline-core' }, g);
-        var hit = el('rect', { x: x0, y: -13, width: x1 - x0, height: 26, class: 'pd-bline-hit' }, g);
+        var hit = el('rect', { x: x0, y: -13, width: x1 - x0, height: 26, class: 'pd-bline-hit' }, g);   // (editing: clicked)
         el('title', {}, hit).textContent = line.a.designator + ' – ' + line.b.designator + ' · ' + line.wires + ' wire' +
           (line.wires === 1 ? '' : 's') + (L ? ' · ' + mm(L) + ' mm' : '');
         function px(v) { return x0 + (L ? v / L : 0) * (x1 - x0); }
-        hit.addEventListener('click', function (ev) {
+        if (editing) hit.addEventListener('click', function (ev) {
           if (!L) { placePop(placed(line.a) ? line.b : line.a, ev); return; }
           var pt = svg.createSVGPoint();
           pt.x = ev.clientX; pt.y = ev.clientY;
@@ -249,7 +273,7 @@
             var t = text(mg, xa, 0, words, 'pd-bmark-text');
             tags.push({ mg: mg, t: t, x: xa, w: width(t, words.length * 6.2) + 8 });
             el('title', {}, mg).textContent = m.label + (m.what ? ' · ' + m.what : '') + ' · ' + where + ' mm from ' + line.a.designator;
-            mg.addEventListener('click', function (ev) { markPop(m, line, d0, ev, d1); });
+            if (editing) mg.addEventListener('click', function (ev) { markPop(m, line, d0, ev, d1); });
           });
         }
         // each text above or below the line, the first row free of the ones before it (left to right), else further out
@@ -282,7 +306,7 @@
         text(g, xL + tagW / 2, (top + low) / 2 + 4, e.designator, 'bd-tag-name');
         el('title', {}, g).textContent = e.designator + (e.what ? ' · ' + e.what : '') +
           (placed(e) ? ' · breaks out at ' + mm(num(e.along)) + ' mm · branch ' + mm(num(e.reach) || 0) + ' mm' : '');
-        g.addEventListener('click', function (ev) { placePop(e, ev); });
+        if (editing) g.addEventListener('click', function (ev) { placePop(e, ev); });
       }
       ['a', 'b'].forEach(function (sd) {
         var xL = sd === 'a' ? 12 : W - 12 - tagW;
@@ -306,6 +330,7 @@
 
     function sketch() {   // the trunk to scale, the branches (their lengths written on them), the trunk's dimensions
       while (sketchSvg.firstChild) sketchSvg.removeChild(sketchSvg.firstChild);
+      sketchSvg.classList.toggle('editing', state.editing);
       var d = state.data, trunk = num(d.bundle.trunk);
       var ends = d.ends.map(function (e) { return { e: e, along: num(e.along), reach: num(e.reach) || 0 }; })
         .filter(function (b) { return b.along !== null; });
@@ -359,7 +384,7 @@
         var g = el('g', { class: 'bd-end', 'data-end': b.e.designator }, labels);
         el('rect', { x: cx - BOXW / 2, y: cy - BOXH / 2, width: BOXW, height: BOXH }, g);
         text(g, cx, cy + 4, b.e.designator, 'bd-name');
-        g.addEventListener('click', function (ev) { placePop(b.e, ev); });
+        if (state.editing) g.addEventListener('click', function (ev) { placePop(b.e, ev); });
         if (b.reach > 0) {   // its branch's length, beside it
           var m = [(b.base[0] + b.tip[0]) / 2, (b.base[1] + b.tip[1]) / 2];
           if (b.dir[1]) text(labels, m[0] + 10, m[1] + 4, mm(b.reach), 'bd-dim-text', 'start');
