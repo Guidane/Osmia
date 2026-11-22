@@ -172,7 +172,7 @@
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       bar.textContent = '';
       var data = state.data, editing = state.editing;
-      ROW = editing ? 30 : 24;   // rows close together (editing: room for the boxes); the contacts staggered
+      ROW = editing ? 30 : 24;   // rows close together (editing: room for the boxes)
       svg.classList.toggle('editing', editing);
       var side = sides(data), faces = {}, widest = { left: 0, right: 0 }, byId = {}, index = {};
       data.ends.forEach(function (e, i) {
@@ -277,14 +277,13 @@
       }
 
       var x = {};
-      var STAG = 2 * C - 4;   // the contacts in two columns, every other one in the inner one (they overlap a little)
-      x.leftFace = 10; x.leftBar = 10 + widest.left + 30; x.leftNum = x.leftBar + 30; x.leftIn = x.leftNum + STAG;
-      x.left = x.leftIn + C;
+      x.leftFace = 10; x.leftBar = 10 + widest.left + 30; x.leftNum = x.leftBar + 34;
+      x.left = x.leftNum + C;
       // the middle takes all the width there is (and no less than it needs)
-      var fixed = x.left + C + STAG + 16 + 46 + widest.right + 10, room = (svg.parentNode.clientWidth || 0) - 20;
+      var fixed = x.left + C + 20 + 46 + widest.right + 10, room = (svg.parentNode.clientWidth || 0) - 20;
       state.width = svg.parentNode.clientWidth;
       x.right = x.left + Math.max(editing ? 740 : 420, room - fixed);
-      x.rightIn = x.right + C; x.rightNum = x.rightIn + STAG; x.rightBar = x.rightNum + 16; x.rightFace = x.rightBar + 46;
+      x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
       var width = x.rightFace + widest.right + 10, mid = (x.left + x.right) / 2, TWIST = 25;   // half the twist's width
 
       var under = el('g', {}, svg), wiresG = el('g', {}, svg), over = el('g', {}, svg), areas = el('g', {}, svg), tools = el('g', {}, svg);
@@ -348,13 +347,11 @@
         state.from = again ? null : { end: end, pin: pin };
         if (!again) node.classList.add('chosen');
       }
-      var turn = { left: 0, right: 0 };   // on each side: every other contact in the inner column
-      function contact(at, left, y, named) {
-        var inner = turn[left ? 'left' : 'right']++ % 2 === 1;
-        var cx = left ? (inner ? x.leftIn : x.leftNum) : (inner ? x.rightIn : x.rightNum), g = el('g', { class: 'pd-contact' }, over);
+      function contact(at, left, y, named) {   // a square (a round one is a pin on a connector's face)
+        var cx = left ? x.leftNum : x.rightNum, g = el('g', { class: 'pd-contact' }, over);
         el('title', {}, g).textContent = byId[at.end].designator + ':' + at.pin + (signal[at.end + ':' + at.pin] ? ' ' + signal[at.end + ':' + at.pin] : '');
         el('line', { x1: left ? x.leftBar + 12 : x.right, y1: y, x2: left ? x.left : x.rightBar, y2: y, class: 'pd-stub' }, under);
-        el('circle', { cx: cx, cy: y, r: C }, g);
+        el('rect', { x: cx - C, y: y - 10, width: 2 * C, height: 20, rx: 3 }, g);
         text(g, cx, y + 4.5, at.pin, 'pd-num');
         if (named) text(g, cx + C + 4, y + 4, byId[at.end].designator, 'pd-sub');
         remember(at.end + ':' + at.pin, g);
@@ -431,7 +428,7 @@
       var least = EL + ER + (editing ? 20 + 316 + 130 + 10 : 120);   // the middle wide enough for what is by the contacts
       if (x.right - x.left < least) {
         x.right = x.left + least;
-        x.rightIn = x.right + C; x.rightNum = x.rightIn + STAG; x.rightBar = x.rightNum + 16; x.rightFace = x.rightBar + 46;
+        x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
         width = x.rightFace + widest.right + 10; mid = (x.left + x.right) / 2;
       }
       Object.keys(spliceAt).forEach(function (k) {

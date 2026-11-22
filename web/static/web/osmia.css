@@ -294,7 +294,7 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-face { fill: var(--panel-2); stroke: var(--border-strong); stroke-width: 1.5; }
 .pinout-drawing .pd-pin circle { fill: var(--panel); stroke: var(--text); stroke-width: 1.2; }
 .pinout-drawing .pd-pin.empty { opacity: .35; }
-.pinout-drawing .pd-contact circle { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; }
+.pinout-drawing .pd-contact rect { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; }
 .pinout-drawing .pd-contact .pd-num { font-size: 13px; font-weight: 700; }
 .pinout-drawing .pd-bar { fill: var(--panel-2); stroke: var(--text); stroke-width: 1.5; }
 .pinout-drawing .pd-bar-label { font: 600 11px system-ui, sans-serif; fill: var(--text); text-anchor: middle; }
@@ -320,9 +320,9 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing.editing .pd-pin:hover circle { stroke: var(--brand); stroke-width: 2; }
 .pinout-drawing.editing .pd-contact { cursor: pointer; }
 .pinout-drawing:not(.editing) .pd-contact, .pinout-drawing:not(.editing) .pd-pin:not(.empty) { cursor: pointer; }
-.pinout-drawing:not(.editing) .pd-contact:hover circle, .pinout-drawing:not(.editing) .pd-pin:not(.empty):hover circle { stroke: var(--brand); stroke-width: 2; }
-.pinout-drawing.editing .pd-contact:hover circle { stroke: var(--brand); stroke-width: 2; }
-.pinout-drawing .pd-pin.chosen circle, .pinout-drawing .pd-contact.chosen circle { fill: var(--brand); stroke: var(--brand); }
+.pinout-drawing:not(.editing) .pd-contact:hover rect, .pinout-drawing:not(.editing) .pd-pin:not(.empty):hover circle { stroke: var(--brand); stroke-width: 2; }
+.pinout-drawing.editing .pd-contact:hover rect { stroke: var(--brand); stroke-width: 2; }
+.pinout-drawing .pd-pin.chosen circle, .pinout-drawing .pd-contact.chosen rect { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-pin.chosen .pd-num, .pinout-drawing .pd-contact.chosen .pd-num { fill: #fff; }
 .pinout-drawing .pd-tools { display: flex; gap: 4px; align-items: center; }
 .pinout-drawing .pd-tools select { font-size: 11px; padding: 1px 4px; height: 22px; min-width: 0; width: auto; }
@@ -349,10 +349,10 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing.picking .pd-wire:not(.lit) { opacity: .2; }
 .pinout-drawing.picking .pd-wire.lit .pd-wire-edge { stroke: #b45309; stroke-width: 7; opacity: .45; }
 .pinout-drawing.picking .pd-wire.lit .pd-wire-core { stroke-width: 3.5; }
-.pinout-drawing .pd-pin.wired circle, .pinout-drawing .pd-contact.wired circle { fill: var(--wire); }
+.pinout-drawing .pd-pin.wired circle, .pinout-drawing .pd-contact.wired rect { fill: var(--wire); }
 .pinout-drawing .pd-pin.wired .pd-num, .pinout-drawing .pd-contact.wired .pd-num { fill: var(--wire-text); }
 .pinout-drawing .pd-pin.lit .pd-num, .pinout-drawing .pd-contact.lit .pd-num { fill: #1f2937; }
-.pinout-drawing .pd-pin.lit circle, .pinout-drawing .pd-contact.lit circle { fill: #fde047; stroke: #b45309; stroke-width: 2; }
+.pinout-drawing .pd-pin.lit circle, .pinout-drawing .pd-contact.lit rect { fill: #fde047; stroke: #b45309; stroke-width: 2; }
 .pinout-drawing .pd-splice polygon { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; stroke-linejoin: round; }
 .pinout-drawing .pd-splice { cursor: pointer; }
 .pinout-drawing .pd-splice:hover polygon { stroke: var(--brand); stroke-width: 2; }
@@ -363,7 +363,7 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing.picking .pd-splice-line:not(.lit) { opacity: .25; }
 .pinout-drawing.picking .pd-splice-line.lit { stroke: #b45309; stroke-width: 2.4; }
 .pinout-drawing .pd-splice-tag rect { fill: var(--panel); stroke: var(--text); stroke-dasharray: 2 2; }
-.pinout-drawing .pd-pin.wired.chosen circle, .pinout-drawing .pd-contact.wired.chosen circle { fill: var(--brand); stroke: var(--brand); }
+.pinout-drawing .pd-pin.wired.chosen circle, .pinout-drawing .pd-contact.wired.chosen rect { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-pin.wired.chosen .pd-num, .pinout-drawing .pd-contact.wired.chosen .pd-num { fill: #fff; }
 .wire-colour { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border-strong); margin-right: 4px; vertical-align: middle; }
 .wire-colour[data-colour="black"] { background: #1f2937; } .wire-colour[data-colour="brown"] { background: #92400e; }
