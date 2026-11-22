@@ -52,9 +52,12 @@ def harness_list(request):
     status = request.GET.get('status', '')
     if status in Harness.Status.values:
         found = found.filter(status=status)
-    setup = Setup.objects.filter(pk=request.GET.get('setup') or 0).first()
-    work = Work.objects.filter(pk=request.GET.get('work') or 0).first() if not setup else None
-    if setup:
+    alone = request.GET.get('setup') == 'none'   # those in no setup
+    setup = None if alone else Setup.objects.filter(pk=request.GET.get('setup') or 0).first()
+    work = Work.objects.filter(pk=request.GET.get('work') or 0).first() if not (setup or alone) else None
+    if alone:
+        found = found.filter(setup__isnull=True)
+    elif setup:
         found = found.filter(setup=setup)
     elif work:
         found = found.filter(setup__in_project=work)
@@ -70,6 +73,7 @@ def harness_list(request):
     return render(request, 'harnesses/list.html', {
         'setups': setups, 'harnesses': found, 'setup': setup, 'work': work, 'tree': tree, 'q': q, 'status': status,
         'statuses': Harness.Status.choices, 'every': Harness.objects.count(), 'picked': picked,
+        'alone': alone, 'n_alone': counts.get(None, 0),
         'brief': _brief(picked) if picked else None})
 
 
@@ -142,7 +146,8 @@ def _safe(name):
 @login_required
 @require_POST
 def harness_import(request):
-    """A harness made from a file (``transfer.FORMAT``: from ⬇ JSON, by hand, by another program) in the setup picked."""
+    """A harness made from a file (``transfer.FORMAT``: from ⬇ JSON, by hand, by another program), in the setup
+    picked (or none)."""
     import json
 
     from .transfer import import_harness

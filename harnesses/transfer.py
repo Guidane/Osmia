@@ -16,7 +16,7 @@ KIND = 'osmia harness'   # what a file of a harness says it is
 FORMAT = """# Osmia harness file
 
 A harness for Osmia as one JSON file (UTF-8). Osmia takes it in on the harness list (⬆ Import), as a new harness
-in the setup picked there. ⬇ JSON on a harness's page gives a file of this kind to compare with.
+(in the setup picked there, if any). ⬇ JSON on a harness's page gives a file of this kind to compare with.
 
 ```json
 {
@@ -98,7 +98,7 @@ def export_harness(harness):
     """``harness`` as a file's data (``import_harness`` takes it in)."""
     data = harness.snapshot()
     sides = dict(harness.ends.values_list('designator', 'side'))
-    return {'kind': KIND, 'version': 1, 'number': harness.number, 'setup': harness.setup.name,
+    return {'kind': KIND, 'version': 1, 'number': harness.number, **({'setup': str(harness.setup)} if harness.setup else {}),
             'name': data['name'], 'description': data['description'], 'notes': data['notes'],
             'connectors': [{'designator': e['designator'], 'family': e['definition'],
                             **({'side': sides[e['designator']]} if sides.get(e['designator']) else {})} for e in data['ends']],
@@ -165,13 +165,11 @@ def _text(value, longest):
 
 
 def import_harness(data, setup):
-    """A harness made from a file's data (see ``FORMAT``) in ``setup``. Returns (harness, notes): notes say what was
+    """A harness made from a file's data (see ``FORMAT``) in ``setup`` (None: in no setup). Returns (harness, notes): notes say what was
     not taken in as it was (a family or item number this Osmia doesn't know, a colour it has not). Refused, with
     nothing made, when the file is not a harness or a wire can't be read."""
     if not isinstance(data, dict) or not isinstance(data.get('wires'), list) or (data.get('kind') not in (None, KIND)):
         raise ValidationError('That is not a harness file: it has no list of "wires".')
-    if setup is None:
-        raise ValidationError('Pick the setup the harness is for.')
     notes = []
     unknown = {}
 

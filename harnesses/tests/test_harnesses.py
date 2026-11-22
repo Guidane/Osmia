@@ -262,13 +262,26 @@ class TransferTests(HarnessBase):
         again, _ = __import__('harnesses.transfer', fromlist=['x']).import_harness(out, self.setup)
         self.assertEqual(again.snapshot()['wires'], made.snapshot()['wires'])
 
+    def test_a_harness_in_no_setup(self):
+        response = self.client.post(reverse('harnesses:import'), {'setup': '', 'file': self.file(
+            {'name': 'Loose', 'wires': [{'from': 'J1', 'from_pin': '1', 'to': 'J2', 'to_pin': '1'}]})}, follow=True)
+        loose = Harness.objects.get(name='Loose')
+        self.assertIsNone(loose.setup)
+        self.assertContains(response, 'Loose')                                   # its page
+        listed = self.client.get(reverse('harnesses:list'), {'setup': 'none'})
+        self.assertEqual(list(listed.context['harnesses']), [loose])
+        self.assertContains(self.client.get(reverse('harnesses:brief', args=[loose.pk])), 'Loose')
+        self.assertNotIn('setup', self.client.get(loose.get_absolute_url() + '?json=1').json())
+        self.client.post(reverse('harnesses:new'), {'name': 'Bare', 'status': 'draft'})
+        self.assertIsNone(Harness.objects.get(name='Bare').setup)
+
     def test_a_file_that_can_t_be_read_makes_nothing(self):
         before = Harness.objects.count()
         for data in ({'wires': [{'from': 'J1', 'from_pin': '1', 'to': 'J2'}]},   # no contact on one end
                      {'wires': [{'from': 'J1', 'from_pin': '1', 'to': 'J2', 'to_pin': '1', 'set': 'A', 'set_type': 'Coiled'}]},
                      {'something': 'else'}):
             self.client.post(reverse('harnesses:import'), {'setup': self.setup.pk, 'file': self.file(data)})
-        self.client.post(reverse('harnesses:import'), {'file': self.file({'wires': []})})   # no setup
+        self.client.post(reverse('harnesses:import'), {'file': self.file({'nothing': []})})
         self.assertEqual(Harness.objects.count(), before)
         self.assertContains(self.client.get(reverse('harnesses:format')), 'from_pin')
 

@@ -21,7 +21,8 @@ class Harness(models.Model):
         RELEASED = 'released', 'Released'
         OBSOLETE = 'obsolete', 'Obsolete'
 
-    setup = models.ForeignKey('setups.Setup', on_delete=models.PROTECT, related_name='harnesses', verbose_name='setup')
+    setup = models.ForeignKey('setups.Setup', on_delete=models.PROTECT, related_name='harnesses', verbose_name='setup',
+                              null=True, blank=True)   # (a harness on its own, in no setup, too)
     number = models.CharField(max_length=20, unique=True, editable=False)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)

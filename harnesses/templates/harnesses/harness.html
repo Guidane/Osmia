@@ -2,7 +2,7 @@
 {% block title %}{{ harness.number }} · Osmia{% endblock %}
 {% block content_class %}wide{% endblock %}
 {% block content %}
-<p class="small"><a href="{% url 'harnesses:list' %}?setup={{ harness.setup_id }}&amp;harness={{ harness.pk }}">← Harnesses</a></p>
+<p class="small"><a href="{% url 'harnesses:list' %}?setup={{ harness.setup_id|default:'none' }}&amp;harness={{ harness.pk }}">← Harnesses</a></p>
 <div class="page-head">
   <h1>{{ harness.number }}</h1><span class="muted">{{ harness.name }}</span>
   <span class="badge{% if harness.status == 'released' %} ok{% elif harness.status == 'obsolete' %} failed{% endif %}">{{ harness.get_status_display }}</span>
@@ -12,7 +12,7 @@
   <a class="btn" href="?json=1">⬇ JSON</a>
   <a class="btn" href="{% url 'harnesses:edit' harness.pk %}">Change</a>
 </div>
-<p class="small used-in">Used in setup <a href="{{ harness.setup.get_absolute_url }}">{{ harness.setup }}</a></p>
+{% if harness.setup %}<p class="small used-in">Used in setup {{ harness.setup|link }}</p>{% endif %}
 
 {% if problems %}<div class="flash warning"><b>To look at:</b><ul class="tight">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
 
@@ -135,7 +135,7 @@
       <p class="brief-what">{{ harness.name }}</p>
       {% preview harness %}
       <dl class="details">
-        <dt>Setup</dt><dd><a href="{{ harness.setup.get_absolute_url }}">{{ harness.setup }}</a></dd>
+        {% if harness.setup %}<dt>Setup</dt><dd>{{ harness.setup|link }}</dd>{% endif %}
         <dt>Status</dt><dd>{{ harness.get_status_display }}</dd>
         <dt>Version</dt><dd>{% if harness.version %}v{{ harness.version }}{% if changed %} + changes{% endif %}{% else %}not saved{% endif %}</dd>
         {% if harness.description %}<dt>Description</dt><dd>{{ harness.description|linebreaksbr }}</dd>{% endif %}

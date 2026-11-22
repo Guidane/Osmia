@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head"><h1>Harnesses</h1><span class="spacer"></span>
   <form method="post" action="{% url 'harnesses:import' %}" enctype="multipart/form-data" class="inline-form" data-harness-import>{% csrf_token %}
-    <select name="setup" aria-label="Setup" required><option value="">Setup…</option>{% for s in setups %}<option value="{{ s.pk }}"{% if setup.pk == s.pk %} selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    <select name="setup" aria-label="Setup"><option value="">No setup</option>{% for s in setups %}<option value="{{ s.pk }}"{% if setup.pk == s.pk %} selected{% endif %}>{{ s }}</option>{% endfor %}</select>
     <label class="btn">⬆ Import<input type="file" name="file" accept=".json,application/json" hidden data-import-file></label>
     <a class="btn ghost" href="{% url 'harnesses:format' %}">⬇ Format</a></form>
   <a class="btn primary" href="{% url 'harnesses:new' %}{% if setup %}?setup={{ setup.pk }}{% endif %}">＋ New harness</a></div>
@@ -12,6 +12,7 @@
 <div data-param="harness" class="browser harness-browser">
   <nav class="card browser-tree" aria-label="Setups">
     <a href="?{% if q %}q={{ q|urlencode }}{% endif %}"{% if not setup and not work %} class="on"{% endif %}><span>All harnesses</span><span class="muted small">{{ every }}</span></a>
+    {% if n_alone %}<a href="?setup=none{% if q %}&amp;q={{ q|urlencode }}{% endif %}"{% if alone %} class="on"{% endif %}><span>No setup</span><span class="muted small">{{ n_alone }}</span></a>{% endif %}
     {% for kind, thing, depth, n in tree %}{% if kind == 'work' %}
       <a href="?work={{ thing.pk }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" style="--depth: {{ depth }}" class="{% if work.pk == thing.pk %}on{% elif setup.in_project_id == thing.pk %}open{% endif %}"><span>📁 {{ thing.code|default:thing.name }}{% if thing.code %} <span class="muted">{{ thing.name }}</span>{% endif %}</span><span class="muted small">{{ n }}</span></a>
     {% else %}
@@ -21,7 +22,7 @@
 
   <div class="browser-middle">
     <form method="get" class="filters">
-      {% if setup %}<input type="hidden" name="setup" value="{{ setup.pk }}">{% elif work %}<input type="hidden" name="work" value="{{ work.pk }}">{% endif %}
+      {% if alone %}<input type="hidden" name="setup" value="none">{% elif setup %}<input type="hidden" name="setup" value="{{ setup.pk }}">{% elif work %}<input type="hidden" name="work" value="{{ work.pk }}">{% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Number, name…" aria-label="Search harnesses">
       <select name="status" aria-label="Status" onchange="this.form.submit()"><option value="">Every status</option>
         {% for value, label in statuses %}<option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
@@ -36,7 +37,7 @@
           <td class="num">{{ h.n_ends }}</td><td class="num">{{ h.n_wires }}</td>
           <td><span class="badge{% if h.status == 'released' %} ok{% elif h.status == 'obsolete' %} failed{% endif %}">{{ h.get_status_display }}</span></td>
           <td class="small">{% if h.version %}v{{ h.version }}{% else %}<span class="badge">Not saved</span>{% endif %}</td>
-        </tr>{% empty %}<tr><td colspan="7" class="empty small">{% if q or setup or work or status %}No harnesses match.{% else %}No harnesses yet.{% endif %}</td></tr>{% endfor %}
+        </tr>{% empty %}<tr><td colspan="7" class="empty small">{% if q or setup or alone or work or status %}No harnesses match.{% else %}No harnesses yet.{% endif %}</td></tr>{% endfor %}
       </table>
     </div>
   </div>
@@ -48,11 +49,8 @@
 </div>
 {% endblock %}
 {% block scripts %}<script>
-  /* Import: the file picked is sent straight away (once the setup it is for is picked). */
+  /* Import: the file picked is sent straight away. */
   document.querySelectorAll('[data-import-file]').forEach(function (input) {
-    input.addEventListener('click', function (e) {
-      if (!input.form.reportValidity()) e.preventDefault();
-    });
     input.addEventListener('change', function () { if (input.files.length) input.form.submit(); });
   });
 </script><script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}

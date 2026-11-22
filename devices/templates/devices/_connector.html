@@ -7,6 +7,6 @@
   <dl class="details">
     {% if connector.used %}<dt>Connector</dt><dd><a href="{{ connector.used.get_absolute_url }}">{{ connector.used }}</a></dd>{% endif %}
     <dt>Pins</dt><dd>{{ pins|length }}</dd>
-    {% if ends %}<dt>Plugged in</dt><dd>{% for e in ends %}<a href="{{ e.harness.get_absolute_url }}">{{ e.harness.number }} {{ e.designator }}</a> <span class="muted small">({{ e.harness.setup|link }})</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
+    {% if ends %}<dt>Plugged in</dt><dd>{% for e in ends %}<a href="{{ e.harness.get_absolute_url }}">{{ e.harness.number }} {{ e.designator }}</a> {% if e.harness.setup %}<span class="muted small">({{ e.harness.setup|link }})</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
   </dl>
 </div>
