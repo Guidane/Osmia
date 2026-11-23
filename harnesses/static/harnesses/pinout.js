@@ -168,6 +168,26 @@
       q.select();
     }
 
+    function barePicker(title, current, onPick) {   // a shielded set on one side: how much is out of the shield there
+      var dialog = document.querySelector('dialog.bare-pop');
+      if (!dialog) {
+        dialog = html('dialog', { class: 'finder bare-pop', 'aria-label': 'Unshielded' }, document.body);
+        dialog.innerHTML = '<div class="finder-head"><h3 data-bare-title></h3><input type="text" inputmode="decimal" data-bare-q aria-label="Unshielded (mm)">' +
+          '<span>mm</span><button type="button" class="btn small primary" data-bare-use>Use</button><button type="button" class="btn small" data-bare-clear>Clear</button>' +
+          '<span class="spacer"></span><button type="button" class="btn small ghost" data-bare-close title="Close">✕</button></div>';
+        dialog.querySelector('[data-bare-close]').addEventListener('click', function () { dialog.close(); });
+      }
+      var q = dialog.querySelector('[data-bare-q]');
+      function done(value) { dialog.close(); onPick(value); }
+      dialog.querySelector('[data-bare-title]').textContent = title;
+      q.value = current || '';
+      q.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); done(q.value.trim()); } };
+      dialog.querySelector('[data-bare-use]').onclick = function () { done(q.value.trim()); };
+      dialog.querySelector('[data-bare-clear]').onclick = function () { done(''); };
+      dialog.showModal();
+      q.select();
+    }
+
     function render() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       bar.textContent = '';
@@ -187,7 +207,9 @@
       var rows = data.wires.map(function (w) {
         var flip = side[w.from] === 'right' && side[w.to] === 'left', loop = w.from === w.to;
         var from = { end: w.from, pin: w.from_pin }, to = { end: w.to, pin: w.to_pin };
-        return { w: w, a: flip ? to : from, b: flip ? from : to, same: side[w.from] === side[w.to], loopback: loop };
+        return { w: w, a: flip ? to : from, b: flip ? from : to, same: side[w.from] === side[w.to], loopback: loop,
+                 bare: [flip ? w.to_bare : w.from_bare, flip ? w.from_bare : w.to_bare],   // out of its shield, left and right
+                 bareAt: [{ wire: w.id, at: flip ? 'to' : 'from' }, { wire: w.id, at: flip ? 'from' : 'to' }] };
       });
       var sets = {}, setOrder = [];
       rows.forEach(function (r) {
@@ -275,7 +297,10 @@
         var sp = spliceAt[k], w0 = sp.rows[0].w, rec = stretch[sp.at.end + ':' + String(sp.at.pin).toLowerCase()] || {};
         var key = rec.set ? 'splice:' + rec.set : '', none = { end: null, pin: '' };
         var purpose = signal[sp.at.end + ':' + sp.at.pin] || (sp.left ? w0.signal : w0.to_signal || w0.signal);
+        var atContact = { end: sp.at.end, pin: sp.at.pin, at: 'contact' }, atSplice = { end: sp.at.end, pin: sp.at.pin, at: 'splice' };
         var r = sp.row = { stub: sp, a: sp.left ? sp.at : none, b: sp.left ? none : sp.at, same: false, loopback: false,
+                           bare: sp.left ? [rec.bare, rec.splice_bare] : [rec.splice_bare, rec.bare],
+                           bareAt: sp.left ? [atContact, atSplice] : [atSplice, atContact],
                            w: { id: 'splice-' + sp.name, set: key, type: rec.type || 'Straight', group: rec.group || '', colour: w0.colour,
                                 gauge: w0.gauge, signal: sp.left ? purpose : '', to_signal: '', from: sp.at.end, from_pin: sp.at.pin, to: null, to_pin: '' } };
         if (key) {
@@ -499,7 +524,8 @@
       ['left', 'right'].forEach(function (on) {
         if (column[on] === undefined) return;
         var near = on === 'left' ? EL : ER, beyond = on === 'left' ? ER : EL;
-        if (editing) { least = Math.max(least, 2 * TOOLW + 2 * DIA + 12 + beyond); return; }   // (its row's boxes, then
+        var room = setOrder.some(function (st) { return st.rows[0] && st.rows[0].stub && shielded(st.type); }) ? 96 : 0;
+        if (editing) { least = Math.max(least, 2 * TOOLW + 2 * DIA + 12 + room + beyond); return; }   // (its row's boxes, then
         // it, then its wires' boxes)
         least = both ? Math.max(least, 2 * (Math.max(near, column[on] + DIA) + shift + DIA + 10), 2 * (shift + DIA + 6 + past[on] + 20 + beyond))
                      : Math.max(least, near + ON + 2 * DIA + 12 + past[on] + ON + beyond);
@@ -748,6 +774,22 @@
         return out;
       }
       var ellipses = {};   // a shielded set: where its ellipses sit
+      function bareTag(s, list, i, cx, cy, at) {   // on top of a shield's ellipse: how much of its wires is out of it on that side
+        var value = null;
+        list.forEach(function (r) { if (value === null && r.bare && r.bare[i]) value = r.bare[i]; });
+        if (value === null && !editing) return;
+        var g = el('g', { class: 'pd-tag pd-bare' + (value === null ? ' muted' : ''), 'data-bare': s.name + ':' + (i ? 'right' : 'left') }, tools);
+        var label = value === null ? 'mm' : value + ' mm', t = text(g, cx, cy + 3.5, label, 'pd-tag-text'), long = 0;
+        try { long = t.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
+        var w = Math.max((long || label.length * 6) + 10, 26);
+        g.insertBefore(el('rect', { x: cx - w / 2, y: cy - 7, width: w, height: 14, rx: 7 }), t);
+        if (!editing) return;
+        g.addEventListener('click', function () {
+          var name = list[0].stub ? (s.label || s.name) : s.name, where = [];
+          list.forEach(function (r) { if (r.bareAt) where.push(r.bareAt[i]); });
+          barePicker('Set ' + name + ' at ' + at + ', unshielded', value, function (v) { post({ action: 'bare', ends: JSON.stringify(where), bare: v }); });
+        });
+      }
       function drainCircle(s, cx, cy, sideOf, on, shield) {   // its circle: picked, then a contact on its side joins the shield
         // there (a loopback: going out, coming back); picked again, the shield is not joined there
         var lit = state.drain && state.drain.set === s.name && state.drain.side === sideOf;
@@ -775,6 +817,7 @@
           var n = el('ellipse', { cx: cx, cy: (e[0] + e[1]) / 2, rx: 18, ry: (e[1] - e[0]) / 2, class: 'pd-shield', 'data-set': s.name }, over);
           el('title', {}, n).textContent = 'Set ' + s.name + ': ' + s.type.toLowerCase();
           if (editing) drainCircle(s, cx, e[2], e[3], lp.L ? 'left' : 'right', shield);
+          bareTag(s, inner.concat(shield ? [shield] : []), e[3] === 'left' ? 0 : 1, cx, e[0], byId[inner[0].a.end].designator);   // (going out: its from ends)
         });
         if (!shield) el('path', { d: smooth([[cx, kept.out], [kept.turn, kept.out, 14], [kept.turn, kept.back, 14], [cx, kept.back]]), class: 'pd-shield-line' }, wiresG);
       }
@@ -783,7 +826,6 @@
         var inner = s.rows.filter(function (r) { return r.w.type !== 'Shield'; }), shield = s.rows.filter(function (r) { return r.w.type === 'Shield'; })[0];
         if (!inner.length) return;
         if (inner[0].loop) { loopShieldDraw(s, inner, shield); return; }
-        if (editing && inner[0].stub) return;   // (editing: a splices' set by its boxes only)
         // an ellipse round each run of its wires side by side; the shield (its circles, its line) with the run just above it
         var parts = runs(inner.filter(function (r) { return r.y !== undefined; }));
         if (!parts.length) return;
@@ -795,6 +837,9 @@
         ellipses[s.name] = [
           fromSplice[0] ? Math.max.apply(null, withShield.map(function (r) { return Math.max(r.tagEnd.left || 0, r.ax); })) + 24 : x.left + EL,
           fromSplice[1] ? Math.min.apply(null, withShield.map(function (r) { return Math.min(r.tagEnd.right || Infinity, r.bx); })) - 24 : x.right - ER];
+        if (editing && inner[0].stub) {   // (editing: a splices' set past its boxes, in the room kept for it)
+          ellipses[s.name] = inner[0].stub.left ? [x.left + TOOLW + 14, column.left - DIA - 24] : [column.right + DIA + 24, x.right - TOOLW - 14];
+        }
         parts.forEach(function (run) {
           var ys = run.map(function (r) { return r.y; }), mine = run === main;
           var top = Math.min.apply(null, ys) - 16, low = mine && shield ? shield.y : Math.max.apply(null, ys) + 16;
@@ -802,6 +847,8 @@
             var e = el('ellipse', { cx: cx, cy: (top + low) / 2, rx: 18, ry: (low - top) / 2, class: 'pd-shield' + (fromSplice[i] ? ' pd-shield-open' : ''), 'data-set': s.name }, over);
             el('title', {}, e).textContent = 'Set ' + s.name + ': ' + s.type.toLowerCase();
             if (editing && mine) drainCircle(s, cx, low, i === 0 ? 'left' : 'right', i === 0 ? 'left' : 'right', shield);
+            var by = i ? inner[0].b : inner[0].a;
+            if (mine) bareTag(s, withShield, i, cx, top, fromSplice[i] || !by.end ? 'the splice' : byId[by.end].designator);
           });
           if (mine && !shield) el('path', { d: 'M' + ellipses[s.name][0] + ',' + low + ' H' + ellipses[s.name][1], class: 'pd-shield-line' }, wiresG);
         });

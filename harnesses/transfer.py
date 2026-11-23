@@ -67,6 +67,8 @@ One entry per wire, from a contact of a connector to a contact of a connector.
 - `set_type`: how a set's wires go together: one of SET_TYPES_HERE. Give every wire of a set the same type, but
   `Shield` for a shielded set's drain or shield wire.
 - `group`: a name tag over several sets (at most 40 characters): "Channel 1".
+- `from_bare`, `to_bare`: in a shielded set, how much of the wire (mm) is out of the shield at its `from` and `to` end:
+  to its contact, or for a spliced end, to the splice.
 
 A splice is several wires from the same contact: one entry for each wire.
 
@@ -85,8 +87,10 @@ A splice (a contact with several wires) has a stretch of its own, from its conta
 a set with other splices' stretches (twisted, shielded) and in a group, apart from the wires after it.
 
 ```json
-"splices": [{"at": "P1", "pin": "1", "set": "S1", "set_type": "Twisted", "group": "Channel 1"}]
+"splices": [{"at": "P1", "pin": "1", "set": "S1", "set_type": "Shielded twisted", "group": "Channel 1", "bare": 30, "splice_bare": 20}]
 ```
+
+`bare`, `splice_bare`: in a shielded set, how much of the stretch (mm) is out of the shield at its contact and at the splice.
 
 ## bundle
 
@@ -144,14 +148,16 @@ def export_harness(harness):
                                          ('to_pin', w['to_pin']), ('signal', w['signal']), ('to_signal', w['to_signal']),
                                          ('colour', w['colour']), ('gauge', w['gauge']), ('length', _plain(w['length'])),
                                          ('definition', w['definition']), ('group', w.get('group', '')), ('set', w['set']),
-                                         ('set_type', w['set_type'] if w['set'] else '')) if v not in ('', None)}
+                                         ('set_type', w['set_type'] if w['set'] else ''),
+                                         ('from_bare', _plain(w.get('from_bare'))), ('to_bare', _plain(w.get('to_bare')))) if v not in ('', None)}
                       for w in data['wires']],
             'groups': [{k: v for k, v in (('name', g['name']), ('length', _plain(g['length'])), ('bundled', _plain(g['bundled'])))
                         if v is not None} for g in data.get('groups', [])],
             'items': [{'definition': i['definition'], 'quantity': _plain(i['quantity']), **({'note': i['note']} if i['note'] else {})}
                       for i in data['items']],
             **({'bundle': _bundle_out(data['bundle'])} if 'bundle' in data else {}),
-            **({'splices': data['splices']} if data.get('splices') else {})}
+            **({'splices': [{k: _plain(v) if k in ('bare', 'splice_bare') else v for k, v in s.items()} for s in data['splices']]}
+               if data.get('splices') else {})}
 
 
 def _bundle_out(b):
@@ -316,7 +322,8 @@ def import_harness(data, setup):
                         signal=_text(w.get('signal'), 100), to_signal=_text(w.get('to_signal'), 100),
                         wire_group=_text(w.get('group'), 40), wire_set=wire_set,
                         set_type=(kind or 'Straight') if wire_set else 'Straight', colour=colour,
-                        gauge=f'{gauge} AWG' if gauge.isdigit() else gauge, length=_number(w.get('length'), where, 'length'))
+                        gauge=f'{gauge} AWG' if gauge.isdigit() else gauge, length=_number(w.get('length'), where, 'length'),
+                        from_bare=_number(w.get('from_bare'), where, 'unshielded length'), to_bare=_number(w.get('to_bare'), where, 'unshielded length'))
             if kind == 'Shield' and not wire_set:
                 raise ValidationError(f'{where}: a shield wire is the shield of a set: give its "set".')
             wire.used = used(w.get('definition'), f'wire {i}')
@@ -357,7 +364,9 @@ def import_harness(data, setup):
             if not (end and pin) or kind not in SET_TYPES or kind == 'Shield':
                 raise ValidationError(f'Splice {i}: give a connector ("at"), its pin, and a set type of {", ".join(t for t in SET_TYPES if t != "Shield")}.')
             HarnessSplice.objects.create(harness=harness, end=end, pin=pin, wire_set=_text(sp.get('set'), 20), set_type=kind,
-                                         wire_group=_text(sp.get('group'), 40))
+                                         wire_group=_text(sp.get('group'), 40),
+                                         bare=_number(sp.get('bare'), f'Splice {i}', 'unshielded length'),
+                                         splice_bare=_number(sp.get('splice_bare'), f'Splice {i}', 'unshielded length'))
     for name, where in unknown.items():
         notes.append(f'"{name}" ({where}) is no family or item number Osmia knows; left out.')
     return harness, notes

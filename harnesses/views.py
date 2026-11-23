@@ -369,10 +369,12 @@ def _drawing(harness, wires):
     bundle = {'trunk': qty(harness.trunk), 'kinds': HarnessMark.Kind.choices, 'splices': _splices(wires),   # the Bundle tab: what is along it
               'marks': [{'id': m.pk, 'kind': m.kind, 'label': m.get_kind_display(), 'on': m.on_id, 'start': qty(m.start), 'end': qty(m.end),
                          'text': m.text, 'set': m.wire_set, 'what': m.used_name} for m in harness.marks.select_related('definition', 'family', 'branch')]}
-    splices = [{'end': s.end_id, 'pin': s.pin, 'set': s.wire_set, 'type': s.set_type, 'group': s.wire_group} for s in harness.splices.all()]
+    splices = [{'end': s.end_id, 'pin': s.pin, 'set': s.wire_set, 'type': s.set_type, 'group': s.wire_group,
+                'bare': qty(s.bare), 'splice_bare': qty(s.splice_bare)} for s in harness.splices.all()]
     return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'groups': lengths, 'bundle': bundle,
             'splices': splices, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
-                                    'to_signal': w.to_signal, 'group': w.wire_group, 'set': w.wire_set, 'type': w.set_type, 'colour': w.colour, 'gauge': w.gauge, 'length': qty(w.length)} for w in wires]}
+                                    'to_signal': w.to_signal, 'group': w.wire_group, 'set': w.wire_set, 'type': w.set_type, 'colour': w.colour, 'gauge': w.gauge, 'length': qty(w.length),
+                                    'from_bare': qty(w.from_bare), 'to_bare': qty(w.to_bare)} for w in wires]}
 
 
 @login_required
@@ -454,6 +456,32 @@ def pinout_draw(request, pk):
             if not sp.wire_set or value not in PIN_SET_TYPES:
                 return JsonResponse({'error': 'A splice in a set, and a set type.'}, status=400)
             item.splices.filter(wire_set=sp.wire_set).update(set_type=value)
+        return JsonResponse(_drawing(item, item.ordered_wires()))
+    if action == 'bare':   # a shielded set on one side: how much of its wires is out of the shield there (each wire's end
+        # there; a splice's own stretch: at its contact or at the splice)
+        import json
+        try:
+            spots = json.loads(post.get('ends') or '[]')
+            value = _mm(post.get('bare'), 'The shield', 'unshielded length')
+        except (ValueError, ValidationError) as exc:
+            return JsonResponse({'error': ' '.join(getattr(exc, 'messages', ['Which wires?']))}, status=400)
+        if not isinstance(spots, list) or not spots:
+            return JsonResponse({'error': 'Which wires?'}, status=400)
+        with transaction.atomic():
+            for spot in spots:
+                if not isinstance(spot, dict):
+                    continue
+                if spot.get('wire'):
+                    wire = get_object_or_404(Wire, pk=spot['wire'], harness=item)
+                    field = 'to_bare' if spot.get('at') == 'to' else 'from_bare'
+                    setattr(wire, field, value)
+                    wire.save(update_fields=[field])
+                elif spot.get('end') and spot.get('pin'):
+                    end = get_object_or_404(HarnessEnd, pk=spot['end'], harness=item)
+                    sp, _ = HarnessSplice.objects.get_or_create(harness=item, end=end, pin=str(spot['pin'])[:20])
+                    field = 'splice_bare' if spot.get('at') == 'splice' else 'bare'
+                    setattr(sp, field, value)
+                    sp.save(update_fields=[field])
         return JsonResponse(_drawing(item, item.ordered_wires()))
     if action in ('trunk', 'end_place'):   # the Bundle tab: the trunk's length; where a connector breaks out, its branch
         try:

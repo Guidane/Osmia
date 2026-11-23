@@ -368,6 +368,12 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing .pd-splice-stub { stroke: #6b7280; stroke-width: 2; }
 .pinout-drawing.picking .pd-splice-stub:not(.lit) { opacity: .25; }
 .pinout-drawing.picking .pd-splice-stub.lit { stroke: #b45309; stroke-width: 2.4; }
+.pinout-drawing .pd-bare rect { fill: var(--panel); stroke: var(--muted); }
+.pinout-drawing .pd-bare .pd-tag-text { font-size: 10px; }
+.pinout-drawing .pd-bare.muted .pd-tag-text { fill: var(--muted); }
+.pinout-drawing.editing .pd-bare, .pinout-drawing .editing .pd-bare, svg.editing .pd-bare { cursor: pointer; }
+dialog.finder.bare-pop { width: fit-content; height: fit-content; }
+.bare-pop .finder-head input { width: 90px; }
 .pinout-drawing .pd-splice-tag rect { fill: var(--panel); stroke: var(--text); stroke-dasharray: 2 2; }
 .pinout-drawing .pd-pin.wired.chosen circle, .pinout-drawing .pd-contact.wired.chosen rect { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-pin.wired.chosen .pd-num, .pinout-drawing .pd-contact.wired.chosen .pd-num { fill: #fff; }

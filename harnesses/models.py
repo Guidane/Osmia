@@ -72,12 +72,15 @@ class Harness(models.Model):
         return found
 
     def snapshot(self):
+        splices = [s for s in self.splices.select_related('end') if s.wire_set or s.wire_group or s.bare is not None or s.splice_bare is not None]
         return {'name': self.name, 'description': self.description, 'notes': self.notes,
                 'ends': [{'designator': e.designator, 'definition': e.used_name} for e in self.ends.select_related('definition', 'family')],
                 'wires': [{'from': w.from_end.designator, 'from_pin': w.from_pin, 'to': w.to_end.designator, 'to_pin': w.to_pin,
                            'signal': w.signal, 'to_signal': w.to_signal, 'set': w.wire_set, 'set_type': w.set_type, 'colour': w.colour, 'gauge': w.gauge,
                            'length': str(w.length) if w.length is not None else None, 'definition': w.used_name,
-                           **({'group': w.wire_group} if w.wire_group else {})}   # (only when there is one: older versions have none)
+                           **({'group': w.wire_group} if w.wire_group else {}),   # (only when there is one: older versions have none)
+                           **({'from_bare': str(w.from_bare)} if w.from_bare is not None else {}),
+                           **({'to_bare': str(w.to_bare)} if w.to_bare is not None else {})}
                           for w in self.ordered_wires()],
                 'items': [{'definition': i.used_name, 'quantity': str(i.quantity), 'note': i.note}
                           for i in self.items.select_related('definition', 'family')],
@@ -85,9 +88,11 @@ class Harness(models.Model):
                                 'bundled': str(g.bundled) if g.bundled is not None else None} for g in self.groups.all()]}
                    if self.groups.exists() else {}),   # (only when there are: older versions have none)
                 **({'bundle': self.bundle()} if self.has_bundle() else {}),
-                **({'splices': [{'at': s.end.designator, 'pin': s.pin, 'set': s.wire_set, 'set_type': s.set_type, 'group': s.wire_group}
-                                for s in self.splices.select_related('end') if s.wire_set or s.wire_group]}
-                   if self.splices.exclude(wire_set='', wire_group='').exists() else {})}   # (only when there are: older versions have none)
+                **({'splices': [{'at': s.end.designator, 'pin': s.pin, 'set': s.wire_set, 'set_type': s.set_type, 'group': s.wire_group,
+                                 **({'bare': str(s.bare)} if s.bare is not None else {}),
+                                 **({'splice_bare': str(s.splice_bare)} if s.splice_bare is not None else {})}
+                                for s in splices]}
+                   if splices else {})}   # (only when there are: older versions have none)
 
     def has_bundle(self):
         return (self.trunk is not None or self.marks.exists()
@@ -119,7 +124,8 @@ class Harness(models.Model):
         for w in data.get('wires', []):
             wire = Wire(harness=self, from_end=ends[w['from']], from_pin=w['from_pin'], to_end=ends[w['to']], to_pin=w['to_pin'],
                         signal=w.get('signal', ''), to_signal=w.get('to_signal', ''), wire_set=w.get('set', ''), set_type=w.get('set_type', 'Straight'),
-                        wire_group=w.get('group', ''), colour=w.get('colour', ''), gauge=w.get('gauge', ''), length=Decimal(w['length']) if w.get('length') else None)
+                        wire_group=w.get('group', ''), colour=w.get('colour', ''), gauge=w.get('gauge', ''), length=Decimal(w['length']) if w.get('length') else None,
+                        from_bare=Decimal(w['from_bare']) if w.get('from_bare') else None, to_bare=Decimal(w['to_bare']) if w.get('to_bare') else None)
             wire.used = definition_or_family(w.get('definition'))
             wire.save()
         bundle = data.get('bundle') or {}
@@ -139,7 +145,9 @@ class Harness(models.Model):
         for s in data.get('splices', []):
             if ends.get(s.get('at')):
                 HarnessSplice.objects.create(harness=self, end=ends[s['at']], pin=s['pin'], wire_set=s.get('set', ''),
-                                             set_type=s.get('set_type') or 'Straight', wire_group=s.get('group', ''))
+                                             set_type=s.get('set_type') or 'Straight', wire_group=s.get('group', ''),
+                                             bare=Decimal(s['bare']) if s.get('bare') else None,
+                                             splice_bare=Decimal(s['splice_bare']) if s.get('splice_bare') else None)
         self.groups.all().delete()
         for g in data.get('groups', []):
             HarnessGroup.objects.create(harness=self, name=g['name'], length=Decimal(g['length']) if g.get('length') else None,
@@ -205,6 +213,9 @@ class Wire(DefinitionOrFamily):
     colour = models.CharField(max_length=20, blank=True, choices=[(c, c) for c in COLOURS])
     gauge = models.CharField(max_length=20, blank=True)
     length = models.DecimalField('length (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
+    # in a shielded set: how much of it, at each end, is out of the shield (to its contact; a spliced end: to the splice)
+    from_bare = models.DecimalField('unshielded at its from end (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
+    to_bare = models.DecimalField('unshielded at its to end (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
     definition = models.ForeignKey(ItemDefinition, null=True, blank=True, on_delete=models.SET_NULL, related_name='harness_wires')
 
     class Meta:
@@ -234,6 +245,9 @@ class HarnessSplice(models.Model):
     wire_set = models.CharField('set', max_length=20, blank=True)
     set_type = models.CharField(max_length=20, default='Straight', choices=[(t, t) for t in PIN_SET_TYPES])
     wire_group = models.CharField('group', max_length=40, blank=True)
+    # in a shielded set: how much of it is out of the shield at its contact, and at the splice
+    bare = models.DecimalField('unshielded at its contact (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
+    splice_bare = models.DecimalField('unshielded at the splice (mm)', max_digits=9, decimal_places=1, null=True, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['end', 'pin'], name='unique_splice_contact')]

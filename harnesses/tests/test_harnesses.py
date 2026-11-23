@@ -95,7 +95,7 @@ class PinoutTests(HarnessBase):
         self.p2.save()
         self.assertEqual(self.client.get(reverse('harnesses:harness', args=[self.harness.pk])).context['drawing']['ends'][1]['face']['shape'], 'rect')
         self.assertIn({'id': Wire.objects.get().pk, 'from': self.p1.pk, 'from_pin': '6', 'to': self.p2.pk, 'to_pin': '2', 'signal': '', 'to_signal': '', 'group': '', 'set': 'CAN', 'type': 'Twisted', 'gauge': '', 'length': '',
-                       'colour': ''}, page.context['drawing']['wires'])
+                       'colour': '', 'from_bare': '', 'to_bare': ''}, page.context['drawing']['wires'])
 
     def test_a_shield_joined_on_one_side_or_both(self):
         url = reverse('harnesses:pinout_draw', args=[self.harness.pk])
@@ -343,7 +343,7 @@ class BundleTests(HarnessBase):
         self.connect('1', '1'); self.connect('1', '2'); self.connect('2', '3'); self.connect('2', '4')   # P1:1 and P1:2 splices
         at = {'end': self.p1.pk}
         drawn = self.draw(action='splice_set', pin='1', set='new:', **at).json()
-        self.assertEqual(drawn['splices'], [{'end': self.p1.pk, 'pin': '1', 'set': 'S1', 'type': 'Straight', 'group': ''}])
+        self.assertEqual(drawn['splices'], [{'end': self.p1.pk, 'pin': '1', 'set': 'S1', 'type': 'Straight', 'group': '', 'bare': '', 'splice_bare': ''}])
         self.draw(action='splice_set', pin='2', set='S1', **at)
         self.draw(action='splice_type', pin='1', type='Shielded twisted', **at)
         self.draw(action='splice_group', pin='2', group='Channel 1', **at)
@@ -360,6 +360,39 @@ class BundleTests(HarnessBase):
         from harnesses.transfer import import_harness
         again, _ = import_harness(self.client.get(self.harness.get_absolute_url() + '?json=1').json(), None)
         self.assertEqual(again.snapshot()['splices'], self.harness.snapshot()['splices'])
+
+    def test_how_much_of_a_shielded_set_is_out_of_its_shield_at_each_end(self):
+        import json
+        from harnesses.models import HarnessSplice, Wire
+        self.connect('1', '1'); self.connect('2', '2'); self.connect('3', '3'); self.connect('3', '4')   # P1:3 a splice
+        one, two = Wire.objects.filter(from_pin__in=['1', '2']).order_by('from_pin')
+        ends = [{'wire': one.pk, 'at': 'to'}, {'wire': two.pk, 'at': 'to'}]
+        drawn = self.draw(action='bare', ends=json.dumps(ends), bare='25').json()
+        self.assertEqual([(w['from_bare'], w['to_bare']) for w in drawn['wires'][:2]], [('', '25'), ('', '25')])
+        self.draw(action='bare', ends=json.dumps([{'wire': one.pk, 'at': 'from'}]), bare='12,5')
+        self.draw(action='bare', ends=json.dumps([{'end': self.p1.pk, 'pin': '3', 'at': 'contact'},
+                                                  {'end': self.p1.pk, 'pin': '3', 'at': 'splice'}]), bare='30')
+        one.refresh_from_db()
+        self.assertEqual((one.from_bare, one.to_bare), (Decimal('12.5'), Decimal('25')))
+        self.assertEqual(list(HarnessSplice.objects.values_list('pin', 'bare', 'splice_bare')), [('3', Decimal('30'), Decimal('30'))])
+        self.assertEqual(self.draw(action='bare', ends=json.dumps(ends), bare='-3').status_code, 400)
+        self.assertEqual(self.draw(action='bare', ends='[]', bare='3').status_code, 400)
+        self.draw(action='bare', ends=json.dumps(ends[:1]), bare='')   # cleared
+        one.refresh_from_db()
+        self.assertIsNone(one.to_bare)
+        # kept in a version and a harness file
+        versions.save(self.harness, None)
+        Wire.objects.update(from_bare=None, to_bare=None)
+        HarnessSplice.objects.all().delete()
+        self.assertTrue(versions.changed(self.harness))
+        versions.restore(self.harness, self.harness.versions.get())
+        self.assertEqual(sorted(str(v) for v in Wire.objects.values_list('to_bare', flat=True) if v), ['25.0'])
+        self.assertEqual(list(HarnessSplice.objects.values_list('bare', 'splice_bare')), [(Decimal('30'), Decimal('30'))])
+        from harnesses.transfer import import_harness
+        again, _ = import_harness(self.client.get(self.harness.get_absolute_url() + '?json=1').json(), None)
+        self.assertEqual(again.snapshot()['splices'], self.harness.snapshot()['splices'])
+        self.assertEqual([(w.get('from_bare'), w.get('to_bare')) for w in again.snapshot()['wires']],
+                         [(w.get('from_bare'), w.get('to_bare')) for w in self.harness.snapshot()['wires']])
 
     def test_marks_put_on_a_line_in_the_bundle_mode(self):
         self.connect('1', '1')
