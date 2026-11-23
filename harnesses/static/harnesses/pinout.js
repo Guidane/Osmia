@@ -486,7 +486,7 @@
           var at = 6 + plain + DIA + 4;   // (from the contacts: where the middle ends is known only once all is measured)
           column[on] = at;
           past[on] = after;
-          far = editing ? Math.max(far, at + DIA + 6 + after) : Math.max(far, plain);
+          far = Math.max(far, plain);   // (the splices themselves at the far end: see below)
         }
         reach[on] = Math.max(reach[on], far);
       });
@@ -495,9 +495,12 @@
       // viewing: a connector's splices at the far end of its wires (by the connectors they go to), past them their
       // wires' tags and room for a twist between shields; splices on both sides: both in the middle
       var both = column.left !== undefined && column.right !== undefined, shift = both ? DIA + 10 : 0, ON = 170;
-      if (!editing) ['left', 'right'].forEach(function (on) {
+      var TOOLW = 6 + 2 * BOX + 10 + 350 + 130 + 10;   // editing: a row's boxes, all of them
+      ['left', 'right'].forEach(function (on) {
         if (column[on] === undefined) return;
         var near = on === 'left' ? EL : ER, beyond = on === 'left' ? ER : EL;
+        if (editing) { least = Math.max(least, 2 * TOOLW + 2 * DIA + 12 + beyond); return; }   // (its row's boxes, then
+        // it, then its wires' boxes)
         least = both ? Math.max(least, 2 * (Math.max(near, column[on] + DIA) + shift + DIA + 10), 2 * (shift + DIA + 6 + past[on] + 20 + beyond))
                      : Math.max(least, near + ON + 2 * DIA + 12 + past[on] + ON + beyond);
       });
@@ -506,8 +509,8 @@
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
         width = x.rightFace + widest.right + 12; mid = (x.left + x.right) / 2;
       }
-      if (column.left !== undefined) column.left = editing ? x.left + column.left : both ? mid - shift : x.right - ER - ON - past.left - DIA - 6;
-      if (column.right !== undefined) column.right = editing ? x.right - column.right : both ? mid + shift : x.left + EL + ON + past.right + DIA + 6;
+      if (column.left !== undefined) column.left = editing ? x.right - ER - TOOLW - DIA : both ? mid - shift : x.right - ER - ON - past.left - DIA - 6;
+      if (column.right !== undefined) column.right = editing ? x.left + EL + TOOLW + DIA : both ? mid + shift : x.left + EL + ON + past.right + DIA + 6;
       function E(left) { return left ? EL : ER; }
       var bigHalf = TWIST;
       setOrder.forEach(function (s) {
@@ -955,7 +958,7 @@
           });
           // past its symbol: its group, its set (splices' sets), how that set's stretches go together; its colour, ✕
           var sw = sp.row.w, mine = sw.set ? sets[sw.set] : null, where = { end: sp.at.end, pin: sp.at.pin };
-          var box = spot(column[sp.left ? 'left' : 'right'] + dir * (DIA + 8), sp.y, 346), add = function (to, value, label) {
+          var box = spot(edge + dir * (6 + 2 * BOX + 10), sp.y, 346), add = function (to, value, label) {   // (before it)
             var o = html('option', { value: value }, to); o.textContent = label;
           };
           var pickGroup = html('input', { type: 'text', 'aria-label': 'Group', placeholder: 'Group', list: 'pd-groups', class: 'pd-group-input' }, box);
@@ -982,7 +985,7 @@
           }
           pickType.addEventListener('change', function () { post(Object.assign({ action: 'splice_type', type: stretchKind() }, where)); });
           pickShield.addEventListener('change', function () { post(Object.assign({ action: 'splice_type', type: stretchKind() }, where)); });
-          var rest = spot(column[sp.left ? 'left' : 'right'] + dir * (DIA + 8 + 350), sp.y, 130);
+          var rest = spot(edge + dir * (6 + 2 * BOX + 10 + 350), sp.y, 130);
           var pickColour = html('select', { 'aria-label': 'Colour', class: 'pd-colour' }, rest);
           [''].concat(data.colours).forEach(function (c) { var o = html('option', { value: c }, pickColour); o.textContent = c || 'colour'; });
           pickColour.value = w.colour || '';
