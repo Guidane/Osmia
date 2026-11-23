@@ -628,23 +628,22 @@
         if (!fb) text(over, x0 + 6, b.top - 6, byId[id].designator, 'pd-bar-label');
       }
       var NAMED = editing ? 0 : 18;   // viewing: room above a group's rows for its name tag
+      var SHIELDED = 14;   // room above and below a shielded set: its ellipses, how much is out of the shield
       list.forEach(function (g) {
         var y0 = y, n = g.loop ? loopRows(g) : g.rows.length + (g.stubs ? g.stubs.length : 0), bottom = n ? (n - 1) * ROW + C : 0;
-        var at = [], off = 0, was = null;   // each row's place down from the first (more where a group starts)
+        var at = [], off = 0, was = null, wasShielded = null;   // each row's place down from the first (more where a group
+        function next(r) {   // starts, and round a shielded set)
+          var named = groupOf(r), s = r.w.set && sets[r.w.set], mine = s && shielded(s.type) ? r.w.set : null;
+          if (named && named !== was) off += NAMED;
+          if (mine !== wasShielded && (mine || at.length)) off += SHIELDED;
+          was = named;
+          wasShielded = mine;
+          at.push(at.length * ROW + off);
+        }
         if (!g.loop) {
-          (g.stubs || []).forEach(function (sp) {
-            var named = groupOf(sp.row);
-            if (named && named !== was) off += NAMED;
-            was = named;
-            at.push(at.length * ROW + off);
-          });
-          g.rows.forEach(function (r) {
-            var named = groupOf(r);
-            if (named && named !== was) off += NAMED;
-            was = named;
-            at.push(at.length * ROW + off);
-          });
-          if (at.length) bottom = at[at.length - 1] + C;
+          (g.stubs || []).forEach(function (sp) { next(sp.row); });
+          g.rows.forEach(next);
+          if (at.length) bottom = at[at.length - 1] + C + (wasShielded ? SHIELDED : 0);
         }
         var here = g.loop ? [[side[g.left], g.left]] :
           [['left', g.left]].concat(g.same ? [] : [['right', g.right]]).filter(function (s) { return s[1] !== undefined; });
@@ -788,15 +787,19 @@
         return out;
       }
       var ellipses = {};   // a shielded set: where its ellipses sit
-      function bareTag(s, list, i, cx, cy, at) {   // on top of a shield's ellipse: how much of its wires is out of it on that side
-        var value = null;
+      function bareTag(s, list, i, cx, cy, at, x0) {   // over a set, from its contacts (or splice) to its shield's ellipse:
+        var value = null;   // how much of its wires is out of the shield on that side, a line with arrows at both ends
         list.forEach(function (r) { if (value === null && r.bare && r.bare[i]) value = r.bare[i]; });
         if (value === null && !editing) return;
         var g = el('g', { class: 'pd-tag pd-bare' + (value === null ? ' muted' : ''), 'data-bare': s.name + ':' + (i ? 'right' : 'left') }, tools);
-        var label = value === null ? 'mm' : value + ' mm', t = text(g, cx, cy + 3.5, label, 'pd-tag-text'), long = 0;
+        var lo = Math.min(x0, cx), hi = Math.max(x0, cx), A = 6;
+        el('path', { d: 'M' + lo + ',' + cy + ' H' + hi, class: 'pd-dim' }, g);
+        el('path', { d: 'M' + (lo + A) + ',' + (cy - 3.5) + ' L' + lo + ',' + cy + ' L' + (lo + A) + ',' + (cy + 3.5) + ' Z' +
+                        ' M' + (hi - A) + ',' + (cy - 3.5) + ' L' + hi + ',' + cy + ' L' + (hi - A) + ',' + (cy + 3.5) + ' Z', class: 'pd-dim-arrow' }, g);
+        var mx = (lo + hi) / 2, label = value === null ? 'mm' : value + ' mm', t = text(g, mx, cy + 3.5, label, 'pd-tag-text'), long = 0;
         try { long = t.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
         var w = Math.max((long || label.length * 6) + 10, 26);
-        g.insertBefore(el('rect', { x: cx - w / 2, y: cy - 7, width: w, height: 14, rx: 7 }), t);
+        g.insertBefore(el('rect', { x: mx - w / 2, y: cy - 7, width: w, height: 14, rx: 7 }), t);
         if (!editing) return;
         g.addEventListener('click', function () {
           var name = list[0].stub ? (s.label || s.name) : s.name, where = [];
@@ -831,7 +834,7 @@
           var n = el('ellipse', { cx: cx, cy: (e[0] + e[1]) / 2, rx: 18, ry: (e[1] - e[0]) / 2, class: 'pd-shield', 'data-set': s.name }, over);
           el('title', {}, n).textContent = 'Set ' + s.name + ': ' + s.type.toLowerCase();
           if (editing) drainCircle(s, cx, e[2], e[3], lp.L ? 'left' : 'right', shield);
-          bareTag(s, inner.concat(shield ? [shield] : []), e[3] === 'left' ? 0 : 1, cx, e[0], byId[inner[0].a.end].designator);   // (going out: its from ends)
+          bareTag(s, inner.concat(shield ? [shield] : []), e[3] === 'left' ? 0 : 1, cx, e[0], byId[inner[0].a.end].designator, lp.edge);   // (going out: its from ends)
         });
         if (!shield) el('path', { d: smooth([[cx, kept.out], [kept.turn, kept.out, 14], [kept.turn, kept.back, 14], [cx, kept.back]]), class: 'pd-shield-line' }, wiresG);
       }
@@ -862,7 +865,8 @@
             el('title', {}, e).textContent = 'Set ' + s.name + ': ' + s.type.toLowerCase();
             if (editing && mine) drainCircle(s, cx, low, i === 0 ? 'left' : 'right', i === 0 ? 'left' : 'right', shield);
             var by = i ? inner[0].b : inner[0].a;
-            if (mine) bareTag(s, withShield, i, cx, top, fromSplice[i] || !by.end ? 'the splice' : byId[by.end].designator);
+            if (mine) bareTag(s, withShield, i, cx, top, fromSplice[i] || !by.end ? 'the splice' : byId[by.end].designator,
+                              i ? inner[0].bx : inner[0].ax);
           });
           if (mine && !shield) el('path', { d: 'M' + ellipses[s.name][0] + ',' + low + ' H' + ellipses[s.name][1], class: 'pd-shield-line' }, wiresG);
         });
@@ -1062,7 +1066,7 @@
           g.rows.forEach(function (r) { if (r.y !== undefined) ys.push(r.y); if (r.yBack !== undefined) ys.push(r.yBack); });
           ys.sort(function (a, b) { return a - b; });
           var parts = [];
-          ys.forEach(function (v) { var last = parts[parts.length - 1]; if (last && v - last[last.length - 1] <= ROW + 1) last.push(v); else parts.push([v]); });
+          ys.forEach(function (v) { var last = parts[parts.length - 1]; if (last && v - last[last.length - 1] <= ROW + SHIELDED + 1) last.push(v); else parts.push([v]); });
           parts.forEach(function (part) {
             var top = part[0] - ROW / 2 - NAMED + 6, low = part[part.length - 1] + ROW / 2 - 3;   // (its name over the room kept)
             el('rect', { x: x.left + 6, y: top, width: x.right - x.left - 12, height: low - top, rx: 10, class: 'pd-group', 'data-set': 'group:' + g.name }, under);
