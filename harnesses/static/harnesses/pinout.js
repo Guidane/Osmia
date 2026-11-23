@@ -551,8 +551,20 @@
         fit(b);
         if (!fb) text(over, x0 + 6, b.top - 6, byId[id].designator, 'pd-bar-label');
       }
+      var NAMED = editing ? 0 : 18;   // viewing: room above a group's rows for its name tag
       list.forEach(function (g) {
         var y0 = y, n = g.loop ? loopRows(g) : g.rows.length + (g.stubs ? g.stubs.length : 0), bottom = n ? (n - 1) * ROW + C : 0;
+        var at = [], off = 0, was = null;   // each row's place down from the first (more where a group starts)
+        if (!g.loop) {
+          (g.stubs || []).forEach(function () { at.push(at.length * ROW); });
+          g.rows.forEach(function (r) {
+            var named = groupOf(r);
+            if (named && named !== was) off += NAMED;
+            was = named;
+            at.push(at.length * ROW + off);
+          });
+          if (at.length) bottom = at[at.length - 1] + C;
+        }
         var here = g.loop ? [[side[g.left], g.left]] :
           [['left', g.left]].concat(g.same ? [] : [['right', g.right]]).filter(function (s) { return s[1] !== undefined; });
         here.forEach(function (s) { if (beside[s[0]].id !== s[1]) y0 = Math.max(y0, beside[s[0]].until + GAP); });
@@ -571,12 +583,13 @@
           return;
         }
         (g.stubs || []).forEach(function (sp, i) {   // a splice's own row: its contact
-          sp.y = y0 + i * ROW;
+          sp.y = y0 + at[i];
           contact(sp.at, sp.left, sp.y);
           own[sp.left ? 'left' : 'right'] = true;
         });
+        var first = (g.stubs || []).length;
         g.rows.forEach(function (r, i) {
-          r.y = y0 + i * ROW;
+          r.y = y0 + at[first + i];
           r.ax = place(r, r.a, true);
           r.bx = place(r, r.b, false, g.same);
           if (r.ax === x.left && !(r.via && r.via.left)) own.left = true;
@@ -584,7 +597,7 @@
         });
         // the connector's bar; one after another of the same connector on that side make one longer bar
         [['left', g.left, own.left]].concat(g.same ? [] : [['right', g.right, own.right]]).forEach(function (b) {
-          if (b[2]) frame(b[0], b[1], y0 - C - 6, y0 + (n - 1) * ROW + C + 6);
+          if (b[2]) frame(b[0], b[1], y0 - C - 6, y0 + bottom + 6);
         });
         y = y0 + bottom + GAP;
       });
@@ -887,7 +900,7 @@
           var parts = [];
           ys.forEach(function (v) { var last = parts[parts.length - 1]; if (last && v - last[last.length - 1] <= ROW + 1) last.push(v); else parts.push([v]); });
           parts.forEach(function (part) {
-            var top = part[0] - ROW / 2 + 3, low = part[part.length - 1] + ROW / 2 - 3;
+            var top = part[0] - ROW / 2 - NAMED + 6, low = part[part.length - 1] + ROW / 2 - 3;   // (its name over the room kept)
             el('rect', { x: x.left + 6, y: top, width: x.right - x.left - 12, height: low - top, rx: 10, class: 'pd-group', 'data-set': 'group:' + g.name }, under);
             var len = (data.groups || {})[g.name] || {};
             var tagG = el('g', { class: 'pd-tag pd-group-tag', 'data-set': 'group:' + g.name }, tools);   // over the areas: its click is its own
