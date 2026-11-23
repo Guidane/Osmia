@@ -241,10 +241,9 @@
           return kp - kq || (p.w.type === 'Shield') - (q.w.type === 'Shield') || natural(p.a.pin, q.a.pin);
         });
       });
-      // a contact with several wires on its side (a splice): its contact drawn once, at its first row; on that row,
-      // past every tag on its side, a diamond (S1, S2, …: how many wires, to which connectors), from which a dotted
-      // lane of its own goes down and across to a diamond on each of its other rows (all in one column past the
-      // lanes), where those wires start
+      // a contact with several wires on its side (a splice): its connector's splices a block of their own, a row
+      // each: the contact, its tags, its diamond (S1, S2, …: how many wires, to which connectors); each of its wires
+      // starts at a diamond like it in its own row; all the diamonds on a side in one column
       var spliceAt = {}, spliceNames = 0;
       list.forEach(function (g) {
         if (g.loop) return;
@@ -264,11 +263,25 @@
         sp.name = 'S' + (++spliceNames);
         sp.label = sp.rows.length + ' wires · ' + sp.to.map(function (id) { return byId[id] ? byId[id].designator : '?'; }).join(', ');
       });
-      function spliceOf(r, left) {   // the splice a row's end is in on that side: {s, first} (else null)
+      function spliceOf(r, left) {   // the splice a row's end is in on that side: {s} (else null)
         var at = left ? r.a : r.b, sp = at.pin && spliceAt[(left ? 'L' : 'R') + at.end + ':' + at.pin];
-        return sp ? { s: sp, first: sp.rows[0] === r } : null;
+        return sp ? { s: sp } : null;
       }
-      var DIA = 11, LANE = 2 * DIA + 8;   // a diamond's half width; a splice's lane's width
+      var DIA = 11;   // a diamond's half width
+      var spliceBlocks = {};   // each connector's splices: a block before its first group on that side
+      Object.keys(spliceAt).map(function (k) { return spliceAt[k]; })
+        .sort(function (p, q) { return natural(p.at.pin, q.at.pin); })
+        .forEach(function (sp) {
+          var key = (sp.left ? 'L' : 'R') + sp.at.end;
+          var b = spliceBlocks[key] = spliceBlocks[key] ||
+            { left: sp.left ? sp.at.end : undefined, right: sp.left ? undefined : sp.at.end, rows: [], stubs: [], same: false };
+          b.stubs.push(sp);
+        });
+      Object.keys(spliceBlocks).forEach(function (key) {
+        var b = spliceBlocks[key], L = key[0] === 'L', end = L ? b.left : b.right;
+        var at = list.findIndex(function (g) { return !g.loop && (L ? g.left === end : g.right === end && !g.same); });
+        list.splice(at === -1 ? list.length : at, 0, b);
+      });
       var seen = {};
       list.forEach(function (g) { seen[g.left] = true; if (!g.same) seen[g.right] = true; });
       var spare = { left: [], right: [] };   // ends no wire joins yet
@@ -382,7 +395,7 @@
       function place(r, at, left, named) {
         if (at.pin === '') return left ? x.left + EL : x.right - ER;   // a shield not joined on this side: from its ellipse
         var sp = spliceOf(r, left);
-        if (!sp || sp.first) return contact(at, left, r.y, named);
+        if (!sp) return contact(at, left, r.y, named);
         r.via = r.via || {};
         r.via[left ? 'left' : 'right'] = true;   // not a contact of the connector: no bar of its own
         return column[left ? 'left' : 'right'] + (left ? 1 : -1) * DIA;   // from its diamond
@@ -410,23 +423,27 @@
         reach[at] = Math.max(reach[at], editing ? 2 * BOX : Math.max(g + (w.signal ? measure(w.signal, 'pd-label') : 0),
                                                                      g + (w.to_signal ? measure(w.to_signal, 'pd-label') : 0)));
       });
-      var column = {};   // on each side: where the diamonds of the splices' other rows are
-      ['left', 'right'].forEach(function (on) {   // the others': their tags, then each splice's lane, then that column
-        var L = on === 'left', dir = L ? 1 : -1, edge = L ? x.left : x.right, plain = 0, after = 0, far;
+      function stubTags(sp) {   // a splice's own row: its contact's gauge and purpose
+        var w = sp.rows[0].w, n = 0, purpose = signal[sp.at.end + ':' + sp.at.pin] || (sp.left ? w.signal : w.to_signal || w.signal);
+        if (w.gauge) n += measure(w.gauge, 'pd-gauge');
+        if (purpose && sp.left) n += measure(purpose, 'pd-label');
+        return n;
+      }
+      var column = {};   // on each side: where the splices' diamonds are (past the tags by the contacts)
+      ['left', 'right'].forEach(function (on) {
+        var L = on === 'left', plain = 0, after = 0, far;
         var mine = Object.keys(spliceAt).map(function (k) { return spliceAt[k]; }).filter(function (sp) { return sp.left === L; });
         rows.forEach(function (r) {
           if (r.loopback) return;
-          var sp = spliceOf(r, L);
-          if (sp && !sp.first) after = Math.max(after, tagsOf(r, L)); else plain = Math.max(plain, tagsOf(r, L));
+          if (spliceOf(r, L)) after = Math.max(after, tagsOf(r, L)); else plain = Math.max(plain, tagsOf(r, L));
         });
         far = plain;
         if (mine.length) {
-          var base = 6 + plain + DIA + 4;
-          mine.forEach(function (sp, i) {
-            sp.off = base + i * LANE;   // (from the contacts: where the middle ends is known only once all is measured)
-            far = Math.max(far, base + i * LANE + DIA + 4 + (editing ? 0 : measure(sp.label, 'pd-splice-tag')));
+          mine.forEach(function (sp) {
+            plain = Math.max(plain, editing ? 0 : stubTags(sp));
+            after = Math.max(after, editing ? 0 : measure(sp.label, 'pd-splice-tag'));
           });
-          var at = base + mine.length * LANE + 6;
+          var at = 6 + plain + DIA + 4;   // (from the contacts: where the middle ends is known only once all is measured)
           column[on] = at;
           far = Math.max(far, at + DIA + 6 + after);
         }
@@ -439,10 +456,6 @@
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
         width = x.rightFace + widest.right + 12; mid = (x.left + x.right) / 2;
       }
-      Object.keys(spliceAt).forEach(function (k) {
-        var sp = spliceAt[k];
-        sp.lane = sp.left ? x.left + sp.off : x.right - sp.off;
-      });
       if (column.left !== undefined) column.left = x.left + column.left;
       if (column.right !== undefined) column.right = x.right - column.right;
       function E(left) { return left ? EL : ER; }
@@ -527,7 +540,7 @@
         if (!fb) text(over, x0 + 6, b.top - 6, byId[id].designator, 'pd-bar-label');
       }
       list.forEach(function (g) {
-        var y0 = y, n = g.loop ? loopRows(g) : g.rows.length, bottom = n ? (n - 1) * ROW + C : 0;
+        var y0 = y, n = g.loop ? loopRows(g) : g.rows.length + (g.stubs ? g.stubs.length : 0), bottom = n ? (n - 1) * ROW + C : 0;
         var here = g.loop ? [[side[g.left], g.left]] :
           [['left', g.left]].concat(g.same ? [] : [['right', g.right]]).filter(function (s) { return s[1] !== undefined; });
         here.forEach(function (s) { if (beside[s[0]].id !== s[1]) y0 = Math.max(y0, beside[s[0]].until + GAP); });
@@ -545,6 +558,11 @@
           y = y0 + bottom + GAP;
           return;
         }
+        (g.stubs || []).forEach(function (sp, i) {   // a splice's own row: its contact
+          sp.y = y0 + i * ROW;
+          contact(sp.at, sp.left, sp.y);
+          own[sp.left ? 'left' : 'right'] = true;
+        });
         g.rows.forEach(function (r, i) {
           r.y = y0 + i * ROW;
           r.ax = place(r, r.a, true);
@@ -586,7 +604,7 @@
         var w = r.w, spliced = !r.loop && (spliceOf(r, true) || spliceOf(r, false));
         [['left', 1, r.ax, x.left], ['right', -1, r.bx, x.right]].forEach(function (s) {
           var sp = !r.loop && spliceOf(r, s[0] === 'left'), dir = s[1], at = s[2] + dir * 6;
-          var gauge = w.gauge && (s[0] === 'left' || spliced || r.loop) && (s[2] === s[3] || (sp && !sp.first)), length = sp && w.length;
+          var gauge = w.gauge && (s[0] === 'left' || spliced || r.loop) && (s[2] === s[3] || sp), length = sp && w.length;
           if (gauge) at = tag(at, r.y, w.gauge, dir, 'pd-gauge', w.id);
           if (gauge) r.tagEnd[s[0]] = at;
           if (w.signal && s[0] === (r.loop ? (r.loop.L ? 'left' : 'right') : 'left')) r.tagEnd[s[0]] = at = tag(at, r.y, w.signal, dir, 'pd-label', w.id);
@@ -753,20 +771,17 @@
         wire(r, 'M' + r.ax + ',' + y + ' H' + r.bx);
       });
 
-      Object.keys(spliceAt).forEach(function (k) {   // each splice: its diamond on its first row, a dotted line from it
-        var sp = spliceAt[k], on = sp.left ? 'left' : 'right', dir = sp.left ? 1 : -1, first = sp.rows[0];   // to each other
-        var rest = sp.rows.slice(1).filter(function (r) { return r.y !== undefined; });   // (down, then across slanted)
-        if (first.y === undefined || !rest.length) return;
-        var lane = sp.lane, col = column[on], top = first.y + DIA, d = '';
-        rest.forEach(function (r) {
-          var tx = col - dir * DIA, into = tx - dir * 10, dx = Math.abs(into - lane);
-          var bend = Math.max(top, r.y - dx);   // down until a slant at 45° reaches it
-          d += smooth([[lane, top], [lane, bend, 10], [into, r.y, 8], [tx, r.y]]) + ' ';
-        });
-        remember(sp.at.end + ':' + sp.at.pin, el('path', { d: d, class: 'pd-splice-line' }, wiresG));
-        diamond(sp, lane, first.y);
-        if (!editing) tag(lane + dir * (DIA + 4), first.y, sp.label, dir, 'pd-splice-tag', first.w.id);
-        rest.forEach(function (r) { diamond(sp, col, r.y); });
+      Object.keys(spliceAt).forEach(function (k) {   // each splice: its own row (contact, tags, diamond), its wires' diamonds
+        var sp = spliceAt[k], on = sp.left ? 'left' : 'right', dir = sp.left ? 1 : -1, col = column[on];
+        if (sp.y === undefined) return;
+        var edge = sp.left ? x.left : x.right, w = sp.rows[0].w, at = edge + dir * 6;
+        var purpose = signal[sp.at.end + ':' + sp.at.pin] || (sp.left ? w.signal : w.to_signal || w.signal);
+        if (!editing && w.gauge) at = tag(at, sp.y, w.gauge, dir, 'pd-gauge', w.id);
+        if (!editing && purpose && sp.left) at = tag(at, sp.y, purpose, dir, 'pd-label', w.id);
+        remember(sp.at.end + ':' + sp.at.pin, el('line', { x1: edge, y1: sp.y, x2: col - dir * DIA, y2: sp.y, class: 'pd-splice-stub' }, wiresG));
+        diamond(sp, col, sp.y);
+        if (!editing) tag(col + dir * (DIA + 4), sp.y, sp.label, dir, 'pd-splice-tag', w.id);
+        sp.rows.forEach(function (r) { if (r.y !== undefined) diamond(sp, col, r.y); });
       });
 
       if (editing) {   // each row: its tools where what they set shows (its set drawn as it is: twisted, shielded)
