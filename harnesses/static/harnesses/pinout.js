@@ -674,8 +674,8 @@
         var w = r.w, g = el('g', { class: 'pd-wire' }, wiresG);
         el('path', { d: d, class: 'pd-wire-edge' + (dashed ? ' dashed' : '') }, g);
         var core = el('path', { d: d, class: 'pd-wire-core' + (dashed ? ' dashed' : '') }, g);
-        core.style.stroke = colourOf(w);
-        if (w.colour === 'green/yellow') el('path', { d: d, class: 'pd-wire-core', style: 'stroke:#facc15', 'stroke-dasharray': '8 8' }, g);
+        core.style.stroke = dashed ? '#9ca3af' : colourOf(w);   // (a shield between its ellipses: no colour of its own)
+        if (w.colour === 'green/yellow' && !dashed) el('path', { d: d, class: 'pd-wire-core', style: 'stroke:#facc15', 'stroke-dasharray': '8 8' }, g);
         lines.push({ w: w, g: g });
       }
       function runs(list) {   // a set's wires in runs of those side by side (a set split between two connectors: two runs)
