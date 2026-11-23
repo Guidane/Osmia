@@ -1149,6 +1149,7 @@
         };
         var inGroup = function (key) { return group !== null && (key === state.picked || (sets[key] && sets[key].group === group)); };
         svg.querySelectorAll('[data-set]').forEach(function (n) { if (n.dataset.set === state.picked || inGroup(n.dataset.set)) n.classList.add('lit'); });
+        var atWire = {}, atStub = {};   // the contacts of the wires lit, of the splices' own rows lit
         lines.forEach(function (d) {
           var mine = pin !== null ? onPin(d.w) : group !== null ? (d.w.set ? sets[d.w.set].group : d.w.group) === group
             : (d.w.set || 'wire:' + d.w.id) === state.picked;
@@ -1156,7 +1157,16 @@
           d.g.classList.add('lit');
           [[d.w.from, d.w.from_pin], [d.w.to, d.w.to_pin]].forEach(function (p) {
             (lit[p[0] + ':' + p[1]] || []).forEach(function (n) { n.classList.add('lit'); });
+            if (p[1]) (String(d.w.id).indexOf('splice-') === 0 ? atStub : atWire)[p[0] + ':' + p[1]] = true;
           });
+        });
+        // a splice: its own row lit with its wires, its wires with its own row (one wire, cut at the splice)
+        lines.forEach(function (d) {
+          if (d.g.classList.contains('lit')) return;
+          var stub = String(d.w.id).indexOf('splice-') === 0;
+          var keys = stub ? [d.w.from + ':' + d.w.from_pin] : [d.w.from + ':' + d.w.from_pin, d.w.to + ':' + d.w.to_pin];
+          var mine = keys.some(function (k) { return (stub ? atWire : atStub)[k]; });
+          if (mine) d.g.classList.add('lit');
         });
       }
       var picked = state.picked;
