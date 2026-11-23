@@ -313,15 +313,21 @@
         var left = side[e.id] === 'left', f = faces[e.id], fb = faceBox[e.id], b = fb.frame;
         var x0 = b ? b.x0 : left ? x.leftFace - 6 : x.rightBar, x1 = b ? b.x1 : left ? x.leftBar + 12 : x.rightFace + widest.right + 6;
         var top = b ? b.top : fb.top, low = b ? b.low : fb.low;
+        if (!editing) { if (left) x0 = x1 - f.w - 16; else x1 = x0 + f.w + 16; }   // its box close round its face (editing: room
+        // for its tools)
+        if (b) b.rect.style.display = 'none';   // (drawn here, with its name)
         var fx = (x0 + x1 - f.w) / 2, fy = (top + HEAD + low - TOOLS - f.h) / 2;
-        var named = e.designator + (e.what ? ' · ' + e.what : ''), NH = 28;   // its name in a box of its own on top of its box,
-        var nt = text(over, 0, top - NH / 2 + 4.5, named, 'pd-title'), nw = 0;   // on the side of its contacts
+        // its name on top, in a box of its own reaching over its contacts; that box and its own one outline
+        var named = e.designator + (e.what ? ' · ' + e.what : ''), NH = 28;
+        var nt = text(over, 0, top - NH / 2 + 4.5, named, 'pd-title'), nw = 0;
         try { nw = nt.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
-        nw = Math.max((nw || named.length * 7.2) + 28, 90);
-        var nx = left ? x1 : x0 - nw;
-        nt.setAttribute('x', nx + nw / 2);
+        nw = Math.max((nw || named.length * 7.2) + 28, x1 - x0 + 60);
+        var nx0 = left ? x0 : x1 - nw, nx1 = left ? x0 + nw : x1;
+        nt.setAttribute('x', (nx0 + nx1) / 2);
         nt.setAttribute('text-anchor', 'middle');
-        under.appendChild(el('rect', { x: nx, y: top - NH, width: nw, height: NH, class: 'pd-name-box' }));
+        var d = left ? 'M' + x0 + ',' + (top - NH) + ' H' + nx1 + ' V' + top + ' H' + x1 + ' V' + low + ' H' + x0 + ' Z'
+                     : 'M' + nx0 + ',' + (top - NH) + ' H' + x1 + ' V' + low + ' H' + x0 + ' V' + top + ' H' + nx0 + ' Z';
+        under.appendChild(el('path', { d: d, class: 'pd-name-box', 'data-connector': e.designator }));
         outline(under, f, fx, fy);
         if (editing) {   // its family (and gender) changed in the family popup, or taken away with its wires
           var fo = el('foreignObject', { x: x0 + 4, y: fy + f.h + 4, width: Math.max(x1 - x0 - 8, 150), height: 28 }, tools);
