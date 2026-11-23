@@ -9,7 +9,7 @@ from django.db import transaction
 from inventory.models import Family, definition_or_family
 from inventory.picker import with_gender
 
-from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessGroup, HarnessItem, HarnessMark, Wire
+from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessGroup, HarnessItem, HarnessMark, HarnessSplice, Wire
 
 KIND = 'osmia harness'   # what a file of a harness says it is
 
@@ -79,6 +79,15 @@ from its left-hand connector, runs bundled together with the other sets, mm).
 
 Other things the harness is made of: `definition` (an item number Osmia knows), `quantity`, `note`.
 
+## splices
+
+A splice (a contact with several wires) has a stretch of its own, from its contact to where its wires part: it can be in
+a set with other splices' stretches (twisted, shielded) and in a group, apart from the wires after it.
+
+```json
+"splices": [{"at": "P1", "pin": "1", "set": "S1", "set_type": "Twisted", "group": "Channel 1"}]
+```
+
 ## bundle
 
 How the harness is laid out, all in mm: one trunk, each connector at the end of a branch that leaves the trunk somewhere
@@ -141,7 +150,8 @@ def export_harness(harness):
                         if v is not None} for g in data.get('groups', [])],
             'items': [{'definition': i['definition'], 'quantity': _plain(i['quantity']), **({'note': i['note']} if i['note'] else {})}
                       for i in data['items']],
-            **({'bundle': _bundle_out(data['bundle'])} if 'bundle' in data else {})}
+            **({'bundle': _bundle_out(data['bundle'])} if 'bundle' in data else {}),
+            **({'splices': data['splices']} if data.get('splices') else {})}
 
 
 def _bundle_out(b):
@@ -340,6 +350,14 @@ def import_harness(data, setup):
             line.save()
         if data.get('bundle'):
             _bundle_in(harness, data['bundle'], ends, used)
+        for i, sp in enumerate(data.get('splices') or [], 1):   # a splice's own stretch: its set, set type, group
+            end = ends.get(str((sp or {}).get('at') or '').strip().lower())
+            pin = str(sp.get('pin') or '').strip()[:20] if end else ''
+            kind = sp.get('set_type') or 'Straight' if end else ''
+            if not (end and pin) or kind not in SET_TYPES or kind == 'Shield':
+                raise ValidationError(f'Splice {i}: give a connector ("at"), its pin, and a set type of {", ".join(t for t in SET_TYPES if t != "Shield")}.')
+            HarnessSplice.objects.create(harness=harness, end=end, pin=pin, wire_set=_text(sp.get('set'), 20), set_type=kind,
+                                         wire_group=_text(sp.get('group'), 40))
     for name, where in unknown.items():
         notes.append(f'"{name}" ({where}) is no family or item number Osmia knows; left out.')
     return harness, notes

@@ -84,7 +84,10 @@ class Harness(models.Model):
                 **({'groups': [{'name': g.name, 'length': str(g.length) if g.length is not None else None,
                                 'bundled': str(g.bundled) if g.bundled is not None else None} for g in self.groups.all()]}
                    if self.groups.exists() else {}),   # (only when there are: older versions have none)
-                **({'bundle': self.bundle()} if self.has_bundle() else {})}
+                **({'bundle': self.bundle()} if self.has_bundle() else {}),
+                **({'splices': [{'at': s.end.designator, 'pin': s.pin, 'set': s.wire_set, 'set_type': s.set_type, 'group': s.wire_group}
+                                for s in self.splices.select_related('end') if s.wire_set or s.wire_group]}
+                   if self.splices.exclude(wire_set='', wire_group='').exists() else {})}   # (only when there are: older versions have none)
 
     def has_bundle(self):
         return (self.trunk is not None or self.marks.exists()
@@ -132,6 +135,11 @@ class Harness(models.Model):
                                end=Decimal(m['end']) if m.get('end') else None, text=m.get('text', ''), wire_set=m.get('set', ''))
             mark.used = definition_or_family(m.get('definition'))
             mark.save()
+        self.splices.all().delete()
+        for s in data.get('splices', []):
+            if ends.get(s.get('at')):
+                HarnessSplice.objects.create(harness=self, end=ends[s['at']], pin=s['pin'], wire_set=s.get('set', ''),
+                                             set_type=s.get('set_type') or 'Straight', wire_group=s.get('group', ''))
         self.groups.all().delete()
         for g in data.get('groups', []):
             HarnessGroup.objects.create(harness=self, name=g['name'], length=Decimal(g['length']) if g.get('length') else None,
@@ -215,6 +223,23 @@ class HarnessItem(DefinitionOrFamily):
 
     class Meta:
         ordering = ['pk']
+
+
+class HarnessSplice(models.Model):
+    """A splice's own stretch, from its contact (a contact with several wires) to where they part: the set it is in
+    (its own sets, apart from the wires' after the splice), how that set's stretches go together, its group."""
+    harness = models.ForeignKey(Harness, on_delete=models.CASCADE, related_name='splices')
+    end = models.ForeignKey(HarnessEnd, on_delete=models.CASCADE, related_name='splices')
+    pin = models.CharField(max_length=20)
+    wire_set = models.CharField('set', max_length=20, blank=True)
+    set_type = models.CharField(max_length=20, default='Straight', choices=[(t, t) for t in PIN_SET_TYPES])
+    wire_group = models.CharField('group', max_length=40, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['end', 'pin'], name='unique_splice_contact')]
+
+    def __str__(self):
+        return f'{self.end}:{self.pin}'
 
 
 class HarnessGroup(models.Model):

@@ -27,7 +27,7 @@ from web.templatetags.osmia import qty
 from . import purposes
 from web.forms import initial_for
 
-from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessItem, HarnessMark, HarnessVersion, Wire, parts_of
+from .models import COLOURS, SET_TYPES, Harness, HarnessEnd, HarnessItem, HarnessMark, HarnessSplice, HarnessVersion, Wire, parts_of
 
 
 class HarnessForm(forms.ModelForm):
@@ -369,7 +369,9 @@ def _drawing(harness, wires):
     bundle = {'trunk': qty(harness.trunk), 'kinds': HarnessMark.Kind.choices, 'splices': _splices(wires),   # the Bundle tab: what is along it
               'marks': [{'id': m.pk, 'kind': m.kind, 'label': m.get_kind_display(), 'on': m.on_id, 'start': qty(m.start), 'end': qty(m.end),
                          'text': m.text, 'set': m.wire_set, 'what': m.used_name} for m in harness.marks.select_related('definition', 'family', 'branch')]}
-    return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'groups': lengths, 'bundle': bundle, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
+    splices = [{'end': s.end_id, 'pin': s.pin, 'set': s.wire_set, 'type': s.set_type, 'group': s.wire_group} for s in harness.splices.all()]
+    return {'colours': COLOURS, 'set_types': PIN_SET_TYPES, 'purposes': purposes.tree(), 'ends': out, 'groups': lengths, 'bundle': bundle,
+            'splices': splices, 'wires': [{'id': w.pk, 'from': w.from_end_id, 'from_pin': w.from_pin, 'to': w.to_end_id, 'to_pin': w.to_pin, 'signal': w.signal,
                                     'to_signal': w.to_signal, 'group': w.wire_group, 'set': w.wire_set, 'type': w.set_type, 'colour': w.colour, 'gauge': w.gauge, 'length': qty(w.length)} for w in wires]}
 
 
@@ -420,6 +422,38 @@ def pinout_draw(request, pk):
             shield = shield or Wire(harness=item, wire_set=name, set_type='Shield', signal='Shield', colour='grey', wire_group=group)
             shield.from_end, shield.from_pin, shield.to_end, shield.to_pin = a, a_pin, b, b_pin
             shield.save()
+        return JsonResponse(_drawing(item, item.ordered_wires()))
+    if action in ('splice_set', 'splice_group', 'splice_type'):   # a splice's own stretch: its set (its own sets), group, twist
+        end = get_object_or_404(HarnessEnd, pk=post.get('end') or 0, harness=item)
+        pin = post.get('pin', '').strip()[:20]
+        if not pin:
+            return JsonResponse({'error': 'Which splice?'}, status=400)
+        sp, _ = HarnessSplice.objects.get_or_create(harness=item, end=end, pin=pin)
+        value = post.get(action[7:], '').strip()
+        if action == 'splice_set':
+            if value.startswith('new:'):
+                taken, n = set(item.splices.values_list('wire_set', flat=True)), 1
+                while f'S{n}' in taken:
+                    n += 1
+                sp.wire_set, sp.set_type = f'S{n}', 'Straight'
+            elif value and value != sp.wire_set:
+                mate = item.splices.filter(wire_set=value).exclude(pk=sp.pk).first()
+                sp.wire_set = value[:20]
+                if mate:
+                    sp.set_type, sp.wire_group = mate.set_type, mate.wire_group
+            elif not value:
+                sp.wire_set, sp.set_type = '', 'Straight'
+            sp.save()
+        elif action == 'splice_group':
+            value = ' '.join(value.split())[:40]
+            if sp.wire_set:
+                item.splices.filter(wire_set=sp.wire_set).update(wire_group=value)
+            else:
+                HarnessSplice.objects.filter(pk=sp.pk).update(wire_group=value)
+        else:
+            if not sp.wire_set or value not in PIN_SET_TYPES:
+                return JsonResponse({'error': 'A splice in a set, and a set type.'}, status=400)
+            item.splices.filter(wire_set=sp.wire_set).update(set_type=value)
         return JsonResponse(_drawing(item, item.ordered_wires()))
     if action in ('trunk', 'end_place'):   # the Bundle tab: the trunk's length; where a connector breaks out, its branch
         try:

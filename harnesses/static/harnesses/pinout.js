@@ -267,9 +267,34 @@
         return sp ? { s: sp } : null;
       }
       var DIA = 34;   // a splice's symbol's half width
-      var spliceBlocks = {};   // each connector's splices: a block before its first group on that side
+      // a splice's own stretch (its contact to its symbol) a row like a wire's: in a set of its own kind (twisted,
+      // shielded) and a group; its gauge, colour and purpose its wires'
+      var stretch = {};
+      (data.splices || []).forEach(function (sx) { stretch[sx.end + ':' + String(sx.pin).toLowerCase()] = sx; });
+      Object.keys(spliceAt).forEach(function (k) {
+        var sp = spliceAt[k], w0 = sp.rows[0].w, rec = stretch[sp.at.end + ':' + String(sp.at.pin).toLowerCase()] || {};
+        var key = rec.set ? 'splice:' + rec.set : '', none = { end: null, pin: '' };
+        var purpose = signal[sp.at.end + ':' + sp.at.pin] || (sp.left ? w0.signal : w0.to_signal || w0.signal);
+        var r = sp.row = { stub: sp, a: sp.left ? sp.at : none, b: sp.left ? none : sp.at, same: false, loopback: false,
+                           w: { id: 'splice-' + sp.name, set: key, type: rec.type || 'Straight', group: rec.group || '', colour: w0.colour,
+                                gauge: w0.gauge, signal: sp.left ? purpose : '', to_signal: '', from: sp.at.end, from_pin: sp.at.pin, to: null, to_pin: '' } };
+        if (key) {
+          if (!sets[key]) setOrder.push(sets[key] = { name: key, label: rec.set, type: rec.type || 'Straight', rows: [], first: null, group: '' });
+          sets[key].rows.push(r);
+          sets[key].group = sets[key].group || rec.group || '';
+        }
+        var gname = key ? sets[key].group : r.w.group;
+        if (gname) {
+          if (!groups0[gname]) groupOrder.push(groups0[gname] = { name: gname, first: null, rows: [] });
+          groups0[gname].rows.push(r);
+        }
+        rows.push(r);
+      });
+      var spliceBlocks = {};   // each connector's splices: a block before its first group on that side (by group, set, pin)
       Object.keys(spliceAt).map(function (k) { return spliceAt[k]; })
-        .sort(function (p, q) { return natural(p.at.pin, q.at.pin); })
+        .sort(function (p, q) {
+          return natural(groupOf(p.row) || '~', groupOf(q.row) || '~') || natural(p.row.w.set || '~', q.row.w.set || '~') || natural(p.at.pin, q.at.pin);
+        })
         .forEach(function (sp) {
           var key = (sp.left ? 'L' : 'R') + sp.at.end;
           var b = spliceBlocks[key] = spliceBlocks[key] ||
@@ -449,7 +474,7 @@
         var L = on === 'left', plain = 0, after = 0, far;
         var mine = Object.keys(spliceAt).map(function (k) { return spliceAt[k]; }).filter(function (sp) { return sp.left === L; });
         rows.forEach(function (r) {
-          if (r.loopback) return;
+          if (r.loopback || r.stub) return;
           if (spliceOf(r, L)) after = Math.max(after, tagsOf(r, L)); else plain = Math.max(plain, tagsOf(r, L));
         });
         far = plain;
@@ -567,7 +592,12 @@
         var y0 = y, n = g.loop ? loopRows(g) : g.rows.length + (g.stubs ? g.stubs.length : 0), bottom = n ? (n - 1) * ROW + C : 0;
         var at = [], off = 0, was = null;   // each row's place down from the first (more where a group starts)
         if (!g.loop) {
-          (g.stubs || []).forEach(function () { at.push(at.length * ROW); });
+          (g.stubs || []).forEach(function (sp) {
+            var named = groupOf(sp.row);
+            if (named && named !== was) off += NAMED;
+            was = named;
+            at.push(at.length * ROW + off);
+          });
           g.rows.forEach(function (r) {
             var named = groupOf(r);
             if (named && named !== was) off += NAMED;
@@ -594,7 +624,9 @@
           return;
         }
         (g.stubs || []).forEach(function (sp, i) {   // a splice's own row: its contact
-          sp.y = y0 + at[i];
+          sp.y = sp.row.y = y0 + at[i];
+          sp.row.ax = sp.left ? x.left : column.right + DIA;
+          sp.row.bx = sp.left ? column.left - DIA : x.right;
           contact(sp.at, sp.left, sp.y);
           own[sp.left ? 'left' : 'right'] = true;
         });
@@ -746,6 +778,7 @@
         var inner = s.rows.filter(function (r) { return r.w.type !== 'Shield'; }), shield = s.rows.filter(function (r) { return r.w.type === 'Shield'; })[0];
         if (!inner.length) return;
         if (inner[0].loop) { loopShieldDraw(s, inner, shield); return; }
+        if (editing && inner[0].stub) return;   // (editing: a splices' set by its boxes only)
         // an ellipse round each run of its wires side by side; the shield (its circles, its line) with the run just above it
         var parts = runs(inner.filter(function (r) { return r.y !== undefined; }));
         if (!parts.length) return;
@@ -804,7 +837,7 @@
         // twisted with the wires of its set beside it (not with one far off, beside another connector)
         var pair = runs(s.rows.filter(function (o) { return o.w.type !== 'Shield' && o.y !== undefined; }))
           .filter(function (run) { return run.indexOf(r) !== -1; })[0] || [r];
-        if (twisted(s.type) && pair.length > 1) {   // see twistPoints
+        if (twisted(s.type) && pair.length > 1 && !(editing && r.stub)) {   // see twistPoints
           var i = pair.indexOf(r), pts = [[r.ax, y]];
           twistOf(pair).forEach(function (t) { pts = pts.concat(twistPoints(pair, i, t)); });
           pts.push([r.bx, y]);
@@ -817,15 +850,7 @@
       Object.keys(spliceAt).forEach(function (k) {   // each splice: its own row (contact, tags, diamond), its wires' diamonds
         var sp = spliceAt[k], on = sp.left ? 'left' : 'right', dir = sp.left ? 1 : -1, col = column[on];
         if (sp.y === undefined) return;
-        var edge = sp.left ? x.left : x.right, w = sp.rows[0].w, at = edge + dir * 6;
-        var purpose = signal[sp.at.end + ':' + sp.at.pin] || (sp.left ? w.signal : w.to_signal || w.signal);
-        if (!editing && w.gauge) at = tag(at, sp.y, w.gauge, dir, 'pd-gauge', w.id);
-        if (!editing && purpose && sp.left) at = tag(at, sp.y, purpose, dir, 'pd-label', w.id);
-        var stub = el('g', { class: 'pd-wire' }, wiresG), d = 'M' + edge + ',' + sp.y + ' H' + (col - dir * DIA);   // its contact to
-        el('path', { d: d, class: 'pd-wire-edge' }, stub);   // it: a wire in its wires' colour
-        el('path', { d: d, class: 'pd-wire-core', style: 'stroke:' + colourOf(w) }, stub);
-        if (w.colour === 'green/yellow') el('path', { d: d, class: 'pd-wire-core', style: 'stroke:#facc15', 'stroke-dasharray': '8 8' }, stub);
-        remember(sp.at.end + ':' + sp.at.pin, stub);
+        var w = sp.rows[0].w;   // (its stretch, tags and all, drawn as its row)
         diamond(sp, col, sp.y, -dir);   // (pointed at its contact)
         if (!editing) tag(col + dir * (DIA + 4), sp.y, sp.label, dir, 'pd-splice-tag', w.id);
         sp.rows.forEach(function (r) { if (r.y !== undefined) diamond(sp, col, r.y, dir); });   // (at the wire going on)
@@ -840,7 +865,7 @@
           [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30].forEach(function (n) { html('option', { value: n + ' AWG' }, gauges); });
         }
         rows.forEach(function (r) {
-          if (r.y === undefined) return;
+          if (r.y === undefined || r.stub) return;   // (a splice's: below)
           var w = r.w, at = r.slots, dir = at.dir;
           function spot(x0, y, width, cls) {   // a box of tools from x0 going the row's way
             var fo = el('foreignObject', { x: dir > 0 ? x0 : x0 - width, y: y - 12, width: width, height: 26 }, tools);
@@ -926,7 +951,36 @@
           lb.addEventListener('click', function () {
             purposePicker(purpose, function (v) { post({ action: 'signal', wire: ids, signal: v, contact: contactKey }); });
           });
-          var rest = spot(column[sp.left ? 'left' : 'right'] + dir * (DIA + 8), sp.y, 130);
+          // past its symbol: its group, its set (splices' sets), how that set's stretches go together; its colour, ✕
+          var sw = sp.row.w, mine = sw.set ? sets[sw.set] : null, where = { end: sp.at.end, pin: sp.at.pin };
+          var box = spot(column[sp.left ? 'left' : 'right'] + dir * (DIA + 8), sp.y, 346), add = function (to, value, label) {
+            var o = html('option', { value: value }, to); o.textContent = label;
+          };
+          var pickGroup = html('input', { type: 'text', 'aria-label': 'Group', placeholder: 'Group', list: 'pd-groups', class: 'pd-group-input' }, box);
+          pickGroup.value = groupOf(sp.row);
+          pickGroup.addEventListener('change', function () { post(Object.assign({ action: 'splice_group', group: pickGroup.value }, where)); });
+          var pickSet = html('select', { 'aria-label': 'Set of ' + sp.name.replace('S', 'Splice '), 'data-splice-set': sp.name }, box);
+          add(pickSet, '', 'No set');
+          setOrder.forEach(function (st) { if (st.rows[0] && st.rows[0].stub) add(pickSet, st.label, 'Set ' + st.label); });
+          add(pickSet, 'new:', '＋ New set');
+          pickSet.value = mine ? mine.label : '';
+          pickSet.addEventListener('change', function () { post(Object.assign({ action: 'splice_set', set: pickSet.value }, where)); });
+          var pickType = html('select', { 'aria-label': 'Set type', class: 'pd-type' }, box);
+          [['Straight', 'Straight'], ['Twisted', 'Twisted']].forEach(function (t) { add(pickType, t[0], t[1]); });
+          pickType.value = mine && twisted(mine.type) ? 'Twisted' : 'Straight';
+          pickType.disabled = !mine;
+          var shieldBox = html('label', { class: 'pd-shielded' + (mine ? '' : ' off'), title: 'Shielded' }, box);
+          var pickShield = html('input', { type: 'checkbox', 'aria-label': 'Shielded' }, shieldBox);
+          shieldBox.appendChild(document.createTextNode('Shielded'));
+          pickShield.checked = !!mine && shielded(mine.type);
+          pickShield.disabled = !mine;
+          function stretchKind() {
+            var tw = pickType.value === 'Twisted';
+            return pickShield.checked ? (tw ? 'Shielded twisted' : 'Shielded') : (tw ? 'Twisted' : 'Straight');
+          }
+          pickType.addEventListener('change', function () { post(Object.assign({ action: 'splice_type', type: stretchKind() }, where)); });
+          pickShield.addEventListener('change', function () { post(Object.assign({ action: 'splice_type', type: stretchKind() }, where)); });
+          var rest = spot(column[sp.left ? 'left' : 'right'] + dir * (DIA + 8 + 350), sp.y, 130);
           var pickColour = html('select', { 'aria-label': 'Colour', class: 'pd-colour' }, rest);
           [''].concat(data.colours).forEach(function (c) { var o = html('option', { value: c }, pickColour); o.textContent = c || 'colour'; });
           pickColour.value = w.colour || '';
@@ -964,11 +1018,11 @@
           if (!ys.length) return;
           var top = Math.min.apply(null, ys) - ROW / 2, low = Math.max.apply(null, ys) + ROW / 2;
           var area = el('rect', { x: x.left + 2, y: top, width: x.right - x.left - 4, height: low - top, rx: 8, class: 'pd-area', 'data-set': s.name }, areas);
-          el('title', {}, area).textContent = (s.group ? s.group + ' · set ' : 'Set ') + s.name + ' · ' + s.type.toLowerCase();
+          el('title', {}, area).textContent = (s.group ? s.group + ' · set ' : 'Set ') + (s.label || s.name) + ' · ' + s.type.toLowerCase();
           area.addEventListener('click', function () { show(s.name); });
         });
         rows.forEach(function (r) {   // a wire in no set: picked on its own
-          if (r.w.set || r.y === undefined) return;
+          if (r.w.set || r.y === undefined || r.stub) return;   // (a splice's stretch: picked by its contact)
           var key = 'wire:' + r.w.id;
           var area = el('rect', { x: x.left + 2, y: r.y - ROW / 2, width: x.right - x.left - 4, height: (r.yBack || r.y) - r.y + ROW, rx: 8, class: 'pd-area', 'data-set': key }, areas);
           el('title', {}, area).textContent = byId[r.a.end].designator + ':' + r.a.pin + ' → ' + byId[r.b.end].designator + ':' + r.b.pin +

@@ -338,6 +338,29 @@ class BundleTests(HarnessBase):
         self.assertFalse(self.harness.wires.exists())
         self.assertEqual(self.client.post(url, {'action': 'gauge', 'wire': ''}).status_code, 400)
 
+    def test_a_splice_s_own_stretch_in_a_set_and_group(self):
+        from harnesses.models import HarnessSplice
+        self.connect('1', '1'); self.connect('1', '2'); self.connect('2', '3'); self.connect('2', '4')   # P1:1 and P1:2 splices
+        at = {'end': self.p1.pk}
+        drawn = self.draw(action='splice_set', pin='1', set='new:', **at).json()
+        self.assertEqual(drawn['splices'], [{'end': self.p1.pk, 'pin': '1', 'set': 'S1', 'type': 'Straight', 'group': ''}])
+        self.draw(action='splice_set', pin='2', set='S1', **at)
+        self.draw(action='splice_type', pin='1', type='Shielded twisted', **at)
+        self.draw(action='splice_group', pin='2', group='Channel 1', **at)
+        self.assertEqual(set(HarnessSplice.objects.values_list('pin', 'wire_set', 'set_type', 'wire_group')),
+                         {('1', 'S1', 'Shielded twisted', 'Channel 1'), ('2', 'S1', 'Shielded twisted', 'Channel 1')})
+        self.assertEqual(self.draw(action='splice_type', pin='3', type='Twisted', **at).status_code, 400)   # in no set
+        self.assertEqual(self.draw(action='splice_set', pin='', set='S1', **at).status_code, 400)
+        # kept in a version and a harness file
+        versions.save(self.harness, None)
+        HarnessSplice.objects.all().delete()
+        self.assertTrue(versions.changed(self.harness))
+        versions.restore(self.harness, self.harness.versions.get())
+        self.assertEqual(HarnessSplice.objects.filter(wire_set='S1').count(), 2)
+        from harnesses.transfer import import_harness
+        again, _ = import_harness(self.client.get(self.harness.get_absolute_url() + '?json=1').json(), None)
+        self.assertEqual(again.snapshot()['splices'], self.harness.snapshot()['splices'])
+
     def test_marks_put_on_a_line_in_the_bundle_mode(self):
         self.connect('1', '1')
         url = reverse('harnesses:pinout_draw', args=[self.harness.pk])
