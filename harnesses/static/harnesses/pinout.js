@@ -525,7 +525,10 @@
         if (column[on] === undefined) return;
         var near = on === 'left' ? EL : ER, beyond = on === 'left' ? ER : EL;
         var room = setOrder.some(function (st) { return st.rows[0] && st.rows[0].stub && shielded(st.type); }) ? 96 : 0;
-        if (editing) { least = Math.max(least, 2 * TOOLW + 2 * DIA + 12 + room + beyond); return; }   // (its row's boxes, then
+        if (editing) {   // its row: its boxes, it at the far end; its wires (rows of their own) from under its boxes
+          least = Math.max(least, TOOLW + room + 2 * DIA + 12 + beyond, near + TOOLW + 2 * DIA + 12 + beyond);
+          return;
+        }   // (viewing: its row's boxes, then
         // it, then its wires' boxes)
         least = both ? Math.max(least, 2 * (Math.max(near, column[on] + DIA) + shift + DIA + 10), 2 * (shift + DIA + 6 + past[on] + 20 + beyond))
                      : Math.max(least, near + ON + 2 * DIA + 12 + past[on] + ON + beyond);
@@ -537,6 +540,8 @@
       }
       if (column.left !== undefined) column.left = editing ? x.right - ER - TOOLW - DIA : both ? mid - shift : x.right - ER - ON - past.left - DIA - 6;
       if (column.right !== undefined) column.right = editing ? x.left + EL + TOOLW + DIA : both ? mid + shift : x.left + EL + ON + past.right + DIA + 6;
+      // a splice's own row: its symbol (editing: at the far end, by the connectors its wires go to; viewing: with theirs)
+      var stubCol = { left: editing ? x.right - ER - DIA : column.left, right: editing ? x.left + EL + DIA : column.right };
       function E(left) { return left ? EL : ER; }
       var bigHalf = TWIST;
       setOrder.forEach(function (s) {
@@ -656,8 +661,8 @@
         }
         (g.stubs || []).forEach(function (sp, i) {   // a splice's own row: its contact
           sp.y = sp.row.y = y0 + at[i];
-          sp.row.ax = sp.left ? x.left : column.right + DIA;
-          sp.row.bx = sp.left ? column.left - DIA : x.right;
+          sp.row.ax = sp.left ? x.left : stubCol.right + DIA;
+          sp.row.bx = sp.left ? stubCol.left - DIA : x.right;
           contact(sp.at, sp.left, sp.y);
           own[sp.left ? 'left' : 'right'] = true;
         });
@@ -838,7 +843,7 @@
           fromSplice[0] ? Math.max.apply(null, withShield.map(function (r) { return Math.max(r.tagEnd.left || 0, r.ax); })) + 24 : x.left + EL,
           fromSplice[1] ? Math.min.apply(null, withShield.map(function (r) { return Math.min(r.tagEnd.right || Infinity, r.bx); })) - 24 : x.right - ER];
         if (editing && inner[0].stub) {   // (editing: a splices' set past its boxes, in the room kept for it)
-          ellipses[s.name] = inner[0].stub.left ? [x.left + TOOLW + 14, column.left - DIA - 24] : [column.right + DIA + 24, x.right - TOOLW - 14];
+          ellipses[s.name] = inner[0].stub.left ? [x.left + TOOLW + 14, stubCol.left - DIA - 24] : [stubCol.right + DIA + 24, x.right - TOOLW - 14];
         }
         parts.forEach(function (run) {
           var ys = run.map(function (r) { return r.y; }), mine = run === main;
@@ -903,7 +908,7 @@
         var sp = spliceAt[k], on = sp.left ? 'left' : 'right', dir = sp.left ? 1 : -1, col = column[on];
         if (sp.y === undefined) return;
         var w = sp.rows[0].w;   // (its stretch, tags and all, drawn as its row)
-        diamond(sp, col, sp.y, -dir);   // (pointed at its contact)
+        diamond(sp, stubCol[on], sp.y, -dir);   // (pointed at its contact)
         if (!editing) tag(col + dir * (DIA + 4), sp.y, sp.label, dir, 'pd-splice-tag', w.id);
         sp.rows.forEach(function (r) { if (r.y !== undefined) diamond(sp, col, r.y, dir); });   // (at the wire going on)
       });
