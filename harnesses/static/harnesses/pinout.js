@@ -317,17 +317,17 @@
         // for its tools)
         if (b) b.rect.style.display = 'none';   // (drawn here, with its name)
         var fx = (x0 + x1 - f.w) / 2, fy = (top + HEAD + low - TOOLS - f.h) / 2;
-        // its name on top, in a box of its own reaching over its contacts; that box and its own one outline
-        var named = e.designator + (e.what ? ' · ' + e.what : ''), NH = 28;
-        var nt = text(over, 0, top - NH / 2 + 4.5, named, 'pd-title'), nw = 0;
+        // no box round it: a line down the side of its contacts; its name in a label of its own above it, a line from
+        // that label down to it
+        var barX = left ? x1 : x0;
+        el('line', { x1: barX, y1: top, x2: barX, y2: low, class: 'pd-conn-bar', 'data-connector': e.designator }, under);
+        var named = e.designator + (e.what ? ' · ' + e.what : ''), NH = 26, cx = fx + f.w / 2;
+        var nt = text(over, cx, top - 10 - NH / 2 + 4.5, named, 'pd-title'), nw = 0;
         try { nw = nt.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
-        nw = Math.max((nw || named.length * 7.2) + 28, x1 - x0 + 60);
-        var nx0 = left ? x0 : x1 - nw, nx1 = left ? x0 + nw : x1;
-        nt.setAttribute('x', (nx0 + nx1) / 2);
+        nw = (nw || named.length * 7.2) + 24;
         nt.setAttribute('text-anchor', 'middle');
-        var d = left ? 'M' + x0 + ',' + (top - NH) + ' H' + nx1 + ' V' + top + ' H' + x1 + ' V' + low + ' H' + x0 + ' Z'
-                     : 'M' + nx0 + ',' + (top - NH) + ' H' + x1 + ' V' + low + ' H' + x0 + ' V' + top + ' H' + nx0 + ' Z';
-        under.appendChild(el('path', { d: d, class: 'pd-name-box', 'data-connector': e.designator }));
+        el('line', { x1: cx, y1: top - 10, x2: cx, y2: fy + 4, class: 'pd-name-leader' }, under);
+        el('rect', { x: cx - nw / 2, y: top - 10 - NH, width: nw, height: NH, class: 'pd-name-box' }, under);
         outline(under, f, fx, fy);
         if (editing) {   // its family (and gender) changed in the family popup, or taken away with its wires
           var fo = el('foreignObject', { x: x0 + 4, y: fy + f.h + 4, width: Math.max(x1 - x0 - 8, 150), height: 28 }, tools);
