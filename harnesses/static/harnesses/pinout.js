@@ -170,6 +170,9 @@
 
     function render() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
+      var arrow = el('marker', { id: 'pd-arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' },
+                     el('defs', {}, svg));   // (a connector's label's arrow)
+      el('path', { d: 'M0,0 L10,5 L0,10 Z', class: 'pd-arrow-head' }, arrow);
       bar.textContent = '';
       var data = state.data, editing = state.editing;
       ROW = editing ? 30 : 24;   // rows close together (editing: room for the boxes)
@@ -313,24 +316,24 @@
         var left = side[e.id] === 'left', f = faces[e.id], fb = faceBox[e.id], b = fb.frame;
         var x0 = b ? b.x0 : left ? x.leftFace - 6 : x.rightBar, x1 = b ? b.x1 : left ? x.leftBar + 12 : x.rightFace + widest.right + 6;
         var top = b ? b.top : fb.top, low = b ? b.low : fb.low;
-        if (!editing) { if (left) x0 = x1 - f.w - 16; else x1 = x0 + f.w + 16; }   // its box close round its face (editing: room
-        // for its tools)
         if (b) b.rect.style.display = 'none';   // (drawn here, with its name)
-        var fx = (x0 + x1 - f.w) / 2, fy = (top + HEAD + low - TOOLS - f.h) / 2;
-        // no box round it: a line down the side of its contacts; its name in a label of its own above it, a line from
-        // that label down to it
-        var barX = left ? x1 : x0;
-        el('line', { x1: barX, y1: top, x2: barX, y2: low, class: 'pd-conn-bar', 'data-connector': e.designator }, under);
-        var named = e.designator + (e.what ? ' · ' + e.what : ''), NH = 26, cx = fx + f.w / 2;
-        var nt = text(over, cx, top - 10 - NH / 2 + 4.5, named, 'pd-title'), nw = 0;
+        // a bar where its contacts end, its face beside it; its name in a label above, an arrow from it to the face
+        var BW = 14, barX0 = left ? x.leftBar + 12 - BW : x.rightBar;
+        el('rect', { x: barX0, y: top, width: BW, height: low - top, class: 'pd-conn-bar', 'data-connector': e.designator }, under);
+        var fx = left ? barX0 - 20 - f.w : barX0 + BW + 20, fy = (top + HEAD + low - TOOLS - f.h) / 2;
+        var named = e.designator + (e.what ? ' · ' + e.what : ''), NH = 26, ny = top - 16 - NH;
+        var nt = text(over, 0, ny + NH / 2 + 4.5, named, 'pd-title'), nw = 0;
         try { nw = nt.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
-        nw = (nw || named.length * 7.2) + 24;
+        nw = (nw || named.length * 7.2) + 28;
+        var nx = left ? fx + f.w - 10 : fx + 10 - nw;
+        nt.setAttribute('x', nx + nw / 2);
         nt.setAttribute('text-anchor', 'middle');
-        el('line', { x1: cx, y1: top - 10, x2: cx, y2: fy + 4, class: 'pd-name-leader' }, under);
-        el('rect', { x: cx - nw / 2, y: top - 10 - NH, width: nw, height: NH, class: 'pd-name-box' }, under);
+        el('rect', { x: nx, y: ny, width: nw, height: NH, class: 'pd-name-box' }, under);
+        var from = left ? Math.min(nx + 30, barX0 - 8) : Math.max(nx + nw - 30, barX0 + BW + 8), to = left ? fx + f.w - 6 : fx + 6;   // (clear of the bar)
+        el('line', { x1: from, y1: ny + NH, x2: to, y2: fy + 6, class: 'pd-name-leader', 'marker-end': 'url(#pd-arrow)' }, under);
         outline(under, f, fx, fy);
         if (editing) {   // its family (and gender) changed in the family popup, or taken away with its wires
-          var fo = el('foreignObject', { x: x0 + 4, y: fy + f.h + 4, width: Math.max(x1 - x0 - 8, 150), height: 28 }, tools);
+          var fo = el('foreignObject', { x: left ? x0 + 4 : barX0 + BW + 4, y: fy + f.h + 4, width: Math.max(x1 - x0 - 8, 150), height: 28 }, tools);
           var box = html('div', { class: 'pd-tools pd-end-tools' }, fo);
           var fam = html('button', { type: 'button', class: 'btn small', title: 'Family' }, box);
           fam.textContent = e.used || 'Family…';
