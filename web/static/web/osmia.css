@@ -298,6 +298,7 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-contact .pd-num { font-size: 13px; font-weight: 700; }
 .pinout-drawing .pd-bar { fill: var(--panel-2); stroke: var(--text); stroke-width: 1.5; }
 .pinout-drawing .pd-bar.pd-around { fill: none; stroke: #9ca3af; stroke-width: 1.5; }
+.pinout-drawing .pd-name-box { fill: var(--panel); stroke: #9ca3af; stroke-width: 1.5; }
 .pinout-drawing .pd-bar-label { font: 600 11px system-ui, sans-serif; fill: var(--text); text-anchor: middle; }
 .pinout-drawing .pd-stub { stroke: var(--text); stroke-width: 1.5; }
 .pinout-drawing .pd-shield { fill: none; stroke: var(--text); stroke-width: 1.6; }
