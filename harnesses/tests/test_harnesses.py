@@ -324,6 +324,20 @@ class BundleTests(HarnessBase):
         again, _ = import_harness(out, None)
         self.assertEqual(again.snapshot()['bundle'], self.harness.snapshot()['bundle'])
 
+    def test_a_splice_s_wires_changed_together_from_its_own_row(self):
+        one, two = self.connect('1', '1'), Wire.objects.create(harness=self.harness, from_end=self.p2, from_pin='3', to_end=self.p1, to_pin='1')
+        url, ids, contact = reverse('harnesses:pinout_draw', args=[self.harness.pk]), f'{one.pk},{two.pk}', f'{self.p1.pk}:1'
+        self.draw(action='gauge', wire=ids, gauge='20')
+        self.draw(action='colour', wire=ids, colour='red')
+        self.draw(action='signal', wire=ids, signal='+24 V', contact=contact)   # each at its end on P1:1
+        one.refresh_from_db(); two.refresh_from_db()
+        self.assertEqual((one.gauge, one.colour, one.signal, one.to_signal), ('20 AWG', 'red', '+24 V', ''))
+        self.assertEqual((two.gauge, two.colour, two.signal, two.to_signal), ('20 AWG', 'red', '', '+24 V'))
+        self.assertEqual(self.draw(action='set', wire=ids, set='new:Straight').status_code, 400)   # one wire at a time
+        self.draw(action='delete', wire=ids)
+        self.assertFalse(self.harness.wires.exists())
+        self.assertEqual(self.client.post(url, {'action': 'gauge', 'wire': ''}).status_code, 400)
+
     def test_marks_put_on_a_line_in_the_bundle_mode(self):
         self.connect('1', '1')
         url = reverse('harnesses:pinout_draw', args=[self.harness.pk])

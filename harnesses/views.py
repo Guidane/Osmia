@@ -470,64 +470,72 @@ def pinout_draw(request, pk):
         if a == b and from_pin.lower() == to_pin.lower():
             return JsonResponse({'error': 'A loopback goes to another pin.'}, status=400)
         Wire.objects.create(harness=item, from_end=a, from_pin=from_pin, to_end=b, to_pin=to_pin)
-    else:
-        wire = get_object_or_404(Wire, pk=post.get('wire') or 0, harness=item)
-        if action == 'delete':
-            wire.delete()
-        elif action == 'colour':
-            wire.colour = post.get('colour') if post.get('colour') in COLOURS else ''
-            wire.save()
-        elif action == 'signal':   # what it is for: PWR, GND, TX+, …; a loopback's other end its own (TX: RX)
-            value = ' '.join(post.get('signal', '').split())[:100]
-            if post.get('end') == 'to':
-                wire.to_signal = value
-            else:
-                if wire.from_end_id == wire.to_end_id and wire.to_signal in ('', purposes.mate(wire.signal)):
-                    wire.to_signal = purposes.mate(value)
-                wire.signal = value
-            wire.save()
-        elif action == 'gauge':   # a bare number is taken as AWG
-            value = ' '.join(post.get('gauge', '').split())
-            wire.gauge = (f'{value} AWG' if value.isdigit() else value)[:20]
-            wire.save()
-        elif action == 'set':
-            value = post.get('set', '').strip()
-            if value.startswith('new:'):
-                taken, n = set(item.wires.values_list('wire_set', flat=True)), 1
-                while str(n) in taken:
-                    n += 1
-                kind = value[4:]
-                wire.wire_set, wire.set_type = str(n), kind if kind in PIN_SET_TYPES else 'Straight'
-            elif value.startswith('shield:'):
-                wire.wire_set, wire.set_type = value[7:][:20], 'Shield'
-            elif wire.wire_set == value:
-                pass
-            elif value:
-                mate = item.wires.filter(wire_set=value).exclude(pk=wire.pk).exclude(set_type='Shield').first()
-                wire.wire_set, wire.set_type = value[:20], mate.set_type if mate else 'Straight'
-                if mate:   # into the set's group too
-                    wire.wire_group = mate.wire_group
-            else:
-                wire.wire_set, wire.set_type = '', 'Straight'
-            wire.save()
-        elif action == 'group':   # a name tag over sets: the wire's whole set goes into it (a wire in no set: just it)
-            value = ' '.join(post.get('group', '').split())[:40]
-            if wire.wire_set:
-                item.wires.filter(wire_set=wire.wire_set).update(wire_group=value)
-            else:
-                Wire.objects.filter(pk=wire.pk).update(wire_group=value)
-        elif action == 'set_type':   # the whole set goes together so now; or this wire is the set's shield
-            kind = post.get('type', '')
-            if not wire.wire_set or kind not in SET_TYPES:
-                return JsonResponse({'error': 'A wire in a set, and a set type.'}, status=400)
-            if kind == 'Shield':
-                wire.set_type = 'Shield'
+    else:   # one wire; or (its gauge, colour, purpose, taken away) all a splice's wires, from its own row
+        ids = [n for n in str(post.get('wire') or '').split(',') if n.strip().isdigit()]
+        wires = list(item.wires.filter(pk__in=ids))
+        if not wires or (len(wires) > 1 and action not in ('delete', 'colour', 'signal', 'gauge')):
+            return JsonResponse({'error': 'Which wire?'}, status=400)
+        contact = str(post.get('contact') or '').lower()   # a splice's: the end of each of its wires there ("end id:pin")
+        for wire in wires:
+            end = post.get('end')
+            if contact:
+                end = 'from' if f'{wire.from_end_id}:{wire.from_pin.lower()}' == contact else 'to'
+            if action == 'delete':
+                wire.delete()
+            elif action == 'colour':
+                wire.colour = post.get('colour') if post.get('colour') in COLOURS else ''
                 wire.save()
+            elif action == 'signal':   # what it is for: PWR, GND, TX+, …; a loopback's other end its own (TX: RX)
+                value = ' '.join(post.get('signal', '').split())[:100]
+                if end == 'to':
+                    wire.to_signal = value
+                else:
+                    if wire.from_end_id == wire.to_end_id and wire.to_signal in ('', purposes.mate(wire.signal)):
+                        wire.to_signal = purposes.mate(value)
+                    wire.signal = value
+                wire.save()
+            elif action == 'gauge':   # a bare number is taken as AWG
+                value = ' '.join(post.get('gauge', '').split())
+                wire.gauge = (f'{value} AWG' if value.isdigit() else value)[:20]
+                wire.save()
+            elif action == 'set':
+                value = post.get('set', '').strip()
+                if value.startswith('new:'):
+                    taken, n = set(item.wires.values_list('wire_set', flat=True)), 1
+                    while str(n) in taken:
+                        n += 1
+                    kind = value[4:]
+                    wire.wire_set, wire.set_type = str(n), kind if kind in PIN_SET_TYPES else 'Straight'
+                elif value.startswith('shield:'):
+                    wire.wire_set, wire.set_type = value[7:][:20], 'Shield'
+                elif wire.wire_set == value:
+                    pass
+                elif value:
+                    mate = item.wires.filter(wire_set=value).exclude(pk=wire.pk).exclude(set_type='Shield').first()
+                    wire.wire_set, wire.set_type = value[:20], mate.set_type if mate else 'Straight'
+                    if mate:   # into the set's group too
+                        wire.wire_group = mate.wire_group
+                else:
+                    wire.wire_set, wire.set_type = '', 'Straight'
+                wire.save()
+            elif action == 'group':   # a name tag over sets: the wire's whole set goes into it (a wire in no set: just it)
+                value = ' '.join(post.get('group', '').split())[:40]
+                if wire.wire_set:
+                    item.wires.filter(wire_set=wire.wire_set).update(wire_group=value)
+                else:
+                    Wire.objects.filter(pk=wire.pk).update(wire_group=value)
+            elif action == 'set_type':   # the whole set goes together so now; or this wire is the set's shield
+                kind = post.get('type', '')
+                if not wire.wire_set or kind not in SET_TYPES:
+                    return JsonResponse({'error': 'A wire in a set, and a set type.'}, status=400)
+                if kind == 'Shield':
+                    wire.set_type = 'Shield'
+                    wire.save()
+                else:
+                    Wire.objects.filter(pk=wire.pk).update(set_type=kind)
+                    item.wires.filter(wire_set=wire.wire_set).exclude(set_type='Shield').update(set_type=kind)
             else:
-                Wire.objects.filter(pk=wire.pk).update(set_type=kind)
-                item.wires.filter(wire_set=wire.wire_set).exclude(set_type='Shield').update(set_type=kind)
-        else:
-            return JsonResponse({'error': 'Nothing to do.'}, status=400)
+                return JsonResponse({'error': 'Nothing to do.'}, status=400)
     return JsonResponse(_drawing(item, item.ordered_wires()))
 
 

@@ -455,7 +455,7 @@
         far = plain;
         if (mine.length) {
           mine.forEach(function (sp) {
-            plain = Math.max(plain, editing ? 0 : stubTags(sp));
+            plain = Math.max(plain, editing ? 2 * BOX : stubTags(sp));   // (editing: its row's gauge and purpose)
             after = Math.max(after, editing ? 0 : measure(sp.label, 'pd-splice-tag'));
           });
           var at = 6 + plain + DIA + 4;   // (from the contacts: where the middle ends is known only once all is measured)
@@ -906,6 +906,36 @@
           var gone = html('button', { type: 'button', class: 'btn small', 'aria-label': 'Take the wire away' }, rest);
           gone.textContent = '✕';
           gone.addEventListener('click', function () { post({ action: 'delete', wire: w.id }); });
+        });
+        Object.keys(spliceAt).forEach(function (k) {   // a splice's own row: its gauge, purpose, colour (all its wires), or
+          var sp = spliceAt[k], dir = sp.left ? 1 : -1, edge = sp.left ? x.left : x.right, w = sp.rows[0].w;   // all taken away
+          if (sp.y === undefined) return;
+          var ids = sp.rows.map(function (r) { return r.w.id; }).join(','), contactKey = sp.at.end + ':' + sp.at.pin;
+          function spot(x0, y, width) {
+            var fo = el('foreignObject', { x: dir > 0 ? x0 : x0 - width, y: y - 12, width: width, height: 26 }, tools);
+            return html('div', { class: 'pd-tools' + (dir > 0 ? '' : ' end') }, fo);
+          }
+          var gauge = html('input', { type: 'text', 'aria-label': 'Gauge', placeholder: 'AWG', list: 'pd-gauges', class: 'pd-gauge-input', 'data-splice-gauge': sp.name },
+                           spot(edge + dir * 6, sp.y, BOX - 4));
+          gauge.value = w.gauge || '';
+          gauge.addEventListener('change', function () { post({ action: 'gauge', wire: ids, gauge: gauge.value }); });
+          var purpose = signal[contactKey] || (sp.left ? w.signal : w.to_signal || w.signal);
+          var lb = html('button', { type: 'button', class: 'btn small pd-label-pick' + (purpose ? '' : ' muted'), 'aria-label': 'Purpose' },
+                        spot(edge + dir * (6 + BOX), sp.y, BOX - 4));
+          lb.textContent = purpose || 'Label';
+          lb.addEventListener('click', function () {
+            purposePicker(purpose, function (v) { post({ action: 'signal', wire: ids, signal: v, contact: contactKey }); });
+          });
+          var rest = spot(column[sp.left ? 'left' : 'right'] + dir * (DIA + 8), sp.y, 130);
+          var pickColour = html('select', { 'aria-label': 'Colour', class: 'pd-colour' }, rest);
+          [''].concat(data.colours).forEach(function (c) { var o = html('option', { value: c }, pickColour); o.textContent = c || 'colour'; });
+          pickColour.value = w.colour || '';
+          pickColour.addEventListener('change', function () { post({ action: 'colour', wire: ids, colour: pickColour.value }); });
+          var gone = html('button', { type: 'button', class: 'btn small', 'aria-label': 'Take the splice\'s wires away' }, rest);
+          gone.textContent = '✕';
+          gone.addEventListener('click', function () {
+            if (confirm('Take the ' + sp.rows.length + ' wires of ' + sp.name.replace('S', 'Splice ') + ' away?')) post({ action: 'delete', wire: ids });
+          });
         });
       } else {   // a group: its rows outlined, its name on top (it is picked there); where each set's wires run: picks the set
         groupOrder.forEach(function (g) {
