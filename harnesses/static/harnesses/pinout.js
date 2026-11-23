@@ -883,12 +883,6 @@
             var top = part[0] - ROW / 2 + 3, low = part[part.length - 1] + ROW / 2 - 3;
             el('rect', { x: x.left + 6, y: top, width: x.right - x.left - 12, height: low - top, rx: 10, class: 'pd-group', 'data-set': 'group:' + g.name }, under);
             var len = (data.groups || {})[g.name] || {};
-            var at = { '1/3': 1 / 3, '1/2': 1 / 2, '2/3': 2 / 3 }[len.breakout];
-            if (at) {   // where its bundle with the other sets ends: a third along if bundled for less than half its length, …
-              var bx = x.left + at * (x.right - x.left);
-              var cue = el('line', { x1: bx, y1: top - 4, x2: bx, y2: low + 4, class: 'pd-bundle', 'data-set': 'group:' + g.name }, wiresG);
-              el('title', {}, cue).textContent = g.name + ': bundled together for ' + len.bundled + ' of ' + len.length + ' mm';
-            }
             var tagG = el('g', { class: 'pd-tag pd-group-tag', 'data-set': 'group:' + g.name }, tools);   // over the areas: its click is its own
             var name = g.name + (len.length ? ' · ' + len.length + ' mm' : '') + (len.bundled ? ' · bundled ' + len.bundled + ' mm' : '');
             var t = text(tagG, mid, top + 4.5, name, 'pd-tag-text'), long = 0;
