@@ -821,7 +821,11 @@
         var purpose = signal[sp.at.end + ':' + sp.at.pin] || (sp.left ? w.signal : w.to_signal || w.signal);
         if (!editing && w.gauge) at = tag(at, sp.y, w.gauge, dir, 'pd-gauge', w.id);
         if (!editing && purpose && sp.left) at = tag(at, sp.y, purpose, dir, 'pd-label', w.id);
-        remember(sp.at.end + ':' + sp.at.pin, el('line', { x1: edge, y1: sp.y, x2: col - dir * DIA, y2: sp.y, class: 'pd-splice-stub' }, wiresG));
+        var stub = el('g', { class: 'pd-wire' }, wiresG), d = 'M' + edge + ',' + sp.y + ' H' + (col - dir * DIA);   // its contact to
+        el('path', { d: d, class: 'pd-wire-edge' }, stub);   // it: a wire in its wires' colour
+        el('path', { d: d, class: 'pd-wire-core', style: 'stroke:' + colourOf(w) }, stub);
+        if (w.colour === 'green/yellow') el('path', { d: d, class: 'pd-wire-core', style: 'stroke:#facc15', 'stroke-dasharray': '8 8' }, stub);
+        remember(sp.at.end + ':' + sp.at.pin, stub);
         diamond(sp, col, sp.y, -dir);   // (pointed at its contact)
         if (!editing) tag(col + dir * (DIA + 4), sp.y, sp.label, dir, 'pd-splice-tag', w.id);
         sp.rows.forEach(function (r) { if (r.y !== undefined) diamond(sp, col, r.y, dir); });   // (at the wire going on)
