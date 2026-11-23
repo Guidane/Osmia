@@ -492,20 +492,22 @@
       });
       var EL = Math.max(70, reach.left + 28), ER = Math.max(70, reach.right + 28);
       var least = EL + ER + (editing ? 20 + 350 + 130 + 10 : 120);   // the middle wide enough for what is by the contacts
-      var both = column.left !== undefined && column.right !== undefined, shift = both ? DIA + 10 : 0;
-      if (!editing) ['left', 'right'].forEach(function (on) {   // and for the splices in the middle, and their tags
+      // viewing: a connector's splices at the far end of its wires (by the connectors they go to), past them their
+      // wires' tags and room for a twist between shields; splices on both sides: both in the middle
+      var both = column.left !== undefined && column.right !== undefined, shift = both ? DIA + 10 : 0, ON = 170;
+      if (!editing) ['left', 'right'].forEach(function (on) {
         if (column[on] === undefined) return;
         var near = on === 'left' ? EL : ER, beyond = on === 'left' ? ER : EL;
-        least = Math.max(least, 2 * (Math.max(near, column[on] + DIA) + shift + DIA + 10),
-                         2 * (shift + DIA + 6 + past[on] + 20 + beyond));
+        least = both ? Math.max(least, 2 * (Math.max(near, column[on] + DIA) + shift + DIA + 10), 2 * (shift + DIA + 6 + past[on] + 20 + beyond))
+                     : Math.max(least, near + ON + 2 * DIA + 12 + past[on] + ON + beyond);
       });
       if (x.right - x.left < least) {
         x.right = x.left + least;
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
         width = x.rightFace + widest.right + 12; mid = (x.left + x.right) / 2;
       }
-      if (column.left !== undefined) column.left = editing ? x.left + column.left : mid - shift;
-      if (column.right !== undefined) column.right = editing ? x.right - column.right : mid + shift;
+      if (column.left !== undefined) column.left = editing ? x.left + column.left : both ? mid - shift : x.right - ER - ON - past.left - DIA - 6;
+      if (column.right !== undefined) column.right = editing ? x.right - column.right : both ? mid + shift : x.left + EL + ON + past.right + DIA + 6;
       function E(left) { return left ? EL : ER; }
       var bigHalf = TWIST;
       setOrder.forEach(function (s) {
