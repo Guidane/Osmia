@@ -301,6 +301,7 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-bar-label { font: 600 11px system-ui, sans-serif; fill: var(--text); text-anchor: middle; }
 .pinout-drawing .pd-stub { stroke: var(--text); stroke-width: 1.5; }
 .pinout-drawing .pd-shield { fill: none; stroke: var(--text); stroke-width: 1.6; }
+.pinout-drawing .pd-shield.pd-shield-open { stroke-dasharray: 3 4; stroke-linecap: round; }
 .pinout-drawing .pd-shield.lit { stroke: #b45309; stroke-width: 2.5; }
 .pinout-drawing .dashed { stroke-dasharray: 6 5; }
 .pinout-drawing .pd-num { font: 600 10px system-ui, sans-serif; fill: var(--text); text-anchor: middle; pointer-events: none; }

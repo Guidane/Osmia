@@ -647,6 +647,8 @@
         // (just past a shield's ellipses); one in the middle when there is no room for two
         var from = Math.max.apply(null, pair.map(function (r) { return Math.max(r.ax === x.left ? x.left + EL + 30 : r.ax + 14, (r.tagEnd.left || 0) + 10); }));
         var to = Math.min.apply(null, pair.map(function (r) { return Math.min(r.bx === x.right ? x.right - ER - 30 : r.bx - 14, (r.tagEnd.right || Infinity) - 10); }));
+        var e = pair[0].w.set && ellipses[pair[0].w.set];   // (past its shield's ellipses, wherever they are)
+        if (e && !e.loop) { from = Math.max(from, e[0] + 30); to = Math.min(to, e[1] - 30); }
         // a twist only by a connector, not where the wires come from a splice
         var atLeft = pair.every(function (r) { return r.ax === x.left; }), atRight = pair.every(function (r) { return r.bx === x.right; });
         var half = pair.length > 2 ? pair.length * TWIST * 0.8 : TWIST;   // a multi twist: a step per wire
@@ -725,16 +727,21 @@
         if (!parts.length) return;
         var main = parts[0];
         if (shield && shield.y !== undefined) parts.forEach(function (run) { if (run[run.length - 1].y < shield.y) main = run; });
-        ellipses[s.name] = [x.left + EL, x.right - ER];
+        // on a side where its wires come from splices: the shield from just past them (an open ellipse, dotted)
+        var withShield = inner.concat(shield && shield.y !== undefined ? [shield] : []);
+        var fromSplice = [withShield.every(function (r) { return r.ax !== x.left; }), withShield.every(function (r) { return r.bx !== x.right; })];
+        ellipses[s.name] = [
+          fromSplice[0] ? Math.max.apply(null, withShield.map(function (r) { return Math.max(r.tagEnd.left || 0, r.ax); })) + 24 : x.left + EL,
+          fromSplice[1] ? Math.min.apply(null, withShield.map(function (r) { return Math.min(r.tagEnd.right || Infinity, r.bx); })) - 24 : x.right - ER];
         parts.forEach(function (run) {
           var ys = run.map(function (r) { return r.y; }), mine = run === main;
           var top = Math.min.apply(null, ys) - 16, low = mine && shield ? shield.y : Math.max.apply(null, ys) + 16;
           ellipses[s.name].forEach(function (cx, i) {
-            var e = el('ellipse', { cx: cx, cy: (top + low) / 2, rx: 18, ry: (low - top) / 2, class: 'pd-shield', 'data-set': s.name }, over);
+            var e = el('ellipse', { cx: cx, cy: (top + low) / 2, rx: 18, ry: (low - top) / 2, class: 'pd-shield' + (fromSplice[i] ? ' pd-shield-open' : ''), 'data-set': s.name }, over);
             el('title', {}, e).textContent = 'Set ' + s.name + ': ' + s.type.toLowerCase();
             if (editing && mine) drainCircle(s, cx, low, i === 0 ? 'left' : 'right', i === 0 ? 'left' : 'right', shield);
           });
-          if (mine && !shield) el('path', { d: 'M' + (x.left + EL) + ',' + low + ' H' + (x.right - ER), class: 'pd-shield-line' }, wiresG);
+          if (mine && !shield) el('path', { d: 'M' + ellipses[s.name][0] + ',' + low + ' H' + ellipses[s.name][1], class: 'pd-shield-line' }, wiresG);
         });
       });
       function loopWire(r) {   // out, round the turn, back; a twisted set twists going out and coming back
