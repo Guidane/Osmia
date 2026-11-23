@@ -493,8 +493,8 @@
         if (purpose && sp.left) n += measure(purpose, 'pd-label');
         return n;
       }
-      var column = {}, past = {};   // on each side: where the splices' symbols are (viewing: in the middle; editing: past the
-      // tools by the contacts); past them: their tags
+      var column = {}, past = {}, stubs = {}, labels = {};   // on each side: where its splices' wires start (from under
+      // the splices' own rows' tags or boxes), past them their tags; the splices' own rows' tags, and how many wires to where
       ['left', 'right'].forEach(function (on) {
         var L = on === 'left', plain = 0, after = 0, far;
         var mine = Object.keys(spliceAt).map(function (k) { return spliceAt[k]; }).filter(function (sp) { return sp.left === L; });
@@ -504,12 +504,13 @@
         });
         far = plain;
         if (mine.length) {
+          stubs[on] = labels[on] = 0;
           mine.forEach(function (sp) {
-            plain = Math.max(plain, editing ? 2 * BOX : stubTags(sp));   // (editing: its row's gauge and purpose)
-            after = Math.max(after, editing ? 0 : measure(sp.label, 'pd-splice-tag'));
+            stubs[on] = Math.max(stubs[on], editing ? 2 * BOX : stubTags(sp));   // (editing: its row's gauge and purpose)
+            labels[on] = Math.max(labels[on], editing ? 0 : measure(sp.label, 'pd-splice-tag'));
           });
-          var at = 6 + plain + DIA + 4;   // (from the contacts: where the middle ends is known only once all is measured)
-          column[on] = at;
+          plain = Math.max(plain, stubs[on]);
+          column[on] = 0;   // (where, once all is measured: below)
           past[on] = after;
           far = Math.max(far, plain);   // (the splices themselves at the far end: see below)
         }
@@ -521,6 +522,7 @@
       // wires' tags and room for a twist between shields; splices on both sides: both in the middle
       var both = column.left !== undefined && column.right !== undefined, shift = both ? DIA + 10 : 0, ON = 170;
       var TOOLW = 6 + 2 * BOX + 10 + 350 + 130 + 10;   // editing: a row's boxes, all of them
+      function lead(on) { return 6 + Math.max(stubs[on] || 0, 30) + 10; }   // viewing: from the contacts to its wires' splices
       ['left', 'right'].forEach(function (on) {
         if (column[on] === undefined) return;
         var near = on === 'left' ? EL : ER, beyond = on === 'left' ? ER : EL;
@@ -530,18 +532,20 @@
           return;
         }   // (viewing: its row's boxes, then
         // it, then its wires' boxes)
-        least = both ? Math.max(least, 2 * (Math.max(near, column[on] + DIA) + shift + DIA + 10), 2 * (shift + DIA + 6 + past[on] + 20 + beyond))
-                     : Math.max(least, near + ON + 2 * DIA + 12 + past[on] + ON + beyond);
+        // viewing: its row's tags, its shield and twist, how many wires to where, it at the far end; its wires (rows of
+        // their own) from under its row's tags: their tags, shields and twist
+        least = Math.max(least, near + ON + labels[on] + 2 * DIA + 12 + beyond, lead(on) + 2 * DIA + past[on] + ON + beyond);
       });
+      if (!editing && both) least = Math.max(least, lead('left') + lead('right') + 4 * DIA + past.left + past.right + ON);
       if (x.right - x.left < least) {
         x.right = x.left + least;
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
         width = x.rightFace + widest.right + 12; mid = (x.left + x.right) / 2;
       }
-      if (column.left !== undefined) column.left = editing ? x.right - ER - TOOLW - DIA : both ? mid - shift : x.right - ER - ON - past.left - DIA - 6;
-      if (column.right !== undefined) column.right = editing ? x.left + EL + TOOLW + DIA : both ? mid + shift : x.left + EL + ON + past.right + DIA + 6;
-      // a splice's own row: its symbol (editing: at the far end, by the connectors its wires go to; viewing: with theirs)
-      var stubCol = { left: editing ? x.right - ER - DIA : column.left, right: editing ? x.left + EL + DIA : column.right };
+      if (column.left !== undefined) column.left = editing ? x.right - ER - TOOLW - DIA : x.left + lead('left') + DIA;
+      if (column.right !== undefined) column.right = editing ? x.left + EL + TOOLW + DIA : x.right - lead('right') - DIA;
+      // a splice's own row: its symbol at the far end, by the connectors its wires go to
+      var stubCol = { left: x.right - ER - DIA, right: x.left + EL + DIA };
       function E(left) { return left ? EL : ER; }
       var bigHalf = TWIST;
       setOrder.forEach(function (s) {
@@ -714,6 +718,11 @@
           if (w.signal && s[0] === (r.loop ? (r.loop.L ? 'left' : 'right') : 'left')) r.tagEnd[s[0]] = at = tag(at, r.y, w.signal, dir, 'pd-label', w.id);
           if (length) r.tagEnd[s[0]] = tag(at, r.y, w.length + ' mm', dir, 'pd-length', w.id);
         });
+        if (r.stub) {   // a splice's own row: how many wires to which connectors, just before it
+          var toward = r.stub.left ? -1 : 1, end = r.stub.left ? 'right' : 'left';
+          tag((r.stub.left ? r.bx : r.ax) + toward * 4, r.y, r.stub.label, toward, 'pd-splice-tag', w.id);
+          r.tagEnd[end] = (r.stub.left ? r.bx : r.ax) + toward * (measure(r.stub.label, 'pd-splice-tag') + 4);
+        }
         if (r.loop && r.b.pin) {   // a loopback coming back: its gauge, its own purpose (TX going out, RX coming back)
           var back = r.loop.edge + r.loop.dir * 6;
           if (w.gauge) back = tag(back, r.yBack, w.gauge, r.loop.dir, 'pd-gauge', w.id);
@@ -909,7 +918,6 @@
         if (sp.y === undefined) return;
         var w = sp.rows[0].w;   // (its stretch, tags and all, drawn as its row)
         diamond(sp, stubCol[on], sp.y, -dir);   // (pointed at its contact)
-        if (!editing) tag(col + dir * (DIA + 4), sp.y, sp.label, dir, 'pd-splice-tag', w.id);
         sp.rows.forEach(function (r) { if (r.y !== undefined) diamond(sp, col, r.y, dir); });   // (at the wire going on)
       });
 
