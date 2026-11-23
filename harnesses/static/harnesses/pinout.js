@@ -267,7 +267,7 @@
         var at = left ? r.a : r.b, sp = at.pin && spliceAt[(left ? 'L' : 'R') + at.end + ':' + at.pin];
         return sp ? { s: sp } : null;
       }
-      var DIA = 11;   // a diamond's half width
+      var DIA = 34;   // a splice's symbol's half width
       var spliceBlocks = {};   // each connector's splices: a block before its first group on that side
       Object.keys(spliceAt).map(function (k) { return spliceAt[k]; })
         .sort(function (p, q) { return natural(p.at.pin, q.at.pin); })
@@ -381,11 +381,14 @@
         else g.addEventListener('click', function () { show('pin:' + at.end + ':' + at.pin); });   // its wires lit
         return left ? x.left : x.right;
       }
-      function diamond(sp, cx, cy) {   // a splice's diamond: picked like its contact (its wires lit)
+      function diamond(sp, cx, cy, d) {   // a splice's symbol (a box, "Splice 1", pointed at its wire on side ``d``: a dot
+        // there): picked like its contact (its wires lit)
         var at = sp.at, g = el('g', { class: 'pd-splice', 'data-splice': sp.name }, tools);   // (over the sets' areas)
         el('title', {}, g).textContent = sp.name + ' · ' + byId[at.end].designator + ':' + at.pin + ' · ' + sp.label;
-        el('polygon', { points: [[cx, cy - DIA], [cx + DIA, cy], [cx, cy + DIA], [cx - DIA, cy]].join(' ') }, g);
-        text(g, cx, cy + 3.5, sp.name, 'pd-num');
+        var tip = cx + d * DIA, neck = tip - d * 12, far = cx - d * DIA, h = 10;
+        el('polygon', { points: [[tip, cy], [neck, cy - h], [far, cy - h], [far, cy + h], [neck, cy + h]].join(' ') }, g);
+        el('circle', { cx: tip, cy: cy, r: 3.5, class: 'pd-splice-dot' }, g);
+        text(g, (neck + far) / 2, cy + 4, 'Splice ' + sp.name.slice(1), 'pd-splice-name');
         remember(at.end + ':' + at.pin, g);
         if (state.from && state.from.end === at.end && state.from.pin === at.pin) g.classList.add('chosen');
         if (editing) g.addEventListener('click', function () { pick(at.end, at.pin, g); });
@@ -779,9 +782,9 @@
         if (!editing && w.gauge) at = tag(at, sp.y, w.gauge, dir, 'pd-gauge', w.id);
         if (!editing && purpose && sp.left) at = tag(at, sp.y, purpose, dir, 'pd-label', w.id);
         remember(sp.at.end + ':' + sp.at.pin, el('line', { x1: edge, y1: sp.y, x2: col - dir * DIA, y2: sp.y, class: 'pd-splice-stub' }, wiresG));
-        diamond(sp, col, sp.y);
+        diamond(sp, col, sp.y, -dir);   // (pointed at its contact)
         if (!editing) tag(col + dir * (DIA + 4), sp.y, sp.label, dir, 'pd-splice-tag', w.id);
-        sp.rows.forEach(function (r) { if (r.y !== undefined) diamond(sp, col, r.y); });
+        sp.rows.forEach(function (r) { if (r.y !== undefined) diamond(sp, col, r.y, dir); });   // (at the wire going on)
       });
 
       if (editing) {   // each row: its tools where what they set shows (its set drawn as it is: twisted, shielded)

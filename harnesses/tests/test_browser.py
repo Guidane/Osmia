@@ -13,8 +13,8 @@ class PinoutDrawingTests(BrowserTestCase):
         hub = loom.ends.get(designator='P1')
         spliced = loom.wires.filter(from_end=hub, from_pin='1').count() + loom.wires.filter(to_end=hub, to_pin='1').count()
         page = self.go(loom.get_absolute_url())
-        # a splice: its contact once, a diamond by it and one where each of its other wires starts
-        expect(page.locator('#pinout-drawing g.pd-splice[data-splice="S1"]')).to_have_count(spliced)
+        # a splice: a row of its own (its contact, its symbol), and its symbol where each of its wires starts
+        expect(page.locator('#pinout-drawing g.pd-splice[data-splice="S1"]')).to_have_count(spliced + 1)
         contact = page.locator('#pinout-drawing g.pd-contact', has_text='1').first
         contact.click()
         expect(page.locator('#pinout-drawing.picking')).to_have_count(1)
