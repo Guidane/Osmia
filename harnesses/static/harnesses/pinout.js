@@ -432,7 +432,8 @@
         if (purpose && sp.left) n += measure(purpose, 'pd-label');
         return n;
       }
-      var column = {};   // on each side: where the splices' diamonds are (past the tags by the contacts)
+      var column = {}, past = {};   // on each side: where the splices' symbols are (viewing: in the middle; editing: past the
+      // tools by the contacts); past them: their tags
       ['left', 'right'].forEach(function (on) {
         var L = on === 'left', plain = 0, after = 0, far;
         var mine = Object.keys(spliceAt).map(function (k) { return spliceAt[k]; }).filter(function (sp) { return sp.left === L; });
@@ -448,19 +449,27 @@
           });
           var at = 6 + plain + DIA + 4;   // (from the contacts: where the middle ends is known only once all is measured)
           column[on] = at;
-          far = Math.max(far, at + DIA + 6 + after);
+          past[on] = after;
+          far = editing ? Math.max(far, at + DIA + 6 + after) : Math.max(far, plain);
         }
         reach[on] = Math.max(reach[on], far);
       });
       var EL = Math.max(70, reach.left + 28), ER = Math.max(70, reach.right + 28);
       var least = EL + ER + (editing ? 20 + 350 + 130 + 10 : 120);   // the middle wide enough for what is by the contacts
+      var both = column.left !== undefined && column.right !== undefined, shift = both ? DIA + 10 : 0;
+      if (!editing) ['left', 'right'].forEach(function (on) {   // and for the splices in the middle, and their tags
+        if (column[on] === undefined) return;
+        var near = on === 'left' ? EL : ER, beyond = on === 'left' ? ER : EL;
+        least = Math.max(least, 2 * (Math.max(near, column[on] + DIA) + shift + DIA + 10),
+                         2 * (shift + DIA + 6 + past[on] + 20 + beyond));
+      });
       if (x.right - x.left < least) {
         x.right = x.left + least;
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
         width = x.rightFace + widest.right + 12; mid = (x.left + x.right) / 2;
       }
-      if (column.left !== undefined) column.left = x.left + column.left;
-      if (column.right !== undefined) column.right = x.right - column.right;
+      if (column.left !== undefined) column.left = editing ? x.left + column.left : mid - shift;
+      if (column.right !== undefined) column.right = editing ? x.right - column.right : mid + shift;
       function E(left) { return left ? EL : ER; }
       var bigHalf = TWIST;
       setOrder.forEach(function (s) {
