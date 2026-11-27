@@ -2,8 +2,8 @@
    connector upright beside each column and the connector's face (its pins as they sit: a single row, two rows, a
    D-sub, a circle, a grid) on the far side.
 
-   View: wires in their colours; a twisted set crosses near each end, just past a shield (a pair: the first wire in a V down to the set's bottom
-   row, the other in a Λ up to its top row; more wires: in turn the bottom one rises to the top as the others drop a row), a shielded set has an ellipse at each end whose bottom sits on the
+   View: wires in their colours; a twisted set twists all the way between its shield's ellipses (or its tags): a pair
+   swaps rows again and again (more wires: in turn the bottom one rises to the top as the others drop a row), a shielded set has an ellipse at each end whose bottom sits on the
    shield wire's row, the shield dashed between them. Clicking where a set's wires run (or its chip) lights up the set:
    its contacts and its pins on both faces.
 
@@ -188,7 +188,16 @@
       q.select();
     }
 
+    function closePopup() {   // a single-contact connector's contacts popup, closed
+      if (!state.popup) return;
+      state.popup.remove();
+      document.removeEventListener('mousedown', state.popupAway);
+      document.removeEventListener('keydown', state.popupAway);
+      state.popup = null;
+    }
+
     function render() {
+      closePopup();
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       bar.textContent = '';
       var data = state.data, editing = state.editing;
@@ -198,6 +207,7 @@
       data.ends.forEach(function (e, i) {
         byId[e.id] = e; index[e.id] = i;
         faces[e.id] = face(e);
+        faces[e.id].single = !!e.face.single;   // one contact (a bullet terminal): as many as its wires use, one drawn
         widest[side[e.id]] = Math.max(widest[side[e.id]], faces[e.id].w);
       });
       var signal = {};
@@ -256,8 +266,16 @@
         groups[k].rows.push(r);
       });
       list.sort(function (a, b) { return index[a.left] - index[b.left] || index[a.right] - index[b.right]; });
+      // editing: the rows stay where they were (a set or group changed does not move them); a new one comes last
+      var kept = editing ? state.order : null;
+      function keptAt(key) { return kept && kept[key] !== undefined ? kept[key] : Infinity; }
       list.forEach(function (g) {
         g.rows.sort(function (p, q) {
+          if (kept) {
+            var op = keptAt(p.w.id), oq = keptAt(q.w.id);
+            if (op !== oq) return op < oq ? -1 : 1;
+            if (op !== Infinity) return 0;
+          }
           var kp = rankOf(p), kq = rankOf(q);
           return kp - kq || (p.w.type === 'Shield') - (q.w.type === 'Shield') || natural(p.a.pin, q.a.pin);
         });
@@ -318,6 +336,11 @@
       var spliceBlocks = {};   // each connector's splices: a block before its first group on that side (by group, set, pin)
       Object.keys(spliceAt).map(function (k) { return spliceAt[k]; })
         .sort(function (p, q) {
+          if (kept) {
+            var op = keptAt('stub:' + p.at.end + ':' + p.at.pin), oq = keptAt('stub:' + q.at.end + ':' + q.at.pin);
+            if (op !== oq) return op < oq ? -1 : 1;
+            if (op !== Infinity) return 0;
+          }
           return natural(groupOf(p.row) || '~', groupOf(q.row) || '~') || natural(p.row.w.set || '~', q.row.w.set || '~') || natural(p.at.pin, q.at.pin);
         })
         .forEach(function (sp) {
@@ -349,7 +372,8 @@
       x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
       var width = x.rightFace + widest.right + 12, mid = (x.left + x.right) / 2, TWIST = 25;   // half the twist's width
 
-      var under = el('g', {}, svg), wiresG = el('g', {}, svg), over = el('g', {}, svg), areas = el('g', {}, svg), tools = el('g', {}, svg);
+      var defs = el('defs', {}, svg), clips = 0;
+      var under = el('g', {}, svg), wiresG = el('g', {}, svg), crossG = el('g', {}, svg), over = el('g', {}, svg), areas = el('g', {}, svg), tools = el('g', {}, svg);
       var lit = {};
       function remember(key, node) { (lit[key] = lit[key] || []).push(node); }
 
@@ -368,7 +392,8 @@
         if (b) b.rect.style.display = 'none';   // (drawn here, with its name)
         var fx = (x0 + x1 - f.w) / 2, fy = (top + HEAD + low - TOOLS - f.h) / 2;
         // its name on top, in a box of its own reaching over its contacts; that box and its own one outline
-        var named = e.designator + (e.what ? ' · ' + e.what : ''), NH = 28;
+        var named = e.designator + (e.what ? ' · ' + e.what : '') + (f.single ? ' x' + e.pins.length : ''), NH = 28;   // (one
+        // contact: how many of it)
         var nt = text(over, 0, top - NH / 2 + 4.5, named, 'pd-title'), nw = 0;
         try { nw = nt.getComputedTextLength(); } catch (err) { /* not drawn yet */ }
         nw = Math.max((nw || named.length * 7.2) + 28, x1 - x0 + 60);
@@ -394,6 +419,16 @@
         }
         var has = {};
         e.pins.forEach(function (p) { has[p[0]] = true; });
+        if (f.single) {   // its one contact drawn once with how many there are ("x5"); picked from a popup
+          var p0 = f.at[0], many = e.pins.length, g0 = el('g', { class: 'pd-pin pd-many' + (many ? '' : ' empty'), 'data-end': e.id, 'data-many': many }, over);
+          el('title', {}, g0).textContent = e.designator + ': ' + many + ' contact' + (many === 1 ? '' : 's');
+          el('circle', { cx: fx + p0[1], cy: fy + p0[2], r: R + 3 }, g0);
+          text(g0, fx + p0[1], fy + p0[2] + 4, 'x' + many, 'pd-num');
+          e.pins.forEach(function (p) { remember(e.id + ':' + p[0], g0); });
+          if (state.from && state.from.end === e.id) g0.classList.add('chosen');
+          if (editing || many) g0.addEventListener('click', function (ev) { ev.stopPropagation(); contactsPopup(e, g0); });
+          return;
+        }
         f.at.forEach(function (p) {
           var g = el('g', { class: 'pd-pin' + (has[p[0]] ? '' : ' empty'), 'data-end': e.id, 'data-pin': p[0] }, over);
           el('title', {}, g).textContent = e.designator + ':' + p[0] + (signal[e.id + ':' + p[0]] ? ' ' + signal[e.id + ':' + p[0]] : '');
@@ -404,6 +439,42 @@
           if (editing) g.addEventListener('click', function () { pick(e.id, p[0], g); });
           else if (has[p[0]]) g.addEventListener('click', function () { show('pin:' + e.id + ':' + p[0]); });   // its wires lit
         });
+      }
+      function contactsPopup(e, anchor) {   // a single-contact connector's contacts, one under another: picked as a pin
+        // (editing: and a new one); viewing: its wires lit
+        closePopup();
+        var box = html('div', { class: 'pd-contacts', role: 'dialog', 'aria-label': 'Contacts of ' + e.designator }, root);
+        function fill() {   // its contacts; one picked but not wired yet (a new one) with them; then ＋ for another one
+          box.textContent = '';
+          var pins = e.pins.map(function (p) { return p[0]; }), top = 0, mine = state.from && state.from.end === e.id ? state.from.pin : null;
+          var choices = pins.map(function (p, i) { return [p, p, e.pins[i][1]]; });
+          if (mine !== null && pins.indexOf(mine) === -1) { pins.push(mine); choices.push([mine, mine, 'new: not wired yet']); }
+          pins.forEach(function (p) { if (/^\d+$/.test(p)) top = Math.max(top, +p); });
+          if (editing) choices.push([String(Math.max(top, pins.length) + 1), '＋', 'A new contact']);
+          choices.forEach(function (c) {
+            var adds = c[1] === '＋', b = html('button', { type: 'button', class: 'pd-contact-pick' + (adds ? ' new' : '') +
+              (c[2] === 'new: not wired yet' ? ' pending' : ''), 'data-pin': c[0], title: e.designator + ':' + c[0] + (c[2] ? ' ' + c[2] : '') }, box);
+            b.textContent = c[1];
+            if (mine === c[0] && !adds) b.classList.add('chosen');
+            b.addEventListener('click', function () {
+              if (!editing) { closePopup(); show('pin:' + e.id + ':' + c[0]); return; }
+              var across = state.from && side[state.from.end] !== side[e.id];   // (a wire made now: drawn again)
+              if (!adds && !across) closePopup();
+              pick(e.id, c[0], anchor);
+              if (adds && !across && state.popup === box) fill();   // the new one in the list, picked: now its pin across
+            });
+          });
+        }
+        fill();
+        var a = anchor.getBoundingClientRect(), r0 = root.getBoundingClientRect();
+        box.style.left = (a.right - r0.left + 6) + 'px';
+        box.style.top = Math.max(0, Math.min(a.top - r0.top - 8, root.clientHeight - box.offsetHeight - 6)) + 'px';   // (all of it inside)
+        state.popup = box;
+        state.popupAway = function (ev) {
+          if (ev.type === 'keydown' ? ev.key === 'Escape' : !box.contains(ev.target)) closePopup();
+        };
+        document.addEventListener('mousedown', state.popupAway);
+        document.addEventListener('keydown', state.popupAway);
       }
       function shieldTo(set, sideOf, end, pin) {   // a shielded set's shield joined to a contact on one side (pin '': not)
         var s = sets[set], own = s.rows.filter(function (r) { return r.w.type === 'Shield'; })[0];
@@ -419,7 +490,8 @@
           if (side[end] === (state.drain.on || state.drain.side)) shieldTo(state.drain.set, state.drain.side, end, pin);
           return;
         }
-        if (state.from && (side[state.from.end] !== side[end] || (state.from.end === end && state.from.pin !== pin))) {   // across, or a loopback
+        if (state.from && (side[state.from.end] !== side[end] || (state.from.end === end && state.from.pin !== pin && !faces[end].single))) {
+          // across, or a loopback (not between a single-contact connector's own contacts: another one picked instead)
           var a = state.from;
           post({ action: 'add', from_end: a.end, from_pin: a.pin, to_end: end, to_pin: pin });
           return;
@@ -517,18 +589,29 @@
         reach[on] = Math.max(reach[on], far);
       });
       var EL = Math.max(70, reach.left + 28), ER = Math.max(70, reach.right + 28);
-      var least = EL + ER + (editing ? 20 + 350 + 130 + 10 : 120);   // the middle wide enough for what is by the contacts
+      var least = EL + ER + (editing ? 20 + 350 + 130 + 10 + (setOrder.some(function (s) { return twisted(s.type); }) ? 200 : 0) : 120);   // the middle wide enough for what is by the contacts
       // viewing: a connector's splices at the far end of its wires (by the connectors they go to), past them their
       // wires' tags and room for a twist between shields; splices on both sides: both in the middle
       var both = column.left !== undefined && column.right !== undefined, shift = both ? DIA + 10 : 0, ON = 170;
       var TOOLW = 6 + 2 * BOX + 10 + 350 + 130 + 10;   // editing: a row's boxes, all of them
+      var spun = 0;   // editing: room past a splice's wires' boxes for their set's twist (and shield)
+      if (editing) setOrder.forEach(function (st) {
+        var inner = st.rows.filter(function (r) { return r.w.type !== 'Shield' && !r.stub; });
+        if (!twisted(st.type) || inner.length < 2 || !inner.some(function (r) { return spliceOf(r, true) || spliceOf(r, false); })) return;
+        spun = Math.max(spun, 2 * (inner.length > 2 ? inner.length * TWIST * 0.8 : TWIST) + 60 + (shielded(st.type) ? 60 : 0));
+      });
       function lead(on) { return 6 + Math.max(stubs[on] || 0, 30) + 10; }   // viewing: from the contacts to its wires' splices
       ['left', 'right'].forEach(function (on) {
         if (column[on] === undefined) return;
         var near = on === 'left' ? EL : ER, beyond = on === 'left' ? ER : EL;
         var room = setOrder.some(function (st) { return st.rows[0] && st.rows[0].stub && shielded(st.type); }) ? 96 : 0;
+        setOrder.forEach(function (st) {   // and for a twist of its splices' stretches, past their boxes
+          var n = st.rows.length;
+          if (!st.rows[0] || !st.rows[0].stub || !twisted(st.type) || n < 2) return;
+          room = Math.max(room, (shielded(st.type) ? 96 : 0) + 2 * (n > 2 ? n * TWIST * 0.8 : TWIST) + 76);
+        });
         if (editing) {   // its row: its boxes, it at the far end; its wires (rows of their own) from under its boxes
-          least = Math.max(least, TOOLW + room + 2 * DIA + 12 + beyond, near + TOOLW + 2 * DIA + 12 + beyond);
+          least = Math.max(least, TOOLW + room + 2 * DIA + 12 + beyond, near + TOOLW + spun + 2 * DIA + 12 + beyond);
           return;
         }   // (viewing: its row's boxes, then
         // it, then its wires' boxes)
@@ -542,8 +625,8 @@
         x.rightNum = x.right + C; x.rightBar = x.rightNum + 20; x.rightFace = x.rightBar + 46;
         width = x.rightFace + widest.right + 12; mid = (x.left + x.right) / 2;
       }
-      if (column.left !== undefined) column.left = editing ? x.right - ER - TOOLW - DIA : x.left + lead('left') + DIA;
-      if (column.right !== undefined) column.right = editing ? x.left + EL + TOOLW + DIA : x.right - lead('right') - DIA;
+      if (column.left !== undefined) column.left = editing ? x.right - ER - TOOLW - spun - DIA : x.left + lead('left') + DIA;
+      if (column.right !== undefined) column.right = editing ? x.left + EL + TOOLW + spun + DIA : x.right - lead('right') - DIA;
       // a splice's own row: its symbol at the far end, by the connectors its wires go to
       var stubCol = { left: x.right - ER - DIA, right: x.left + EL + DIA };
       function E(left) { return left ? EL : ER; }
@@ -555,7 +638,8 @@
 
       // loopbacks: the wires of a set (or a wire on its own) go out one under another and come back in the opposite
       // order, the first the outermost: nested, none crossing; a shielded set keeps a row out and back for its shield
-      var LOOP = Math.max(240, Math.max(EL, ER) + (editing ? 490 : 30 + 2 * bigHalf + 40)), loopShield = {};   // past a row's tools
+      var anyTwist = setOrder.some(function (s) { return twisted(s.type); });
+      var LOOP = Math.max(240, Math.max(EL, ER) + (editing ? 490 + (anyTwist ? 200 : 0) : 30 + 2 * bigHalf + 40)), loopShield = {};   // past a row's tools
       function loopUnits(g) {
         var units = [], bySet = {};
         g.rows.forEach(function (r) {
@@ -629,15 +713,20 @@
       }
       var NAMED = editing ? 0 : 18;   // viewing: room above a group's rows for its name tag
       var SHIELDED = 14;   // room above and below a shielded set: its ellipses, how much is out of the shield
+      var APART = editing ? 14 : 0;   // editing: room between one set (or wire on its own) and the next
       list.forEach(function (g) {
         var y0 = y, n = g.loop ? loopRows(g) : g.rows.length + (g.stubs ? g.stubs.length : 0), bottom = n ? (n - 1) * ROW + C : 0;
-        var at = [], off = 0, was = null, wasShielded = null;   // each row's place down from the first (more where a group
-        function next(r) {   // starts, and round a shielded set)
+        var at = [], off = 0, was = null, wasShielded = null, wasSet = null;   // each row's place down from the first (more
+        function next(r) {   // where a group starts, round a shielded set, editing: between sets)
           var named = groupOf(r), s = r.w.set && sets[r.w.set], mine = s && shielded(s.type) ? r.w.set : null;
-          if (named && named !== was) off += NAMED;
-          if (mine !== wasShielded && (mine || at.length)) off += SHIELDED;
+          var gap = 0, set = r.w.set || null;
+          if (named && named !== was) gap += NAMED;
+          if (mine !== wasShielded && (mine || at.length)) gap += SHIELDED;
+          if (at.length && (set !== wasSet || !set)) gap = Math.max(gap, APART);
+          off += gap;
           was = named;
           wasShielded = mine;
+          wasSet = set;
           at.push(at.length * ROW + off);
         }
         if (!g.loop) {
@@ -685,6 +774,11 @@
       });
       y = Math.max(y, beside.left.until + GAP, beside.right.until + GAP);
       Object.keys(faceBox).forEach(function (id) { paintFace(byId[id]); });
+      // the rows' order as drawn, kept for editing (a row new since: after the others)
+      state.order = {};
+      rows.filter(function (r) { return r.y !== undefined; }).sort(function (p, q) { return p.y - q.y; }).forEach(function (r, i) {
+        state.order[r.stub ? 'stub:' + r.stub.at.end + ':' + r.stub.at.pin : r.w.id] = i;
+      });
 
       // the tags by a wire's ends: its gauge by the connector (before any shield and twist); a spliced wire's gauge
       // and length on both sides; a splice's first row: past its diamond, how many wires to which connectors
@@ -703,9 +797,10 @@
           var L = r.loop ? r.loop.L : true, dir = L ? 1 : -1, start = L ? r.ax : r.bx, own = start === (L ? x.left : x.right);
           var at = start + dir * 6;
           r.slots = { dir: dir, gauge: at, purpose: at + dir * BOX };
-          r.tagEnd[L ? 'left' : 'right'] = at + dir * 2 * BOX;
           r.slots.set = own ? (L ? x.left + EL + 20 : x.right - ER - 20) : at + dir * (2 * BOX + 10);
           r.slots.rest = r.slots.set + dir * 350;
+          // (from a splice: all its boxes in a line, its set's shield and twist past them)
+          r.tagEnd[L ? 'left' : 'right'] = own ? at + dir * 2 * BOX : r.slots.rest + dir * 134;
           return;
         }
         var w = r.w, spliced = !r.loop && (spliceOf(r, true) || spliceOf(r, false));
@@ -743,40 +838,60 @@
         }
         return d + ' L' + xy(pts[pts.length - 1]);
       }
-      function twistOf(pair) {   // where a set's twists sit: near each end of the stretch its wires run side by side
-        // (just past a shield's ellipses); one in the middle when there is no room for two
+      function twistOf(pair) {   // where a set twists: the whole stretch its wires run side by side (past a shield's
+        // ellipses; editing: past the rows' boxes)
         var from = Math.max.apply(null, pair.map(function (r) { return Math.max(r.ax === x.left ? x.left + EL + 30 : r.ax + 14, (r.tagEnd.left || 0) + 10); }));
         var to = Math.min.apply(null, pair.map(function (r) { return Math.min(r.bx === x.right ? x.right - ER - 30 : r.bx - 14, (r.tagEnd.right || Infinity) - 10); }));
         var e = pair[0].w.set && ellipses[pair[0].w.set];   // (past its shield's ellipses, wherever they are)
         if (e && !e.loop) { from = Math.max(from, e[0] + 30); to = Math.min(to, e[1] - 30); }
-        // a twist only by a connector, not where the wires come from a splice
-        var atLeft = pair.every(function (r) { return r.ax === x.left; }), atRight = pair.every(function (r) { return r.bx === x.right; });
-        var half = pair.length > 2 ? pair.length * TWIST * 0.8 : TWIST;   // a multi twist: a step per wire
-        if (to - from >= 4 * half + 40) {
-          var ends = (atLeft ? [{ mid: from + half, half: half }] : []).concat(atRight ? [{ mid: to - half, half: half }] : []);
-          if (ends.length) return ends;
-        }
-        return [{ mid: (from + to) / 2, half: Math.max(Math.min(half, (to - from) / 2), 16) }];
+        pair.forEach(function (r) {
+          if (!editing) return;
+          if (r.stub) {   // a splice's own stretch: past its row's boxes
+            if (r.stub.left) from = Math.max(from, x.left + TOOLW + 14); else to = Math.min(to, x.right - TOOLW - 14);
+          } else if (r.slots) from = Math.max(from, r.slots.rest + 144);
+        });
+        if (to - from < 16 * pair.length) { var m = (from + to) / 2; from = m - 8 * pair.length; to = m + 8 * pair.length; }
+        return { from: from, to: to };
       }
-      function twistPoints(pair, i, t) {   // one wire's way through a twist
-        var n = pair.length, y = pair[i].y, high = pair[0].y, low = pair[n - 1].y;
-        if (n === 2) return [[t.mid - t.half, y], i === 0 ? [t.mid, low] : [t.mid, high], [t.mid + t.half, y]];
-        // more wires: at each step the bottom wire rises to the top and the others drop a row, n steps round
-        var step = 2 * t.half / n, at = i, pts = [[t.mid - t.half, y]];
-        for (var k = 1; k <= n; k++) {
+      var STEP = 34;   // a twist's length: how far along the wires go from one row to the next
+      function twistPoints(ys, i, from, to) {   // one wire's way along a twisted stretch, ``from`` to ``to`` (either way):
+        // a pair swaps rows at each step; more wires: at each step the bottom one rises to the top and the others drop a
+        // row; whole turns, so each wire ends on its own row
+        var n = ys.length, turns = Math.max(1, Math.round(Math.abs(to - from) / (STEP * n))), k = turns * n;
+        var step = (to - from) / k, at = i, pts = [[from, ys[i], 0]];
+        for (var j = 1; j <= k; j++) {
           at = at === n - 1 ? 0 : at + 1;
-          pts.push([t.mid - t.half + k * step, pair[at].y]);
+          pts.push([from + j * step, ys[at], j === k ? 0 : 99]);   // (rounded through: a wave)
         }
         return pts;
       }
       function colourOf(w) { var c = colours[w.colour] || ''; return c && c.indexOf('gradient') === -1 ? c : (c ? '#22c55e' : '#64748b'); }
-      function wire(r, d, dashed) {
-        var w = r.w, g = el('g', { class: 'pd-wire' }, wiresG);
-        el('path', { d: d, class: 'pd-wire-edge' + (dashed ? ' dashed' : '') }, g);
-        var core = el('path', { d: d, class: 'pd-wire-core' + (dashed ? ' dashed' : '') }, g);
-        core.style.stroke = dashed ? '#9ca3af' : colourOf(w);   // (a shield between its ellipses: no colour of its own)
-        if (w.colour === 'green/yellow' && !dashed) el('path', { d: d, class: 'pd-wire-core', style: 'stroke:#facc15', 'stroke-dasharray': '8 8' }, g);
-        lines.push({ w: w, g: g });
+      function wire(r, d, dashed, ups, extra) {   // ``ups``: where it goes up over the wires of its twist ([x0, x1, y0,
+        var w = r.w;   // y1]); ``extra``: a class of its own (a twin: a wire of its set drawn faint where it is not)
+        function draw(layer, cls, clip) {
+          if (extra) cls += ' ' + extra;
+          var g = el('g', { class: cls, 'data-wire': w.id, 'clip-path': clip }, layer);
+          if (clip) el('path', { d: d, class: 'pd-wire-gap' }, g);   // (a gap round it where it crosses over)
+          el('path', { d: d, class: 'pd-wire-edge' + (dashed ? ' dashed' : '') }, g);
+          var core = el('path', { d: d, class: 'pd-wire-core' + (dashed ? ' dashed' : '') }, g);
+          core.style.stroke = dashed ? '#9ca3af' : colourOf(w);   // (a shield between its ellipses: no colour of its own)
+          if (w.colour === 'green/yellow' && !dashed) el('path', { d: d, class: 'pd-wire-core', style: 'stroke:#facc15', 'stroke-dasharray': '8 8' }, g);
+          lines.push({ w: w, g: g });
+        }
+        draw(wiresG, 'pd-wire');
+        if (!ups || !ups.length) return;
+        var id = 'pd-cross-' + root.id + '-' + (++clips), cp = el('clipPath', { id: id }, defs);
+        ups.forEach(function (u) { el('rect', { x: u[0], y: u[2], width: u[1] - u[0], height: u[3] - u[2] }, cp); });
+        draw(crossG, 'pd-wire pd-wire-over', 'url(#' + id + ')');
+      }
+      function upsOf(pts, ys) {   // a twist's crossings where this wire rises: it goes over the others there
+        var top = Math.min.apply(null, ys) - 8, low = Math.max.apply(null, ys) + 8, out = [];
+        for (var j = 1; j < pts.length; j++) {
+          if (pts[j][1] >= pts[j - 1][1]) continue;
+          var a = Math.min(pts[j - 1][0], pts[j][0]), b = Math.max(pts[j - 1][0], pts[j][0]), cut = (b - a) * 0.12;
+          out.push([a + cut, b - cut, top, low]);
+        }
+        return out;
       }
       function runs(list) {   // a set's wires in runs of those side by side (a set split between two connectors: two runs)
         var out = [];
@@ -883,14 +998,18 @@
         var out = [[outX, r.y]], back = [];
         var pair = lp.unit.filter(function (o) { return o.w.type !== 'Shield'; });
         if (s && twisted(s.type) && pair.length > 1) {
-          var half = pair.length > 2 ? pair.length * TWIST * 0.8 : TWIST, t = { mid: lp.edge + dir * (E(lp.L) + 30 + half), half: half };
-          var going = twistPoints(pair, pair.indexOf(r), t);
+          // the whole way out and back: past its shield's ellipse (editing: past the boxes) to just before the turns
+          var start = lp.edge + dir * (E(lp.L) + 30), end = lp.edge + dir * (LOOP - 24);
+          if (editing && r.slots) start = dir > 0 ? Math.max(start, r.slots.rest + 144) : Math.min(start, r.slots.rest - 144);
+          var outPair = pair.slice().sort(function (p, q) { return p.y - q.y; });
           var backPair = pair.slice().sort(function (p, q) { return p.yBack - q.yBack; });
-          var coming = twistPoints(backPair.map(function (o) { return { y: o.yBack }; }), backPair.indexOf(r), t);
-          out = out.concat(dir > 0 ? going : going.reverse());
-          back = dir > 0 ? coming.reverse() : coming;
+          var outYs = outPair.map(function (o) { return o.y; }), backYs = backPair.map(function (o) { return o.yBack; });
+          var going = twistPoints(outYs, outPair.indexOf(r), start, end);
+          back = twistPoints(backYs, backPair.indexOf(r), end, start);
+          out = out.concat(going);
+          var ups = upsOf(going, outYs).concat(upsOf(back, backYs));
         }
-        wire(r, smooth(out.concat([[turn, r.y, 14], [turn, r.yBack, 14]], back, [[backX, r.yBack]])));
+        wire(r, smooth(out.concat([[turn, r.y, 14], [turn, r.yBack, 14]], back, [[backX, r.yBack]])), false, ups);
       }
       rows.forEach(function (r) {
         if (r.y === undefined) return;
@@ -907,11 +1026,31 @@
         // twisted with the wires of its set beside it (not with one far off, beside another connector)
         var pair = runs(s.rows.filter(function (o) { return o.w.type !== 'Shield' && o.y !== undefined; }))
           .filter(function (run) { return run.indexOf(r) !== -1; })[0] || [r];
-        if (twisted(s.type) && pair.length > 1 && !(editing && r.stub)) {   // see twistPoints
-          var i = pair.indexOf(r), pts = [[r.ax, y]];
-          twistOf(pair).forEach(function (t) { pts = pts.concat(twistPoints(pair, i, t)); });
-          pts.push([r.bx, y]);
-          wire(r, smooth(pts));
+        if (twisted(s.type) && pair.length > 1) {   // see twistPoints (editing too: a splice's own stretch past its boxes)
+          var t = twistOf(pair), ys = pair.map(function (o) { return o.y; }), tw = twistPoints(ys, pair.indexOf(r), t.from, t.to);
+          wire(r, smooth([[r.ax, y]].concat(tw, [[r.bx, y]])), false, upsOf(tw, ys));
+          return;
+        }
+        // twisted with wires of its set that are elsewhere (beside another connector): a tight twist on its own row,
+        // the others faint in their colours, a tag naming them (one twist between the rows would be far too big)
+        var away = s.rows.filter(function (o) { return o !== r && o.w.type !== 'Shield' && o.y !== undefined && pair.indexOf(o) === -1; });
+        if (twisted(s.type) && away.length) {
+          var names = away.map(function (o) {   // each by its end that is not on this row's connectors
+            var at = o.a.end !== r.a.end && o.a.end !== r.b.end ? o.a : o.b.end !== r.a.end && o.b.end !== r.b.end ? o.b : o.a;
+            return at.end !== null && byId[at.end] ? byId[at.end].designator + ':' + at.pin : '';
+          }).filter(Boolean);
+          var label = names.length ? 'twisted with ' + names.join(', ') : '', room = label ? measure(label, 'pd-twin-tag') + 10 : 0;
+          var n = away.length + 1, SPREAD = 10, tys = [], tt = twistOf([r]);
+          for (var k = 0; k < n; k++) tys.push(y - SPREAD / 2 + k * SPREAD / (n - 1));
+          if (tt.to - room - tt.from >= 3 * STEP) tt.to -= room; else label = '';   // its tag past it (no room: none)
+          var mine = twistPoints(tys, 0, tt.from, tt.to);
+          mine[0][1] = y; mine[mine.length - 1][1] = y;   // (it comes in and goes out on its row)
+          away.forEach(function (o, k) {
+            var pts = twistPoints(tys, k + 1, tt.from, tt.to);
+            wire(o, smooth(pts), false, upsOf(pts, tys), 'pd-wire-twin');
+          });
+          wire(r, smooth([[r.ax, y]].concat(mine, [[r.bx, y]])), false, upsOf(mine, tys));
+          if (label) tag(tt.to + 6, y, label, 1, 'pd-twin-tag', r.w.id);
           return;
         }
         wire(r, 'M' + r.ax + ',' + y + ' H' + r.bx);
@@ -933,6 +1072,8 @@
           var gauges = html('datalist', { id: 'pd-gauges' }, document.body);
           [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30].forEach(function (n) { html('option', { value: n + ' AWG' }, gauges); });
         }
+        var byNumber = setOrder.slice().sort(function (a, b) { return natural(a.label || a.name, b.label || b.name); });   // the set
+        // pickers: 1, 2, … 9, 10, 11
         rows.forEach(function (r) {
           if (r.y === undefined || r.stub) return;   // (a splice's: below)
           var w = r.w, at = r.slots, dir = at.dir;
@@ -969,7 +1110,7 @@
           var pickSet = html('select', { 'aria-label': 'Set of ' + byId[r.a.end].designator + ':' + r.a.pin, 'data-wire': w.id }, box);
           var add = function (to, value, label) { var o = html('option', { value: value }, to); o.textContent = label; };
           add(pickSet, '', 'No set');
-          setOrder.forEach(function (s) { add(pickSet, s.name, 'Set ' + s.name); });
+          byNumber.forEach(function (s) { if (!(s.rows[0] && s.rows[0].stub)) add(pickSet, s.name, s.name); });   // (just its number, in order)
           add(pickSet, 'new:Straight', '＋ New set');
           pickSet.value = w.set || '';
           pickSet.addEventListener('change', function () { post({ action: 'set', wire: w.id, set: pickSet.value }); });
@@ -1030,7 +1171,7 @@
           pickGroup.addEventListener('change', function () { post(Object.assign({ action: 'splice_group', group: pickGroup.value }, where)); });
           var pickSet = html('select', { 'aria-label': 'Set of ' + sp.name.replace('S', 'Splice '), 'data-splice-set': sp.name }, box);
           add(pickSet, '', 'No set');
-          setOrder.forEach(function (st) { if (st.rows[0] && st.rows[0].stub) add(pickSet, st.label, 'Set ' + st.label); });
+          byNumber.forEach(function (st) { if (st.rows[0] && st.rows[0].stub) add(pickSet, st.label, st.label); });
           add(pickSet, 'new:', '＋ New set');
           pickSet.value = mine ? mine.label : '';
           pickSet.addEventListener('change', function () { post(Object.assign({ action: 'splice_set', set: pickSet.value }, where)); });
@@ -1116,7 +1257,7 @@
           if (!p[1] || tinted[key]) return;
           tinted[key] = true;
           (lit[key] || []).forEach(function (n) {
-            if (n.classList.contains('pd-splice')) return;
+            if (n.classList.contains('pd-splice') || n.classList.contains('pd-many')) return;   // (several colours)
             n.classList.add('wired');
             n.style.setProperty('--wire', c);
             n.style.setProperty('--wire-text', light(c) ? '#1f2937' : '#fff');

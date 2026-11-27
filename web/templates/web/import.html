@@ -6,7 +6,7 @@
   <a class="btn" href="{% url 'web:ai_instructions' %}">⬇ AI instructions</a></div>
 <section class="card">
   <form method="post" enctype="multipart/form-data" class="form">{% csrf_token %}
-    <div class="field"><label for="file">File</label><input type="file" id="file" name="file" accept=".json,.csv,.xlsx,application/json,text/csv" required></div>
+    <div class="field"><label for="file">File</label><input type="file" id="file" name="file" accept=".json,.csv,.zip,.xlsx,application/json,text/csv,application/zip" required></div>
     <div class="actions"><button class="btn primary">⬆ Import</button></div>
   </form>
 </section>

@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from inventory.faces import drawn
-from web import excel, versions
+from web import csvfile, versions
 from web.shortcuts import edit_page, errors
 
 from .forms import ConnectorForm, DeviceForm
@@ -29,7 +29,7 @@ def device_list(request):
     if origin in Device.Origin.values:
         found = found.filter(origin=origin)
     if request.GET.get('export'):
-        return excel.download('devices', [('Devices', ['Number', 'Name', 'Origin', 'Manufacturer', 'Model', 'Version', 'Connectors', 'Units'],
+        return csvfile.download('devices', [('Devices', ['Number', 'Name', 'Origin', 'Manufacturer', 'Model', 'Version', 'Connectors', 'Units'],
                                            [(d.number, d.name, d.get_origin_display(), d.manufacturer, d.model, d.version, d.n_connectors,
                                              d.n_units) for d in found]),
                                           ('Pins', PIN_HEAD, _pin_rows(found))])
@@ -146,7 +146,7 @@ def device(request, pk):
     from web import browse
     item = get_object_or_404(Device.objects.select_related('definition', 'family'), pk=pk)
     if request.GET.get('export'):
-        return excel.download(item.number, [('Pins', PIN_HEAD, _pin_rows([item]))])
+        return csvfile.download(item.number, [('Pins', PIN_HEAD, _pin_rows([item]))])
     if request.GET.get('json'):   # as a file to take in again (into another Osmia)
         from django.http import JsonResponse
 

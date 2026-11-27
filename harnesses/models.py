@@ -162,8 +162,19 @@ class Harness(models.Model):
 
 def parts_of(data):
     """What a harness as in ``data`` (a snapshot) is made of: [(item definition or family, quantity)], its ends' connectors, its
-    wire (in metres when the wire's item definition is counted in metres) and its other items."""
-    wanted = [(e['definition'], Decimal(1), None) for e in data.get('ends', []) if e.get('definition')]
+    wire (in metres when the wire's item definition is counted in metres) and its other items. A connector of a single
+    contact (a bullet terminal) is one for each contact its wires use."""
+    from inventory.faces import face_of
+    used = {}   # each end's contacts
+    for w in data.get('wires', []):
+        for end, pin in ((w.get('from'), w.get('from_pin')), (w.get('to'), w.get('to_pin'))):
+            if end and pin:
+                used.setdefault(end, set()).add(str(pin).lower())
+
+    def many(e):
+        face = face_of(definition_or_family(e['definition']))
+        return Decimal(max(len(used.get(e['designator'], ())), 1)) if face is not None and len(face['contacts']) == 1 else Decimal(1)
+    wanted = [(e['definition'], many(e), None) for e in data.get('ends', []) if e.get('definition')]
     wanted += [(w['definition'], None, Decimal(w['length'] or 0)) for w in data.get('wires', []) if w.get('definition')]
     wanted += [(i['definition'], Decimal(i['quantity']), None) for i in data.get('items', [])]
     for m in (data.get('bundle') or {}).get('marks', []):   # ties one each; a sleeve or shrink its length

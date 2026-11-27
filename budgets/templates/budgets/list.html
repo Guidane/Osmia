@@ -4,9 +4,9 @@
 {% block content %}
 <p class="small"><a href="{% url 'orders:list' %}">← Orders</a></p>
 <div class="page-head"><h1>Budgets</h1><span class="spacer"></span>
-  <a class="btn" href="?export=1{% if request.GET.all %}&amp;all=1{% endif %}">⬇ Excel</a>
+  <a class="btn" href="?export=1{% if request.GET.all %}&amp;all=1{% endif %}">⬇ CSV</a>
   <form method="post" action="{% url 'budgets:import' %}" enctype="multipart/form-data" class="inline-form">{% csrf_token %}
-    <label class="btn">⬆ Import<input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden data-import-file></label></form>
+    <label class="btn">⬆ Import<input type="file" name="file" accept=".csv,.zip,.xlsx,text/csv,application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden data-import-file></label></form>
   <a class="btn primary" href="{% url 'budgets:new' %}{% if inside %}?parent={{ inside.pk }}{% endif %}">＋ New budget{% if inside %} in it{% endif %}</a></div>
 
 <div class="browser" data-param="budget">

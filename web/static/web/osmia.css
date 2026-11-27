@@ -294,6 +294,16 @@ ul.tight { margin: 4px 0 0; padding-left: 18px; }
 .pinout-drawing .pd-face { fill: var(--panel-2); stroke: var(--border-strong); stroke-width: 1.5; }
 .pinout-drawing .pd-pin circle { fill: var(--panel); stroke: var(--text); stroke-width: 1.2; }
 .pinout-drawing .pd-pin.empty { opacity: .35; }
+.pinout-drawing.editing .pd-pin.pd-many.empty { opacity: .6; }   /* a single contact: none used yet, still picked */
+.pinout-drawing .pd-pin.pd-many .pd-num { font-size: 11px; }
+.pd-contacts { position: absolute; z-index: 20; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--panel);
+  border: 1.5px solid var(--text); border-radius: 12px; box-shadow: var(--shadow); max-height: 60vh; overflow-y: auto; }
+.pd-contacts .pd-contact-pick { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--text); background: var(--panel);
+  color: var(--text); font: 600 12px system-ui, sans-serif; cursor: pointer; padding: 0; flex: none; }
+.pd-contacts .pd-contact-pick:hover { border-color: var(--brand); border-width: 2px; }
+.pd-contacts .pd-contact-pick.chosen { background: var(--brand); border-color: var(--brand); color: #fff; }
+.pd-contacts .pd-contact-pick.new { border-style: dashed; color: var(--muted); }
+.pd-contacts .pd-contact-pick.pending:not(.chosen) { border-style: dashed; }   /* a new one, not wired yet */
 .pinout-drawing .pd-contact rect { fill: var(--panel); stroke: var(--text); stroke-width: 1.5; }
 .pinout-drawing .pd-contact .pd-num { font-size: 13px; font-weight: 700; }
 .pinout-drawing .pd-bar { fill: var(--panel-2); stroke: var(--text); stroke-width: 1.5; }
@@ -350,6 +360,7 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 .pinout-drawing .pd-tools .btn { padding: 0 6px; height: 22px; line-height: 20px; }
 .pinout-drawing .pd-wire-edge { fill: none; stroke: var(--text); stroke-width: 4.5; opacity: .35; stroke-linejoin: round; }
 .pinout-drawing .pd-wire-core { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
+.pinout-drawing .pd-wire-gap { fill: none; stroke: var(--panel); stroke-width: 8; stroke-linecap: round; }   /* a twisted wire crossing over: a gap round it */
 .pinout-drawing.picking .pd-wire:not(.lit) { opacity: .2; }
 .pinout-drawing.picking .pd-wire.lit .pd-wire-edge { stroke: #b45309; stroke-width: 7; opacity: .45; }
 .pinout-drawing.picking .pd-wire.lit .pd-wire-core { stroke-width: 3.5; }
@@ -379,6 +390,11 @@ dialog.finder.purpose-finder { width: min(640px, calc(100vw - 32px)); height: mi
 dialog.finder.bare-pop { width: fit-content; height: fit-content; }
 .bare-pop .finder-head input { width: 90px; }
 .pinout-drawing .pd-splice-tag rect { fill: var(--panel); stroke: var(--text); stroke-dasharray: 2 2; }
+.pinout-drawing .pd-twin-tag rect { fill: var(--panel); stroke: var(--faint); stroke-dasharray: 2 2; }   /* twisted with wires elsewhere */
+.pinout-drawing .pd-twin-tag .pd-tag-text { fill: var(--muted); font-style: italic; }
+.pinout-drawing .pd-wire-twin { opacity: .45; }   /* a wire of its set that is elsewhere, faint */
+.pinout-drawing .pd-wire-twin .pd-wire-core { stroke-width: 2; }
+.pinout-drawing .pd-wire-twin .pd-wire-edge { stroke-width: 3.5; }
 .pinout-drawing .pd-pin.wired.chosen circle, .pinout-drawing .pd-contact.wired.chosen rect { fill: var(--brand); stroke: var(--brand); }
 .pinout-drawing .pd-pin.wired.chosen .pd-num, .pinout-drawing .pd-contact.wired.chosen .pd-num { fill: #fff; }
 .wire-colour { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border-strong); margin-right: 4px; vertical-align: middle; }

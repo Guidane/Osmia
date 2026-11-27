@@ -6,7 +6,7 @@
 <div class="page-head"><h1>{{ budget }}</h1>{% if not budget.active %}<span class="badge">Closed</span>{% endif %}
   <span class="muted">{% if budget.setup %}<a href="{{ budget.setup.get_absolute_url }}">{{ budget.setup }}</a> · {% endif %}{% if budget.owner %}{{ budget.owner }}{% endif %}{% if budget.starts_on or budget.ends_on %} · {{ budget.starts_on|default:"…" }} to {{ budget.ends_on|default:"…" }}{% endif %}</span>
   <span class="spacer"></span>
-  <a class="btn" href="?export=1">⬇ Excel</a>
+  <a class="btn" href="?export=1">⬇ CSV</a>
   <a class="btn" href="{% url 'budgets:new' %}?parent={{ budget.pk }}">＋ Under it</a>
   <a class="btn" href="{% url 'budgets:edit' budget.pk %}">Change</a></div>
 

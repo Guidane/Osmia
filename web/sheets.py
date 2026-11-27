@@ -1,5 +1,5 @@
-"""Excel import: the rows of a sheet sent as an .xlsx file (one made by ⬇ Excel, edited, or made by hand) or a CSV
-file, each as {header: value}. See ``web.excel`` for the export. The same rows can come from a data file
+"""Sheet import: the rows of a table sent as a CSV file (one made by ⬇ CSV, edited, or made by hand), a .zip of them
+(⬇ CSV of several tables) or an Excel file (.xlsx), each as {header: value}. See ``web.csvfile`` for the export. The same rows can come from a data file
 (``web.datafile``): then each is named by where it is in the file ("item_definitions 3") instead of its row number."""
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -15,23 +15,34 @@ def at(n):
 
 
 def read(sent, title):
-    """The rows of the sheet ``title`` (else the first one) of the file ``sent``: [(row number in Excel, {header in
-    lower case: value})], empty rows left out. Headers are matched without case and surrounding spaces."""
-    from zipfile import BadZipFile
+    """The rows of the sheet ``title`` (else the first one) of the file ``sent`` (in a .zip of CSV files: ``title``.csv,
+    else the first): [(row number, {header in lower case: value})], empty rows left out. Headers are matched without
+    case and surrounding spaces."""
+    from zipfile import BadZipFile, ZipFile
 
     from openpyxl import load_workbook
     if sent is None:
-        raise ValidationError('Pick an Excel file (.xlsx) or a CSV file.')
+        raise ValidationError('Pick a CSV file (or an Excel file, .xlsx).')
     head = sent.read(4)
     sent.seek(0)
     if head[:2] != b'PK':   # not a zip: no .xlsx; a CSV file (as an AI or another program writes one)?
         if str(getattr(sent, 'name', '')).lower().endswith(('.xlsx', '.xlsm')):
             raise ValidationError(f'{sent.name} is not an Excel file (.xlsx).')
         return _csv(sent)
+    try:   # a .zip of CSV files (⬇ CSV of several tables)?
+        with ZipFile(sent) as zipped:
+            tables = {n.rsplit('/', 1)[-1][:-4].strip().lower(): n for n in zipped.namelist() if n.lower().endswith('.csv')}
+            if tables:
+                from django.core.files.base import ContentFile
+                member = tables.get(title.lower()) or next(iter(tables.values()))
+                return _csv(ContentFile(zipped.read(member), name=getattr(sent, 'name', '')))
+    except BadZipFile:
+        pass
+    sent.seek(0)
     try:
         book = load_workbook(sent, read_only=True, data_only=True)
     except (BadZipFile, KeyError, OSError, ValueError):
-        raise ValidationError(f'{getattr(sent, "name", "That file")} is not an Excel file (.xlsx).')
+        raise ValidationError(f'{getattr(sent, "name", "That file")} is not a CSV file, a .zip of them or an Excel file (.xlsx).')
     names = {n.strip().lower(): n for n in book.sheetnames}
     sheet = book[names.get(title.lower(), book.sheetnames[0])]
     lines = sheet.iter_rows(values_only=True)
@@ -54,7 +65,7 @@ def _csv(sent):
     except UnicodeDecodeError:
         content = raw.decode('cp1252', errors='replace')
     if '\x00' in content or not content.strip():
-        raise ValidationError(f'{getattr(sent, "name", "That file")} is not an Excel file (.xlsx) or a CSV file.')
+        raise ValidationError(f'{getattr(sent, "name", "That file")} is not a CSV file (or an Excel file, .xlsx).')
     first = content.splitlines()[0]
     delimiter = max(',;\t', key=first.count)
     lines = list(csv.reader(content.splitlines(), delimiter=delimiter))

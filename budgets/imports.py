@@ -1,4 +1,4 @@
-"""Budgets brought in: from an Excel or CSV file (the sheet "Budgets" as ⬇ Excel makes it; its columns that are
+"""Budgets brought in: from a CSV or Excel file (the table "Budgets" as ⬇ CSV makes it; its columns that are
 counted, not kept, such as what is spent, are left out) or from a data file (``web.datafile``).
 
 Each row is the budget with its number (with no number: the one with its name in the same budget): changed when there
@@ -80,13 +80,13 @@ def apply_budgets(rows):
 
 
 def import_budgets(sent):
-    """The budgets in the Excel or CSV file ``sent``: (made, changed). All or nothing: any row that is wrong and
+    """The budgets in the CSV or Excel file ``sent``: (made, changed). All or nothing: any row that is wrong and
     nothing is imported (a ValidationError saying which rows)."""
     rows = sheets.read(sent, SHEET)
     if not rows:
         raise ValidationError(f'There are no budgets in {sent.name}.')
     if 'name' not in rows[0][1]:
-        raise ValidationError(f'{sent.name} has no "Name" column (the sheet "{SHEET}", as ⬇ Excel makes it).')
+        raise ValidationError(f'{sent.name} has no "Name" column (the table "{SHEET}", as ⬇ CSV makes it).')
     with transaction.atomic():
         made, changed, _, problems = apply_budgets(rows)
         if problems:

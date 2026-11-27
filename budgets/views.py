@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.models import Department
 from inventory.stock import amount
-from web import excel
+from web import csvfile
 from web.shortcuts import edit_page
 from web.forms import TreeForm, initial_for
 
@@ -46,7 +46,7 @@ def budget_list(request):
     if not request.GET.get('all'):
         rows = [r for r in rows if r[0].active]
     if request.GET.get('export'):
-        return excel.download('budgets', [('Budgets', ['Number', 'Name', 'Part of', 'Setup', 'Owner', 'Amount', 'Received',
+        return csvfile.download('budgets', [('Budgets', ['Number', 'Name', 'Part of', 'Setup', 'Owner', 'Amount', 'Received',
                                                        'Still to come', 'Other costs', 'Spent', 'Left', 'Used %', 'In drafts',
                                                        'Department', 'Starts', 'Ends', 'Active', 'Notes'],
                                            [(b.number, b.name, str(b.parent or ''), str(b.setup or ''), str(b.owner or ''), b.amount,
@@ -84,7 +84,7 @@ def budget(request, pk):
     orders = list(item.orders.select_related('vendor').prefetch_related('lines'))
     costs = item.costs.select_related('created_by')
     if request.GET.get('export'):
-        return excel.download(str(item), [
+        return csvfile.download(str(item), [
             ('Orders', ['Order', 'Vendor', 'Status', 'Ordered', 'Value'], [(o.number, o.vendor.name, o.get_status_display(), o.ordered_on, o.total) for o in orders]),
             ('Other costs', ['Date', 'Description', 'Amount', 'By'], [(c.spent_on, c.description, c.amount, str(c.created_by or '')) for c in costs]),
             ('Under it', ['Number', 'Name', 'Amount', 'Spent', 'Left'],
@@ -124,7 +124,7 @@ def cost_delete(request, pk, cost):
 @login_required
 @require_POST
 def budgets_import(request):
-    """Budgets from an Excel file (the sheet ⬇ Excel makes, edited): see ``imports``."""
+    """Budgets from a CSV or Excel file (the one ⬇ CSV makes, edited): see ``imports``."""
     from django.core.exceptions import ValidationError
 
     from web.shortcuts import errors

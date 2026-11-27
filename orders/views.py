@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from budgets.models import Budget
 from inventory import stock
 from inventory.models import Category, Location, ItemDefinition, Vendor
-from web import excel
+from web import csvfile
 from web.forms import initial_for
 from web.templatetags.osmia import qty
 from web.shortcuts import errors
@@ -74,7 +74,7 @@ def order_list(request):
         found = found.filter(Q(number__icontains=q) | Q(vendor__name__icontains=q) | Q(vendor_reference__icontains=q) | Q(request__icontains=q)
                              | Q(lines__definition__number__icontains=q)).distinct()
     if request.GET.get('export'):
-        return excel.download('orders', [
+        return csvfile.download('orders', [
             ('Orders', ['Order', 'Asked for', 'Vendor', 'Status', "Vendor's number", 'Ordered', 'Expected', 'Received', 'Late'],
              [(o.number, o.request, o.vendor.name if o.vendor else '', o.get_status_display(), o.vendor_reference, o.ordered_on, o.expected_on, o.received_on,
                'yes' if o.overdue else '') for o in found]),

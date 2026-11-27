@@ -207,7 +207,7 @@ Orders come in as a record of what was ordered: they don't add stock (give that 
 
 ## Item definitions or budgets as a CSV (or Excel) file
 
-Instead of a data file: a CSV file (UTF-8, columns split by commas or semicolons) with a header row. Osmia's own ⬇ Excel
+Instead of a data file: a CSV file (UTF-8, columns split by commas or semicolons) with a header row. Osmia's own ⬇ CSV
 of these lists has the same columns; a CSV with only some of them changes only those.
 
 Item definitions: `Item number` (needed), `Kind`, `Description`, `Category`, `Manufacturer`, `Manufacturer part

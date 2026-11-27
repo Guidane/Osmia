@@ -3,7 +3,7 @@
 {% block content_class %}wide{% endblock %}
 {% block content %}
 <div class="page-head"><h1>Assets</h1><span class="spacer"></span>
-  <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ Excel</a>
+  <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ CSV</a>
   <button type="button" class="btn" data-labels="{% url 'web:labels' 'asset' %}" title="Labels of the ticked assets (none ticked: of all listed)">🏷 Labels</button>
   <a class="btn" href="{% url 'records:fields' %}">Fields</a>
   <a class="btn primary" href="{% url 'records:new' %}">＋ New asset</a></div>

@@ -1,12 +1,14 @@
-"""Item definitions and budgets from Excel: what ⬇ Excel makes, edited and sent back (changed, made); a column left
+"""Item definitions and budgets from CSV (or Excel): what ⬇ CSV makes, edited and sent back (changed, made); a column left
 out left as it is; categories and vendors made; a sheet with a wrong row refused whole."""
 from datetime import date
 from decimal import Decimal
-from io import BytesIO
+import csv
+from io import BytesIO, StringIO
+from zipfile import ZipFile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook
 
 from budgets.models import Budget
 from inventory.models import Category, ItemDefinition, Vendor
@@ -26,22 +28,37 @@ def book(title, rows):
     return SimpleUploadedFile('sheet.xlsx', out.getvalue())
 
 
+def tables(content):
+    """A download of ⬇ CSV ({title: rows}, rows lists of text, the first the headers): a .csv (its one table, "") or a
+    .zip of them."""
+    def rows(raw):
+        return [list(r) for r in csv.reader(StringIO(raw.decode('utf-8-sig')))]
+    if content[:2] != b'PK':
+        return {'': rows(content)}
+    with ZipFile(BytesIO(content)) as zipped:
+        return {n[:-4]: rows(zipped.read(n)) for n in zipped.namelist()}
+
+
 def as_sent(content):
-    """A downloaded .xlsx, as a file to send back."""
-    return SimpleUploadedFile('export.xlsx', content)
+    """A download of ⬇ CSV, as a file to send back."""
+    return SimpleUploadedFile('export.zip' if content[:2] == b'PK' else 'export.csv', content)
 
 
 def edited(content, title, change):
-    """A downloaded .xlsx with ``change(rows)`` made to its sheet ``title`` (rows: lists, the first the headers)."""
-    wb = load_workbook(BytesIO(content))
-    sheet = wb[title]
-    rows = [list(r) for r in sheet.values]
-    change(rows)
-    sheet.delete_rows(1, sheet.max_row)
-    for row in rows:
-        sheet.append(row)
+    """A download of ⬇ CSV with ``change(rows)`` made to its table ``title`` (rows: lists, the first the headers)."""
+    found = tables(content)
+    key = title if title in found else ''
+    change(found[key])
+    def written(rows):
+        out = StringIO()
+        csv.writer(out).writerows(rows)
+        return out.getvalue().encode('utf-8-sig')
+    if key == '':
+        return as_sent(written(found['']))
     out = BytesIO()
-    wb.save(out)
+    with ZipFile(out, 'w') as zipped:
+        for name, rows in found.items():
+            zipped.writestr(name + '.csv', written(rows))
     return as_sent(out.getvalue())
 
 

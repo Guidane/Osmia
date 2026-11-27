@@ -9,7 +9,7 @@
   {% if harness.version %}<span class="badge{% if not changed %} ok{% endif %}">v{{ harness.version }}{% if changed %} + changes{% endif %}</span>{% endif %}
   {% if harness.setup %}<span class="small muted">· used in setup {{ harness.setup|link }}</span>{% endif %}
   <span class="spacer"></span>
-  <a class="btn" href="?export=1">⬇ Excel</a>
+  <a class="btn" href="?export=1">⬇ CSV</a>
   <a class="btn" href="?json=1">⬇ JSON</a>
   <a class="btn" href="{% url 'harnesses:edit' harness.pk %}">Change</a>
 </div>

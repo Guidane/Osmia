@@ -19,7 +19,7 @@ from inventory import attributes as kept
 from inventory.attributes import RecordStore
 from inventory.forms import AttributesForm
 from inventory.models import Attribute, Category, ItemDefinition, Location
-from web import excel
+from web import csvfile
 from web.forms import initial_for
 from web.shortcuts import errors
 
@@ -97,7 +97,7 @@ def asset_list(request):
         assets = [a for a in assets if a.pk in due]
     if request.GET.get('export'):
         values = dict(kept.columns(assets, fields, RecordStore()))
-        return excel.download('assets', [('Assets', ['Asset tag', 'Asset number', 'Item definition', 'Name', 'Category', 'Serial number',
+        return csvfile.download('assets', [('Assets', ['Asset tag', 'Asset number', 'Item definition', 'Name', 'Category', 'Serial number',
                                                      'Location', 'Keeper', 'Status', 'Out with', 'Calibrated', 'Due'] + [f.name for f in fields],
                                           [(a.tag, a.asset_number, a.thing.number if a.thing else '', a.name,
                                             a.definition.category.path if a.definition and a.definition.category else '',
@@ -261,7 +261,7 @@ def stock(request):
         d = row['definition']
         row['low'] = bool(d.minimum) and row['quantity'] < d.minimum
     if request.GET.get('export'):
-        return excel.download('stock', [('Stock', ['Item number', 'Description', 'Category', 'Location', 'Quantity', 'Unit'],
+        return csvfile.download('stock', [('Stock', ['Item number', 'Description', 'Category', 'Location', 'Quantity', 'Unit'],
                                          [(row['definition'].number, row['definition'].description,
                                            row['definition'].category.path if row['definition'].category else '', place.path, n, row['definition'].unit)
                                           for row in rows for place, n in row['places']])])

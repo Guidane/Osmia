@@ -1,5 +1,5 @@
-"""Item definitions, vendors, locations and categories brought in: from an Excel or CSV file (the sheet "Item
-definitions" as ⬇ Excel makes it; its other sheets, and its columns that are counted, not kept, are left out) or from
+"""Item definitions, vendors, locations and categories brought in: from a CSV or Excel file (the table "Item
+definitions" as ⬇ CSV makes it; its other tables, and its columns that are counted, not kept, are left out) or from
 a data file (``web.datafile``).
 
 Each item definition is the one with its item number: changed when there is one, else made. A column left out leaves
@@ -101,13 +101,13 @@ def apply_definitions(rows):
 
 
 def import_definitions(sent):
-    """The item definitions in the Excel or CSV file ``sent``: (made, changed, notes). All or nothing: any row that is
+    """The item definitions in the CSV or Excel file ``sent``: (made, changed, notes). All or nothing: any row that is
     wrong and nothing is imported (a ValidationError saying which rows)."""
     rows = sheets.read(sent, SHEET)
     if not rows:
         raise ValidationError(f'There are no item definitions in {sent.name}.')
     if 'item number' not in rows[0][1]:
-        raise ValidationError(f'{sent.name} has no "Item number" column (the sheet "{SHEET}", as ⬇ Excel makes it).')
+        raise ValidationError(f'{sent.name} has no "Item number" column (the table "{SHEET}", as ⬇ CSV makes it).')
     with transaction.atomic():
         made, changed, notes, problems = apply_definitions(rows)
         if problems:

@@ -1,6 +1,6 @@
 """Budgets: what an order charged to one counts as (planned while a draft, spent once placed: arrived or still to
 come), other costs, everything rolling up through the budgets above, the owner told when it is overspent, the warning
-before placing, Home, Excel."""
+before placing, Home, CSV."""
 from decimal import Decimal
 
 from django.urls import reverse
@@ -58,7 +58,7 @@ class BudgetTests(Base):
         page = self.client.get(reverse('budgets:budget', args=[self.year.pk]))
         self.assertContains(page, 'Travel')
         response = self.client.get(reverse('budgets:list'), {'export': 1})
-        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8')
         page = self.client.post(reverse('budgets:edit', args=[self.year.pk]), {'name': '2026', 'parent': self.test.pk, 'amount': 1})
         self.assertContains(page, 'part of itself')
 

@@ -20,7 +20,7 @@ from inventory.faces import drawn, face_of
 from inventory.models import Location, ItemDefinition, DefinitionGroup, choices_of_definitions, definition_or_family
 from setups.models import Setup
 from records.service import next_tag
-from web import excel, rows, versions
+from web import csvfile, rows, versions
 from web.shortcuts import edit_page, errors
 from web.templatetags.osmia import qty
 
@@ -114,7 +114,7 @@ def _sheets(harness):
 def harness(request, pk):
     item = get_object_or_404(Harness.objects.select_related('setup'), pk=pk)
     if request.GET.get('export'):
-        return excel.download(f'{item.number} {item.name}', _sheets(item))
+        return csvfile.download(f'{item.number} {item.name}', _sheets(item))
     if request.GET.get('json'):   # as a file to take in again (here, or into another Osmia)
         from .transfer import export_harness
         response = JsonResponse(export_harness(item), json_dumps_params={'indent': 1, 'ensure_ascii': False})
@@ -363,8 +363,13 @@ def _drawing(harness, wires):
                 if at == end.pk and pin:   # (a shield joined on one side only has no pin on the other)
                     pins.setdefault(pin, '')
         numbers = sorted(pins, key=pin_order)
+        face = face_of(end.used)
+        if face is not None and len(face['contacts']) == 1:   # a single contact (a bullet terminal): as many as its wires
+            face = dict(face, single=True)                     # use, drawn as one ("x5"), picked from a popup
+        else:
+            face = drawn(end.used, numbers)
         out.append({'id': end.pk, 'designator': end.designator, 'what': end.used_name, 'along': qty(end.along), 'reach': qty(end.reach),
-                    'side': end.side, 'used': _picked_as(end.used), 'face': drawn(end.used, numbers), 'pins': [[n, pins[n]] for n in numbers]})
+                    'side': end.side, 'used': _picked_as(end.used), 'face': face, 'pins': [[n, pins[n]] for n in numbers]})
     lengths = {g.name: {'length': qty(g.length), 'bundled': qty(g.bundled), 'breakout': g.breakout} for g in harness.groups.all()}
     bundle = {'trunk': qty(harness.trunk), 'kinds': HarnessMark.Kind.choices, 'splices': _splices(wires),   # the Bundle tab: what is along it
               'marks': [{'id': m.pk, 'kind': m.kind, 'label': m.get_kind_display(), 'on': m.on_id, 'start': qty(m.start), 'end': qty(m.end),

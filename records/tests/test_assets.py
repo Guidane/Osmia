@@ -169,4 +169,4 @@ class StockPageTests(Base):
         picked = self.client.get(reverse('records:stock'), {'definition': self.plug.pk})
         self.assertContains(picked, f'data-brief="{self.plug.pk}"')
         response = self.client.get(reverse('records:stock'), {'export': 1})
-        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8')

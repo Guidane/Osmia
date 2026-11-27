@@ -9,7 +9,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from web import excel
+from web import csvfile
 from web.shortcuts import edit_page
 from web.forms import initial_for
 
@@ -52,7 +52,7 @@ def users(request):
     if not request.GET.get('all'):
         found = found.filter(is_active=True)
     if request.GET.get('export'):
-        return excel.download('users', [('Users', ['User name', 'Name', 'Email', 'Job title', 'Phone', 'Department', 'Administrator',
+        return csvfile.download('users', [('Users', ['User name', 'Name', 'Email', 'Job title', 'Phone', 'Department', 'Administrator',
                                                    'Can log in', 'Last logged in'],
                                          [(u.username, u.get_full_name(), u.email, u.job_title, u.phone, u.department.path if u.department else '',
                                            'yes' if u.is_superuser else '', 'yes' if u.is_active else 'no', u.last_login) for u in found])])

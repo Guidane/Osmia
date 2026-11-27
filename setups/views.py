@@ -18,7 +18,7 @@ from devices.models import Connector, Device
 from harnesses.models import Harness
 from inventory.models import choices_of_definitions, definition_or_family
 from orders import service as orders
-from web import excel
+from web import csvfile
 from web.shortcuts import edit_page, errors
 from web.forms import TreeForm, initial_for
 
@@ -234,7 +234,7 @@ def needs(request, pk):
         messages.success(request, f'On the draft orders: {", ".join(ordered)}.' if ordered else 'Nothing missing could be ordered.')
         return redirect(f'{request.path}?count={count}')
     if request.GET.get('export'):
-        return excel.download(str(item), [
+        return csvfile.download(str(item), [
             ('Item definitions', ['Item definition', 'Description', 'Needed', 'Unit', 'On hand', 'On order', 'Missing'],
              [(p.number, p.description, q, p.unit, have, coming, missing) for p, q, have, coming, missing in definitions]),
             ('Devices', ['Device', 'Name', 'How many'], [(d.number, d.name, n * count) for d, n in devices]),

@@ -1,5 +1,5 @@
 """Devices: connectors made with their pins, pins edited as a table, versions saved and restored (what harnesses
-plug into keeps its connector), a unit (an asset) made with it, deleting one, Excel."""
+plug into keeps its connector), a unit (an asset) made with it, deleting one, CSV."""
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
@@ -166,15 +166,12 @@ class DeviceTests(DeviceBase):
         self.client.post(reverse('devices:delete', args=[self.controller.pk]))
         self.assertTrue(Device.objects.filter(pk=self.controller.pk).exists())
 
-    def test_excel(self):
-        from io import BytesIO
-
-        from openpyxl import load_workbook
+    def test_csv(self):
+        from inventory.tests.test_imports import tables
         response = self.client.get(reverse('devices:list'), {'export': 1})
-        book = load_workbook(BytesIO(response.content))
-        rows = list(book['Pins'].values)
+        rows = [tuple(r) for r in tables(response.content)['Pins']]
         self.assertEqual(rows[0][:5], ('Device', 'Connector', 'Connector name', 'Connector item definition', 'Pin'))
-        self.assertIn(('CTRL-1', 'J1', 'Bus', 'DSUB-9-PLUG', '6', 'CAN H', None, None, None, None), rows)
+        self.assertIn(('CTRL-1', 'J1', 'Bus', 'DSUB-9-PLUG', '6', 'CAN H', '', '', '', ''), rows)
 
 
 class DeviceTransferTests(DeviceBase):

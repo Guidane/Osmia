@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from orders import service as orders
-from web import excel
+from web import csvfile
 from web.templatetags.osmia import qty
 from web.shortcuts import edit_page, errors
 from web.forms import initial_for
@@ -62,7 +62,7 @@ def definitions(request):
     if not request.GET.get('all'):
         found = found.filter(active=True)
     if request.GET.get('export'):
-        return excel.download('definitions', _definition_sheets(found))
+        return csvfile.download('definitions', _definition_sheets(found))
     if q and found.count() == 1:
         return redirect(found.get())
     tree = Category.ordered()
@@ -548,7 +548,7 @@ def attribute_move(request, pk, attribute):
 @login_required
 @require_POST
 def definitions_import(request):
-    """Item definitions from an Excel file (the sheet ⬇ Excel makes, edited): see ``imports``."""
+    """Item definitions from a CSV or Excel file (the one ⬇ CSV makes, edited): see ``imports``."""
     from django.core.exceptions import ValidationError
 
     from web.shortcuts import errors

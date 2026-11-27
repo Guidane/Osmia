@@ -3,7 +3,7 @@
 {% block content_class %}wide{% endblock %}
 {% block content %}
 <div class="page-head"><h1>Devices</h1><span class="spacer"></span>
-  <a class="btn" href="?export=1{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if origin %}&amp;origin={{ origin }}{% endif %}">⬇ Excel</a>
+  <a class="btn" href="?export=1{% if q %}&amp;q={{ q|urlencode }}{% endif %}{% if origin %}&amp;origin={{ origin }}{% endif %}">⬇ CSV</a>
   <form method="post" action="{% url 'devices:import' %}" enctype="multipart/form-data" class="inline-form">{% csrf_token %}
     <label class="btn">⬆ Import<input type="file" name="file" accept=".json,application/json" hidden data-import-file></label>
     <a class="btn ghost" href="{% url 'devices:format' %}">⬇ Format</a></form>

@@ -125,12 +125,10 @@ class ChangingAttributesTests(AttributeBase):
         self.client.post(reverse('inventory:attribute_edit', args=[self.dsub.pk, self.pitch.pk]), {'name': 'Pitch', 'kind': 'text', 'unit': 'mm'})
         self.assertEqual(DefinitionValue.objects.get(attribute=self.pitch).number, None)
 
-    def test_categories_page_and_excel(self):
+    def test_categories_page_and_csv(self):
         page = self.client.get(reverse('inventory:category', args=[self.dsub.pk]))
         self.assertContains(page, 'from <a href="/categories/%d/#attributes">Connectors</a>' % self.connectors.pk, html=False)
-        from io import BytesIO
-
-        from openpyxl import load_workbook
+        from .test_imports import tables
         DefinitionValue.objects.create(definition=self.plug, attribute=self.positions, value='9', number=9)
-        book = load_workbook(BytesIO(self.client.get(reverse('inventory:definitions'), {'export': 1}).content))
-        self.assertIn(('DSUB-9-PLUG', 'Connectors / D-sub', 'Positions', 9, None), [tuple(r) for r in book['Attributes'].values])
+        book = tables(self.client.get(reverse('inventory:definitions'), {'export': 1}).content)
+        self.assertIn(('DSUB-9-PLUG', 'Connectors / D-sub', 'Positions', '9', ''), [tuple(r) for r in book['Attributes']])

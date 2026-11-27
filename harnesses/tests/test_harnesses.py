@@ -471,4 +471,4 @@ class BuildTests(HarnessBase):
         self.assertEqual([str(w) for w in self.harness.wires.all()], ['P1:1 → P2:1'])
         self.assertFalse(versions.changed(self.harness))
         page = self.client.get(reverse('harnesses:harness', args=[self.harness.pk]), {'export': 1})
-        self.assertEqual(page['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertEqual(page['Content-Type'], 'application/zip')   # (pinout, groups, connectors, parts list: a .csv each)

@@ -3,7 +3,7 @@
 {% block content_class %}wide{% endblock %}
 {% block content %}
 <div class="page-head"><h1>Stock</h1>{% if location %}<span class="muted">in {{ location|link }}</span>{% endif %}<span class="spacer"></span>
-  <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ Excel</a></div>
+  <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ CSV</a></div>
 <div class="browser" data-param="definition">
   {% include "web/_tree_nav.html" with label="Categories" %}
 

@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head"><h1>Users</h1><span class="spacer"></span>
   <a class="btn" href="{% url 'accounts:departments' %}">Departments</a>
-  <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ Excel</a>
+  <a class="btn" href="?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}export=1">⬇ CSV</a>
   <a class="btn primary" href="{% url 'accounts:user_new' %}{% if department %}?department={{ department.pk }}{% endif %}">＋ New user</a></div>
 
 <div class="browser" data-param="user">

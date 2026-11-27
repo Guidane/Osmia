@@ -238,7 +238,7 @@ def brief(request, kind, pk):
 def import_any(request):
     """Any file Osmia takes in, from wherever (an AI made with ``web.ai``'s instructions, another program, by hand):
     an Osmia data file, a device or harness file, a file of connector families (JSON), or item definitions or budgets
-    (Excel, CSV). What it is, Osmia sees for itself."""
+    (CSV, Excel). What it is, Osmia sees for itself."""
     from django.core.exceptions import ValidationError
 
     from .shortcuts import errors
@@ -268,7 +268,7 @@ def _taken_in(sent, user):
     head = sent.read(2)
     sent.seek(0)
     name = sent.name.lower()
-    if head == b'PK' or name.endswith(('.csv', '.xlsx', '.tsv', '.txt')):   # a sheet: item definitions or budgets
+    if head == b'PK' or name.endswith(('.csv', '.zip', '.xlsx', '.tsv', '.txt')):   # a sheet: item definitions or budgets
         from budgets.imports import import_budgets
         from inventory.imports import import_definitions
         rows = sheets.read(sent, 'Item definitions')
@@ -284,7 +284,7 @@ def _taken_in(sent, user):
     try:
         data = json.loads(sent.read().decode('utf-8-sig'))
     except (ValueError, UnicodeDecodeError):
-        raise ValidationError(f'{sent.name} is not a file Osmia takes in (an Osmia data file, a device or harness file, Excel or CSV).')
+        raise ValidationError(f'{sent.name} is not a file Osmia takes in (an Osmia data file, a device or harness file, CSV or Excel).')
     kind = data.get('kind') if isinstance(data, dict) else None
     if kind == 'osmia device':
         from devices.transfer import import_device
