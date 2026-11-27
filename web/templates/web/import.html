@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Import · Osmia{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Import</h1><span class="spacer"></span>
+  <a class="btn" href="{% url 'web:ai_instructions' %}">⬇ AI instructions</a></div>
+<section class="card">
+  <form method="post" enctype="multipart/form-data" class="form">{% csrf_token %}
+    <div class="field"><label for="file">File</label><input type="file" id="file" name="file" accept=".json,.csv,.xlsx,application/json,text/csv" required></div>
+    <div class="actions"><button class="btn primary">⬆ Import</button></div>
+  </form>
+</section>
+{% endblock %}

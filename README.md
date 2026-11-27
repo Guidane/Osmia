@@ -32,6 +32,14 @@ Importing it elsewhere (same page, or `manage.py import_data file.zip`) replaces
 was there is first saved to `dataackups\`. An export from an older Osmia is brought up to date by the migrations; one
 from a newer Osmia is refused until that one is updated. See `web/backup.py`.
 
+**Bringing records in** (from an older Osmia, a spreadsheet, screenshots, datasheets): *their name → Import* takes an
+Osmia data file (JSON: vendors, locations, categories, departments, item definitions, projects, setups, budgets,
+devices, harnesses, stock, assets, orders, any of them), a device or harness file, or item definitions or budgets as
+Excel or CSV; all of a file or, when anything in it is wrong, nothing. [AI-INSTRUCTIONS.md](AI-INSTRUCTIONS.md) tells
+an AI how to make those files (give it the file with the screenshots or whatever you have); the Import page's ⬇ AI
+instructions is the same with the names this Osmia has (its families, categories, item definitions, ...) added.
+`manage.py ai_instructions` writes AI-INSTRUCTIONS.md again from `web/ai.py`. See `web/datafile.py`.
+
 **Updating Osmia**: an administrator downloads the code from GitHub (*Code → Download ZIP*) and uploads it on *their
 name → Update Osmia*. Osmia checks it is its code and not older than the data, saves the data and the code it has now
 in `dataackups\`, puts the new code in place, installs the requirements if they changed, runs the migrations and starts

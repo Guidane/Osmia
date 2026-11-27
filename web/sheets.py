@@ -1,11 +1,17 @@
-"""Excel import: the rows of a sheet sent as an .xlsx file (one made by ⬇ Excel, edited, or made by hand), each as
-{header: value}. See ``web.excel`` for the export."""
+"""Excel import: the rows of a sheet sent as an .xlsx file (one made by ⬇ Excel, edited, or made by hand) or a CSV
+file, each as {header: value}. See ``web.excel`` for the export. The same rows can come from a data file
+(``web.datafile``): then each is named by where it is in the file ("item_definitions 3") instead of its row number."""
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 
 MOST_ERRORS = 15   # an import refused: at most this many of its errors shown
+
+
+def at(n):
+    """Where a row is, as its messages say it: "Row 4" (in a sheet), else as given ("budgets 2")."""
+    return f'Row {n}' if isinstance(n, int) else str(n)
 
 
 def read(sent, title):
@@ -15,7 +21,13 @@ def read(sent, title):
 
     from openpyxl import load_workbook
     if sent is None:
-        raise ValidationError('Pick an Excel file (.xlsx).')
+        raise ValidationError('Pick an Excel file (.xlsx) or a CSV file.')
+    head = sent.read(4)
+    sent.seek(0)
+    if head[:2] != b'PK':   # not a zip: no .xlsx; a CSV file (as an AI or another program writes one)?
+        if str(getattr(sent, 'name', '')).lower().endswith(('.xlsx', '.xlsm')):
+            raise ValidationError(f'{sent.name} is not an Excel file (.xlsx).')
+        return _csv(sent)
     try:
         book = load_workbook(sent, read_only=True, data_only=True)
     except (BadZipFile, KeyError, OSError, ValueError):
@@ -30,6 +42,28 @@ def read(sent, title):
         if any(v not in (None, '') for v in row.values()):
             out.append((n, row))
     book.close()
+    return out
+
+
+def _csv(sent):
+    """The rows of a CSV file: UTF-8 (else Windows' Western European), its columns split by commas, semicolons or tabs."""
+    import csv
+    raw = sent.read()
+    try:
+        content = raw.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        content = raw.decode('cp1252', errors='replace')
+    if '\x00' in content or not content.strip():
+        raise ValidationError(f'{getattr(sent, "name", "That file")} is not an Excel file (.xlsx) or a CSV file.')
+    first = content.splitlines()[0]
+    delimiter = max(',;\t', key=first.count)
+    lines = list(csv.reader(content.splitlines(), delimiter=delimiter))
+    headers = [h.strip().lower() for h in lines[0]]
+    out = []
+    for n, values in enumerate(lines[1:], 2):
+        row = {h: (v if v.strip() else None) for h, v in zip(headers, values) if h}
+        if any(v is not None for v in row.values()):
+            out.append((n, row))
     return out
 
 
@@ -52,13 +86,13 @@ def number(row, header, n, what):
     if value in (None, ''):
         return None
     if isinstance(value, bool):
-        raise ValidationError(f'Row {n}: the {what} "{value}" is not a number.')
+        raise ValidationError(f'{at(n)}: the {what} "{value}" is not a number.')
     try:
         found = Decimal(str(value).strip().replace(' ', '').replace(',', '.'))
     except InvalidOperation:
-        raise ValidationError(f'Row {n}: the {what} "{value}" is not a number.')
+        raise ValidationError(f'{at(n)}: the {what} "{value}" is not a number.')
     if not found.is_finite():
-        raise ValidationError(f'Row {n}: the {what} "{value}" is not a number.')
+        raise ValidationError(f'{at(n)}: the {what} "{value}" is not a number.')
     return found
 
 
@@ -74,7 +108,7 @@ def yes(row, header, n, what):
         return True
     if word in ('no', 'n', 'false', '0', 'nee', 'non'):
         return False
-    raise ValidationError(f'Row {n}: the {what} "{value}" is not yes or no.')
+    raise ValidationError(f'{at(n)}: the {what} "{value}" is not yes or no.')
 
 
 def day(row, header, n, what):
@@ -92,7 +126,7 @@ def day(row, header, n, what):
             return datetime.strptime(word, form).date()
         except ValueError:
             pass
-    raise ValidationError(f'Row {n}: the {what} "{value}" is not a date (2026-03-01).')
+    raise ValidationError(f'{at(n)}: the {what} "{value}" is not a date (2026-03-01).')
 
 
 def refuse(problems):

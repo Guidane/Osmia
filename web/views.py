@@ -232,3 +232,90 @@ def brief(request, kind, pk):
     """The details of a thing beside its list (fetched when a row is picked): see ``web.briefs``."""
     from . import briefs
     return render(request, 'web/_brief.html', {'brief': briefs.of(kind, briefs.find(kind, pk))})
+
+
+@login_required
+def import_any(request):
+    """Any file Osmia takes in, from wherever (an AI made with ``web.ai``'s instructions, another program, by hand):
+    an Osmia data file, a device or harness file, a file of connector families (JSON), or item definitions or budgets
+    (Excel, CSV). What it is, Osmia sees for itself."""
+    from django.core.exceptions import ValidationError
+
+    from .shortcuts import errors
+    if request.method == 'POST':
+        sent = request.FILES.get('file')
+        try:
+            done, then = _taken_in(sent, request.user)
+        except ValidationError as exc:
+            errors(request, exc)
+            return redirect('web:import')
+        for message in done[:-1]:
+            messages.info(request, message)
+        messages.success(request, done[-1])
+        return redirect(then or 'web:import')
+    return render(request, 'web/import.html')
+
+
+def _taken_in(sent, user):
+    """``sent`` taken in, whatever kind of file it is: ([what was done, the last the main thing], where to go next)."""
+    import json
+
+    from django.core.exceptions import ValidationError
+
+    from . import datafile, sheets
+    if sent is None:
+        raise ValidationError('Pick a file.')
+    head = sent.read(2)
+    sent.seek(0)
+    name = sent.name.lower()
+    if head == b'PK' or name.endswith(('.csv', '.xlsx', '.tsv', '.txt')):   # a sheet: item definitions or budgets
+        from budgets.imports import import_budgets
+        from inventory.imports import import_definitions
+        rows = sheets.read(sent, 'Item definitions')
+        sent.seek(0)
+        columns = set(rows[0][1]) if rows else set()
+        if 'item number' in columns:
+            made, changed, notes = import_definitions(sent)
+            return notes + [f'{sent.name}: {made} item definitions made, {changed} changed.'], 'inventory:definitions'
+        if 'name' in columns:
+            made, changed = import_budgets(sent)
+            return [f'{sent.name}: {made} budgets made, {changed} changed.'], 'budgets:list'
+        raise ValidationError(f'{sent.name} has neither an "Item number" column (item definitions) nor a "Name" column (budgets).')
+    try:
+        data = json.loads(sent.read().decode('utf-8-sig'))
+    except (ValueError, UnicodeDecodeError):
+        raise ValidationError(f'{sent.name} is not a file Osmia takes in (an Osmia data file, a device or harness file, Excel or CSV).')
+    kind = data.get('kind') if isinstance(data, dict) else None
+    if kind == 'osmia device':
+        from devices.transfer import import_device
+        item, notes = import_device(data)
+        return notes + [f'{item} is made from {sent.name}.'], item.get_absolute_url()
+    if kind == 'osmia harness' or (kind is None and isinstance(data, dict) and 'wires' in data):
+        from harnesses.transfer import import_harness
+        item, notes = import_harness(data, None)
+        return notes + [f'{item} is made from {sent.name}.'], item.get_absolute_url()
+    if kind == 'osmia connector families':
+        from inventory.faces import import_families
+        made, _, kept = import_families(data)
+        return [f'{sent.name}: {made} connector families made, {kept} there already.'], 'inventory:families'
+    done, notes = datafile.import_data(datafile.read(_again(sent, data)), user)
+    said = ', '.join(f'{section.replace("_", " ")} {made} made, {changed} changed' for section, (made, changed) in done.items())
+    return notes + [f'{sent.name}: {said}.'], None
+
+
+def _again(sent, data):
+    """``sent`` as a file to read again (its data read already)."""
+    import json
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    return SimpleUploadedFile(sent.name, json.dumps(data).encode('utf-8'))
+
+
+@login_required
+def ai_instructions(request):
+    """The instructions for an AI (``web.ai``), with what this Osmia has, as a Markdown file."""
+    from django.http import HttpResponse
+
+    from . import ai
+    response = HttpResponse(ai.describe(), content_type='text/markdown; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="osmia-ai-instructions.md"'
+    return response

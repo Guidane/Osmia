@@ -52,6 +52,7 @@
       <a href="{% url 'accounts:profile' %}">Profile</a>
       <a href="{% url 'accounts:password_change' %}">Change password</a>
       <a href="{% url 'accounts:departments' %}">Departments</a>
+      <a href="{% url 'web:import' %}">Import</a>
       {% if user.is_superuser %}<div class="sep"></div><div class="label">Administrator</div>
         <a href="{% url 'accounts:users' %}">Users</a>
         <a href="{% url 'web:demo' %}">Demo data</a>
