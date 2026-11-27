@@ -7,6 +7,7 @@ app_name = 'inventory'
 urlpatterns = [
     path('item-definitions/', views.definitions, name='definitions'),
     path('item-definitions/new/', views.definition_form, name='definition_new'),
+    path('item-definitions/import/', views.definitions_import, name='definitions_import'),
     path('item-definitions/find/', views.find, name='find'),
     path('item-definitions/<int:pk>/', views.definition, name='definition'),
     path('item-definitions/<int:pk>/brief/', views.definition_brief, name='definition_brief'),

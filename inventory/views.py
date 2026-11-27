@@ -99,9 +99,10 @@ def definition_brief(request, pk):
 def _definition_sheets(definitions):
     definitions = list(definitions)
     return [('Item definitions', ['Item number', 'Kind', 'Description', 'Category', 'Manufacturer', 'Manufacturer part number', 'Unit', 'Vendor',
-                       "Vendor's number", 'Last price', 'Minimum', 'On hand', 'Active'],
+                       "Vendor's number", 'Last price', 'Minimum', 'On hand', 'Active', 'Reorder quantity', 'Is asset', 'Datasheet', 'Notes'],
              [(p.number, p.get_kind_display(), p.description, p.category.path if p.category else '', p.manufacturer, p.mpn, p.unit,
-               p.vendor.name if p.vendor else '', p.vendor_number, p.price, p.minimum, p.have or 0, 'yes' if p.active else 'no') for p in definitions]),
+               p.vendor.name if p.vendor else '', p.vendor_number, p.price, p.minimum, p.have or 0, 'yes' if p.active else 'no',
+               p.reorder_quantity, 'yes' if p.is_asset else 'no', p.datasheet, p.notes) for p in definitions]),
             ('Records', ['Item number', 'Asset tag', 'Location', 'Quantity', 'Order', 'Since'],
              [(r.definition.number, r.tag or '', r.location.path if r.location else '', r.quantity,
                r.order_line.order.number if r.order_line else '', r.created_at.date())
@@ -542,3 +543,24 @@ def attribute_move(request, pk, attribute):
         for position, a in enumerate(order):
             Attribute.objects.filter(pk=a.pk).update(position=position)
     return redirect(f'{item.get_absolute_url()}#attributes')
+
+
+@login_required
+@require_POST
+def definitions_import(request):
+    """Item definitions from an Excel file (the sheet ⬇ Excel makes, edited): see ``imports``."""
+    from django.core.exceptions import ValidationError
+
+    from web.shortcuts import errors
+
+    from .imports import import_definitions
+    sent = request.FILES.get('file')
+    try:
+        made, changed, notes = import_definitions(sent)
+    except ValidationError as exc:
+        errors(request, exc)
+        return redirect('inventory:definitions')
+    messages.success(request, f'{sent.name}: {made} item definitions made, {changed} changed.')
+    for note in notes:
+        messages.info(request, note)
+    return redirect('inventory:definitions')

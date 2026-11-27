@@ -7,6 +7,7 @@ app_name = 'budgets'
 urlpatterns = [
     path('', views.budget_list, name='list'),
     path('new/', views.budget_form, name='new'),
+    path('import/', views.budgets_import, name='import'),
     path('<int:pk>/', views.budget, name='budget'),
     path('<int:pk>/edit/', views.budget_form, name='edit'),
     path('<int:pk>/costs/', views.cost_add, name='cost_add'),

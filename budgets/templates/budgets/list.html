@@ -5,6 +5,8 @@
 <p class="small"><a href="{% url 'orders:list' %}">← Orders</a></p>
 <div class="page-head"><h1>Budgets</h1><span class="spacer"></span>
   <a class="btn" href="?export=1{% if request.GET.all %}&amp;all=1{% endif %}">⬇ Excel</a>
+  <form method="post" action="{% url 'budgets:import' %}" enctype="multipart/form-data" class="inline-form">{% csrf_token %}
+    <label class="btn">⬆ Import<input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden data-import-file></label></form>
   <a class="btn primary" href="{% url 'budgets:new' %}{% if inside %}?parent={{ inside.pk }}{% endif %}">＋ New budget{% if inside %} in it{% endif %}</a></div>
 
 <div class="browser" data-param="budget">
@@ -32,4 +34,9 @@
   </aside>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}
+{% block scripts %}<script>
+  /* Import: the file picked is sent straight away. */
+  document.querySelectorAll('[data-import-file]').forEach(function (input) {
+    input.addEventListener('change', function () { if (input.files.length) input.form.submit(); });
+  });
+</script><script src="{% fresh 'web/browser.js' %}"></script>{% endblock %}

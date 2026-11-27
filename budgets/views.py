@@ -47,9 +47,12 @@ def budget_list(request):
         rows = [r for r in rows if r[0].active]
     if request.GET.get('export'):
         return excel.download('budgets', [('Budgets', ['Number', 'Name', 'Part of', 'Setup', 'Owner', 'Amount', 'Received',
-                                                       'Still to come', 'Other costs', 'Spent', 'Left', 'Used %', 'In drafts'],
+                                                       'Still to come', 'Other costs', 'Spent', 'Left', 'Used %', 'In drafts',
+                                                       'Department', 'Starts', 'Ends', 'Active', 'Notes'],
                                            [(b.number, b.name, str(b.parent or ''), str(b.setup or ''), str(b.owner or ''), b.amount,
-                                             t.received, t.coming, t.costs, t.spent, t.remaining, t.used, t.planned) for b, _, t in rows])])
+                                             t.received, t.coming, t.costs, t.spent, t.remaining, t.used, t.planned,
+                                             b.department.path if b.department else '', b.starts_on, b.ends_on, 'yes' if b.active else 'no', b.notes)
+                                            for b, _, t in rows])])
     from web import briefs, browse
     inside = Budget.objects.filter(pk=request.GET.get('in') or 0).first()
     shown = {b.pk for b, _, _ in rows}
@@ -116,3 +119,22 @@ def cost_add(request, pk):
 def cost_delete(request, pk, cost):
     get_object_or_404(Cost, pk=cost, budget_id=pk).delete()
     return redirect(f'{Budget.objects.get(pk=pk).get_absolute_url()}#costs')
+
+
+@login_required
+@require_POST
+def budgets_import(request):
+    """Budgets from an Excel file (the sheet ⬇ Excel makes, edited): see ``imports``."""
+    from django.core.exceptions import ValidationError
+
+    from web.shortcuts import errors
+
+    from .imports import import_budgets
+    sent = request.FILES.get('file')
+    try:
+        made, changed = import_budgets(sent)
+    except ValidationError as exc:
+        errors(request, exc)
+        return redirect('budgets:list')
+    messages.success(request, f'{sent.name}: {made} budgets made, {changed} changed.')
+    return redirect('budgets:list')
